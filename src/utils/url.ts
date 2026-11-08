@@ -30,3 +30,18 @@ export function instagramUrl(valor?: string): string | null {
   const usuario = v.replace(/^@/, ""); // remove o @ se houver
   return `https://instagram.com/${usuario}`;
 }
+
+/**
+ * Formata uma data ISO (YYYY-MM-DD) para pt-BR por extenso, sem depender
+ * do fuso do servidor. Ex.: "2026-12-15" -> "15 de dezembro de 2026".
+ */
+export function formatarData(iso: string): string {
+  const [ano, mes, dia] = iso.split("-").map(Number);
+  if (!ano || !mes || !dia) return iso;
+  const data = new Date(ano, mes - 1, dia);
+  return data.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+}

@@ -1,0 +1,169 @@
+---
+import type { Campeonato } from "../../types";
+import campeonatosData from "../../data/campeonatos.json";
+import Layout from "../../layouts/Layout.astro";
+import { comBase, instagramUrl, formatarData } from "../../utils/url";
+
+const campeonatos = campeonatosData as Campeonato[];
+
+// Gera uma página estática para cada campeonato, usando o `id` na URL.
+export function getStaticPaths() {
+  const lista = campeonatosData as Campeonato[];
+  return lista.map((campeonato) => ({
+    params: { id: campeonato.id },
+    props: { campeonato },
+  }));
+}
+
+interface Props {
+  campeonato: Campeonato;
+}
+
+const { campeonato } = Astro.props;
+const instagram = instagramUrl(campeonato.instagram);
+---
+
+<Layout
+  titulo={`${campeonato.nome} — futevôlei`}
+  descricao={campeonato.descricao}
+>
+  <article class="detalhe">
+    <a class="detalhe__voltar" href={comBase("/")}>
+      <span aria-hidden="true">←</span> Voltar aos campeonatos
+    </a>
+
+    <div class="detalhe__foto">
+      <img
+        src={comBase(campeonato.foto)}
+        alt={`Arte do campeonato ${campeonato.nome}`}
+        decoding="async"
+      />
+    </div>
+
+    <h1 class="detalhe__nome">{campeonato.nome}</h1>
+
+    <p class="detalhe__meta">
+      <span class="detalhe__meta-item">📅 {formatarData(campeonato.data)}</span>
+      <span class="detalhe__meta-item">📍 {campeonato.local}</span>
+    </p>
+
+    <p class="detalhe__descricao">{campeonato.descricao}</p>
+
+    {
+      instagram && (
+        <a
+          class="detalhe__instagram"
+          href={instagram}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <rect
+              x="3"
+              y="3"
+              width="18"
+              height="18"
+              rx="5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+            />
+            <circle
+              cx="12"
+              cy="12"
+              r="4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+            />
+            <circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" />
+          </svg>
+          <span>Ver no Instagram</span>
+        </a>
+      )
+    }
+  </article>
+</Layout>
+
+<style>
+  .detalhe {
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 3rem;
+  }
+
+  .detalhe__voltar {
+    display: inline-block;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--cor-texto-suave);
+    text-decoration: none;
+  }
+
+  .detalhe__voltar:hover {
+    color: var(--cor-destaque);
+  }
+
+  .detalhe__foto {
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid var(--cor-borda);
+    background: var(--cor-borda);
+  }
+
+  /* No detalhe mostramos a imagem inteira (sem cortar), pois a arte costuma
+     conter regras, categorias e valores. */
+  .detalhe__foto img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .detalhe__nome {
+    font-size: 1.5rem;
+    line-height: 1.25;
+    margin: 1.25rem 0 0;
+  }
+
+  .detalhe__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1rem;
+    margin: 0.75rem 0 0;
+    font-size: 0.95rem;
+    color: var(--cor-texto-suave);
+  }
+
+  .detalhe__descricao {
+    margin: 1rem 0 0;
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--cor-texto);
+  }
+
+  .detalhe__instagram {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+    padding: 0.7rem 1.2rem;
+    border: none;
+    border-radius: 999px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-decoration: none;
+    color: #ffffff;
+    background: linear-gradient(90deg, #f58529, #dd2a7b, #8134af);
+    transition: opacity 0.15s ease;
+  }
+
+  .detalhe__instagram:hover {
+    opacity: 0.9;
+  }
+
+  .detalhe__instagram svg {
+    flex-shrink: 0;
+  }
+</style>
