@@ -102,9 +102,43 @@ Registro das decisões discutidas, com a data e o porquê.
 
 > O campo `instagram` é **opcional**. Aceita `@usuario`, `usuario` ou a URL completa. Quando presente, o card exibe um botão "Ver no Instagram"; quando ausente, o botão não aparece.
 
-### Fase 2 (planejada) — backend-as-a-service
+### Fase 2 e 3 (planejadas) — backend, autenticação e tempo real
 
-Troca a fonte de dados do JSON local por **Supabase** (banco + auth + storage). O front em Astro continua; só passamos a buscar os campeonatos do Supabase e adicionamos login, painel de admin e a função de salvar.
+**Decisão de arquitetura:** front estático + Supabase como backend. A hospedagem do site migra do GitHub Pages para a **Vercel** quando forem necessárias funções de servidor. O Supabase **não** hospeda o site — cuida apenas do backend.
+
+**Quem faz o quê**
+
+| Camada | Serviço |
+|---|---|
+| Site / frontend (páginas, imagens) | Vercel (hoje: GitHub Pages) |
+| Funções de servidor (segredos, validações sensíveis) | Vercel (serverless) |
+| Banco de dados (usuários, inscrições, resultados) | Supabase (Postgres) |
+| Login (Google / e-mail) | Supabase Auth |
+| Perfis e permissões (ex.: só organizador altera placar) | Supabase + Row Level Security (RLS) |
+| Placar ao vivo (tempo real) | Supabase Realtime |
+
+**Custos (faixas típicas — confirmar nos sites oficiais)**
+
+- Início: **US$ 0/mês** (planos free de Vercel + Supabase).
+- Produção com eventos: **~US$ 25–45/mês** (Supabase Pro; Vercel Pro se necessário).
+- Entre campeonatos: **~zero** (escala por uso).
+
+**Capacidade alvo: ~200 usuários simultâneos no pico**
+
+- Hospedagem/CDN: aguenta milhares de leitores — nunca é o gargalo.
+- Supabase Free: ~até 200 conexões realtime simultâneas (cobre piloto, fica no limite).
+- Supabase Pro (~US$ 25): ~500 conexões realtime — folga confortável para os 200.
+- Números de ordem de grandeza; confirmar com teste de carga antes de um evento grande.
+
+**Login:** "login com Instagram" foi **descartado** — a API foi descontinuada pela Meta, exige App Review demorado e entrega poucos dados úteis. Caminho adotado: **Google + e-mail** via Supabase Auth.
+
+**Placar ao vivo — por que precisa de backend:** o frontend exibe o placar, mas um navegador não consegue avisar os outros quando o placar muda. O **Supabase Realtime** é o intermediário que empurra a mudança para todos os clientes conectados. A permissão de "só o organizador altera o placar" é garantida por **RLS no banco** (regra no servidor, à prova de burla pelo frontend).
+
+**Sequência de implementação**
+
+1. **Fase 2a — Fundação:** migrar para Supabase, login Google, banco de usuários/perfis.
+2. **Fase 2b — Inscrição** em campeonato (pessoa logada se inscreve).
+3. **Fase 3 — Chaveamento e placar ao vivo** (realtime), feito por último por ser o mais complexo.
 
 ---
 
