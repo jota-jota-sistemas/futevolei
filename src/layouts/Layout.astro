@@ -1,5 +1,6 @@
 ---
 import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
 import { comBase } from "../utils/url";
 
 interface Props {
@@ -8,8 +9,9 @@ interface Props {
 }
 
 const {
-  titulo = "futevôlei — campeonatos",
-  descricao = "Lista de campeonatos de futevôlei em um feed vertical de fotos.",
+  titulo = "Pingo — futevôlei",
+  descricao =
+    "Campeonatos, partidas e experiências de futevôlei em um só lugar.",
 } = Astro.props;
 ---
 
@@ -27,30 +29,38 @@ const {
     <main>
       <slot />
     </main>
+    <Footer />
   </body>
 </html>
 
 <style is:global>
   :root {
-    --cor-fundo: #fafafa;
-    --cor-superficie: #ffffff;
-    --cor-borda: #e6e6e6;
+    /* Marca / destaque — laranja vibrante */
+    --cor-destaque: #f97316;
+    --cor-destaque-forte: #ea580c;
+    --cor-destaque-suave: #fff1e6;
+
+    /* Superfícies claras */
+    --cor-fundo: #fdf8f1; /* creme / off-white */
+    --cor-superficie: #ffffff; /* cards brancos */
+    --cor-borda: #ece3d6;
+
+    /* Zonas escuras — header e footer */
+    --cor-escuro: #14110f;
+    --cor-escuro-2: #241f1b;
+    --cor-borda-escura: #342d27;
+
+    /* Texto */
     --cor-texto: #1a1a1a;
     --cor-texto-suave: #6b6b6b;
-    --cor-destaque: #0b8a4f; /* verde praia/quadra */
+    --cor-texto-claro: #f7f3ee;
+    --cor-texto-claro-suave: #b9b0a6;
 
-    color-scheme: light dark;
-  }
+    /* Layout */
+    --largura-conteudo: 1200px;
+    --raio-card: 16px;
 
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --cor-fundo: #0f0f0f;
-      --cor-superficie: #1a1a1a;
-      --cor-borda: #2e2e2e;
-      --cor-texto: #f2f2f2;
-      --cor-texto-suave: #a0a0a0;
-      --cor-destaque: #22c37a;
-    }
+    color-scheme: light; /* paleta fixa PINGO; sem dark mode do SO */
   }
 
   * {
@@ -76,6 +86,10 @@ const {
     line-height: 1.5;
   }
 
+  main {
+    min-height: 40vh;
+  }
+
   img {
     max-width: 100%;
   }
@@ -83,5 +97,39 @@ const {
   :focus-visible {
     outline: 2px solid var(--cor-destaque);
     outline-offset: 2px;
+  }
+
+  /* Botão de destaque laranja reutilizável */
+  .btn-destaque {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.7rem 1.3rem;
+    border: none;
+    border-radius: 999px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #ffffff;
+    background: var(--cor-destaque);
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.15s ease, transform 0.15s ease;
+  }
+
+  .btn-destaque:hover {
+    background: var(--cor-destaque-forte);
+  }
+
+  /* Controle placeholder: visual presente, porém inerte ("disponível em breve") */
+  .placeholder {
+    cursor: not-allowed;
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  .btn-destaque.placeholder:hover {
+    background: var(--cor-destaque);
+    transform: none;
   }
 </style>

@@ -1,40 +1,62 @@
 ---
-import { comBase } from "../utils/url";
+import BrandLogo from "./BrandLogo.astro";
 ---
 
 <header class="header">
   <div class="header__conteudo">
-    <a class="header__logo" href={comBase("/")}>
-      <span class="header__logo-icone" aria-hidden="true">🏐</span>
-      <span class="header__logo-texto">futevôlei</span>
-    </a>
+    <BrandLogo variante="escuro" comLink={true} />
 
-    <!-- Busca: inativa na Fase 1, ativada quando houver mais campeonatos. -->
-    <button
-      class="header__busca"
-      type="button"
-      aria-label="Buscar campeonatos (disponível em breve)"
-      title="Buscar campeonatos (disponível em breve)"
-      disabled
-    >
-      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-        <circle
-          cx="11"
-          cy="11"
-          r="7"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"></circle>
-        <line
-          x1="16.5"
-          y1="16.5"
-          x2="21"
-          y2="21"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"></line>
-      </svg>
-    </button>
+    <nav class="header__nav" aria-label="Navegação principal">
+      <a
+        class="header__link placeholder"
+        aria-disabled="true"
+        title="Eventos (disponível em breve)">Eventos</a
+      >
+      <a
+        class="header__link placeholder"
+        aria-disabled="true"
+        title="Como funciona (disponível em breve)">Como funciona</a
+      >
+      <a
+        class="header__link placeholder"
+        aria-disabled="true"
+        title="Para organizadores (disponível em breve)">Para organizadores</a
+      >
+    </nav>
+
+    <div class="header__acoes">
+      <button
+        class="btn-destaque placeholder"
+        type="button"
+        disabled
+        title="Criar evento (disponível em breve)"
+      >
+        <span aria-hidden="true">+</span> Criar evento
+      </button>
+      <button
+        class="header__conta placeholder"
+        type="button"
+        disabled
+        aria-label="Minha conta (disponível em breve)"
+        title="Minha conta (disponível em breve)"
+      >
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <circle
+            cx="12"
+            cy="8"
+            r="4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"></circle>
+          <path
+            d="M4 20c0-4 4-6 8-6s8 2 8 6"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"></path>
+        </svg>
+      </button>
+    </div>
   </div>
 </header>
 
@@ -43,44 +65,60 @@ import { comBase } from "../utils/url";
     position: sticky;
     top: 0;
     z-index: 10;
-    background: var(--cor-superficie);
-    border-bottom: 1px solid var(--cor-borda);
-    backdrop-filter: saturate(180%) blur(8px);
+    background: var(--cor-escuro);
+    border-bottom: 1px solid var(--cor-borda-escura);
   }
 
   .header__conteudo {
-    max-width: 480px;
+    max-width: var(--largura-conteudo);
     margin: 0 auto;
-    padding: 0.75rem 1rem;
+    padding: 0.85rem 1.5rem;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 1.5rem;
   }
 
-  .header__logo {
+  .header__nav {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 1.5rem;
+    flex: 1;
+  }
+
+  .header__link {
+    color: var(--cor-texto-claro);
     text-decoration: none;
-    color: var(--cor-texto);
+    font-size: 0.95rem;
+    font-weight: 500;
+    position: relative;
   }
 
-  .header__logo-icone {
-    font-size: 1.4rem;
+  .header__acoes {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-left: auto;
   }
 
-  .header__logo-texto {
-    font-size: 1.25rem;
-    font-weight: 700;
-    letter-spacing: -0.01em;
+  .header__conta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    border: 1px solid var(--cor-borda-escura);
+    background: var(--cor-escuro-2);
+    color: var(--cor-texto-claro);
   }
 
-  .header__busca {
-    background: none;
-    border: none;
-    padding: 0.3rem;
-    color: var(--cor-texto-suave);
-    cursor: not-allowed;
-    opacity: 0.45;
+  @media (max-width: 767px) {
+    .header__nav {
+      display: none;
+    }
+
+    .header__conteudo {
+      padding: 0.75rem 1rem;
+    }
   }
 </style>

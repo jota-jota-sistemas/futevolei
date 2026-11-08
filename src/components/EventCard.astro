@@ -1,0 +1,180 @@
+---
+import type { Campeonato } from "../types";
+import { comBase, formatarData } from "../utils/url";
+
+interface Props {
+  campeonato: Campeonato;
+}
+
+const { campeonato } = Astro.props;
+
+const MESES_CURTOS = [
+  "JAN", "FEV", "MAR", "ABR", "MAI", "JUN",
+  "JUL", "AGO", "SET", "OUT", "NOV", "DEZ",
+];
+
+// Badge de data: dia + mês abreviado (ex.: "13 NOV"), independente de fuso.
+function badge(iso: string): { dia: string; mes: string } | null {
+  const [ano, mes, dia] = iso.split("-").map(Number);
+  if (!ano || !mes || !dia) return null;
+  return { dia: String(dia).padStart(2, "0"), mes: MESES_CURTOS[mes - 1] };
+}
+
+const dataBadge = badge(campeonato.data);
+const temFoto = campeonato.foto?.trim();
+const temLocal = campeonato.local?.trim();
+const temDescricao = campeonato.descricao?.trim();
+
+// "Ver evento" leva à página de detalhe já existente (/campeonatos/{id}).
+const href = comBase(`/campeonatos/${campeonato.id}`);
+---
+
+<article class="event-card">
+  <a
+    class="event-card__midia"
+    href={href}
+    aria-label={`Ver evento ${campeonato.nome}`}
+  >
+    {
+      temFoto ? (
+        <img
+          class="event-card__img"
+          src={comBase(campeonato.foto)}
+          alt={`Arte do evento ${campeonato.nome}`}
+          loading="lazy"
+          decoding="async"
+        />
+      ) : (
+        <div class="event-card__img event-card__img--vazia" aria-hidden="true" />
+      )
+    }
+    {
+      dataBadge && (
+        <span class="event-card__badge">
+          <span class="event-card__badge-dia">{dataBadge.dia}</span>
+          <span class="event-card__badge-mes">{dataBadge.mes}</span>
+        </span>
+      )
+    }
+  </a>
+
+  <div class="event-card__corpo">
+    <h3 class="event-card__nome">{campeonato.nome}</h3>
+    <p class="event-card__meta">📅 {formatarData(campeonato.data)}</p>
+    {
+      temLocal && (
+        <p class="event-card__meta">📍 {campeonato.local}</p>
+      )
+    }
+    {
+      temDescricao && (
+        <p class="event-card__descricao">{campeonato.descricao}</p>
+      )
+    }
+    <a class="btn-destaque event-card__cta" href={href}>
+      Ver evento <span aria-hidden="true">→</span>
+    </a>
+  </div>
+</article>
+
+<style>
+  .event-card {
+    display: flex;
+    flex-direction: column;
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-card);
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .event-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+  }
+
+  .event-card__midia {
+    position: relative;
+    display: block;
+    aspect-ratio: 4 / 3;
+    background: var(--cor-borda);
+  }
+
+  .event-card__img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .event-card__img--vazia {
+    width: 100%;
+    height: 100%;
+    background: var(--cor-destaque-suave);
+  }
+
+  .event-card__badge {
+    position: absolute;
+    top: 0.6rem;
+    left: 0.6rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: var(--cor-destaque);
+    color: #ffffff;
+    border-radius: 10px;
+    padding: 0.35rem 0.55rem;
+    line-height: 1;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  }
+
+  .event-card__badge-dia {
+    font-size: 1.1rem;
+    font-weight: 800;
+  }
+
+  .event-card__badge-mes {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+
+  .event-card__corpo {
+    display: flex;
+    flex-direction: column;
+    padding: 1rem 1.1rem 1.2rem;
+    flex: 1;
+  }
+
+  .event-card__nome {
+    font-size: 1.1rem;
+    line-height: 1.3;
+    margin: 0 0 0.5rem;
+  }
+
+  .event-card__meta {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0.15rem 0;
+    font-size: 0.85rem;
+    color: var(--cor-texto-suave);
+  }
+
+  .event-card__descricao {
+    margin: 0.6rem 0 0;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--cor-texto);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .event-card__cta {
+    margin-top: 1rem;
+    align-self: stretch;
+  }
+</style>

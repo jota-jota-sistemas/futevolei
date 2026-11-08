@@ -1,0 +1,105 @@
+---
+import type { Campeonato } from "../types";
+import campeonatosData from "../data/campeonatos.json";
+import EventCard from "./EventCard.astro";
+
+const campeonatos = campeonatosData as Campeonato[];
+
+// Ordena por data (asc); desempate por id para uma ordem determinística.
+const ordenados = [...campeonatos].sort(
+  (a, b) => a.data.localeCompare(b.data) || a.id.localeCompare(b.id),
+);
+---
+
+<section class="eventos" aria-label="Próximos eventos">
+  <div class="eventos__conteudo">
+    <div class="eventos__topo">
+      <h2 class="eventos__titulo">
+        <span class="eventos__barra" aria-hidden="true"></span>
+        Próximos eventos
+      </h2>
+      <span class="eventos__ver-todos placeholder" aria-disabled="true"
+        title="Ver todos os eventos (disponível em breve)"
+      >Ver todos os eventos →</span>
+    </div>
+
+    {
+      ordenados.length === 0 ? (
+        <p class="eventos__vazio">Nenhum evento cadastrado no momento.</p>
+      ) : (
+        <div class="eventos__grid">
+          {ordenados.map((c) => <EventCard campeonato={c} />)}
+        </div>
+      )
+    }
+  </div>
+</section>
+
+<style>
+  .eventos__conteudo {
+    max-width: var(--largura-conteudo);
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 1rem;
+  }
+
+  .eventos__topo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .eventos__titulo {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 1.5rem;
+    font-weight: 800;
+    margin: 0;
+  }
+
+  .eventos__barra {
+    width: 5px;
+    height: 1.4rem;
+    border-radius: 3px;
+    background: var(--cor-destaque);
+  }
+
+  .eventos__ver-todos {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--cor-destaque);
+    text-decoration: none;
+  }
+
+  .eventos__vazio {
+    text-align: center;
+    color: var(--cor-texto-suave);
+    padding: 3rem 0;
+  }
+
+  .eventos__grid {
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: 1fr; /* mobile: 1 coluna */
+  }
+
+  @media (min-width: 768px) {
+    .eventos__grid {
+      grid-template-columns: repeat(2, 1fr); /* tablet: 2 colunas */
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .eventos__grid {
+      grid-template-columns: repeat(4, 1fr); /* desktop: 4 colunas */
+    }
+  }
+
+  @media (max-width: 767px) {
+    .eventos__conteudo {
+      padding: 2rem 1rem 1rem;
+    }
+  }
+</style>
