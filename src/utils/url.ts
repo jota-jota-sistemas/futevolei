@@ -12,3 +12,21 @@ export function comBase(caminho: string): string {
   const limpo = caminho.replace(/^\//, ""); // remove a barra inicial do caminho
   return base.endsWith("/") ? base + limpo : base + "/" + limpo;
 }
+
+/**
+ * Normaliza o valor de `instagram` de um campeonato para uma URL completa.
+ * Aceita "@usuario", "usuario" ou uma URL completa (http/https).
+ * Retorna null se o valor for vazio/ausente.
+ *
+ * Ex.: instagramUrl("@msscup_")                     -> "https://instagram.com/msscup_"
+ *      instagramUrl("copa_cabeca")                  -> "https://instagram.com/copa_cabeca"
+ *      instagramUrl("https://instagram.com/x/")     -> "https://instagram.com/x/"
+ */
+export function instagramUrl(valor?: string): string | null {
+  if (!valor) return null;
+  const v = valor.trim();
+  if (v === "") return null;
+  if (/^https?:\/\//i.test(v)) return v; // já é URL completa
+  const usuario = v.replace(/^@/, ""); // remove o @ se houver
+  return `https://instagram.com/${usuario}`;
+}

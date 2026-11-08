@@ -11,4 +11,10 @@ export interface Campeonato {
   foto: string;
   /** descrição curta exibida no card */
   descricao: string;
+  /**
+   * Instagram do evento (opcional). Aceita o @usuario, o usuario sem @,
+   * ou a URL completa (https://instagram.com/usuario). Se ausente, o
+   * botão do Instagram não é exibido no card.
+   */
+  instagram?: string;
 }
