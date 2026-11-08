@@ -1,0 +1,86 @@
+---
+import Header from "../components/Header.astro";
+
+interface Props {
+  titulo?: string;
+  descricao?: string;
+}
+
+const {
+  titulo = "futevôlei — campeonatos",
+  descricao = "Lista de campeonatos de futevôlei em um feed vertical de fotos.",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={descricao} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{titulo}</title>
+  </head>
+  <body>
+    <Header />
+    <main>
+      <slot />
+    </main>
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    --cor-fundo: #fafafa;
+    --cor-superficie: #ffffff;
+    --cor-borda: #e6e6e6;
+    --cor-texto: #1a1a1a;
+    --cor-texto-suave: #6b6b6b;
+    --cor-destaque: #0b8a4f; /* verde praia/quadra */
+
+    color-scheme: light dark;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --cor-fundo: #0f0f0f;
+      --cor-superficie: #1a1a1a;
+      --cor-borda: #2e2e2e;
+      --cor-texto: #f2f2f2;
+      --cor-texto-suave: #a0a0a0;
+      --cor-destaque: #22c37a;
+    }
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family:
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      Roboto,
+      Helvetica,
+      Arial,
+      sans-serif;
+    background: var(--cor-fundo);
+    color: var(--cor-texto);
+    line-height: 1.5;
+  }
+
+  img {
+    max-width: 100%;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--cor-destaque);
+    outline-offset: 2px;
+  }
+</style>

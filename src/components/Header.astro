@@ -1,0 +1,85 @@
+---
+---
+
+<header class="header">
+  <div class="header__conteudo">
+    <a class="header__logo" href="/">
+      <span class="header__logo-icone" aria-hidden="true">🏐</span>
+      <span class="header__logo-texto">futevôlei</span>
+    </a>
+
+    <!-- Busca: inativa na Fase 1, ativada quando houver mais campeonatos. -->
+    <button
+      class="header__busca"
+      type="button"
+      aria-label="Buscar campeonatos (disponível em breve)"
+      title="Buscar campeonatos (disponível em breve)"
+      disabled
+    >
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <circle
+          cx="11"
+          cy="11"
+          r="7"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"></circle>
+        <line
+          x1="16.5"
+          y1="16.5"
+          x2="21"
+          y2="21"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"></line>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<style>
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--cor-superficie);
+    border-bottom: 1px solid var(--cor-borda);
+    backdrop-filter: saturate(180%) blur(8px);
+  }
+
+  .header__conteudo {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .header__logo {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    color: var(--cor-texto);
+  }
+
+  .header__logo-icone {
+    font-size: 1.4rem;
+  }
+
+  .header__logo-texto {
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .header__busca {
+    background: none;
+    border: none;
+    padding: 0.3rem;
+    color: var(--cor-texto-suave);
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+</style>

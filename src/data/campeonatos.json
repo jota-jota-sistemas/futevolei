@@ -1,0 +1,34 @@
+[
+  {
+    "id": "aberto-de-verao-2026",
+    "nome": "Aberto de Verão 2026",
+    "data": "2026-12-15",
+    "local": "Praia de Copacabana, Rio de Janeiro",
+    "foto": "/campeonatos/aberto-de-verao-2026.svg",
+    "descricao": "Campeonato aberto com categorias masculina, feminina e mista. Premiação para os três primeiros de cada chave."
+  },
+  {
+    "id": "circuito-nordeste-2026",
+    "nome": "Circuito Nordeste 2026",
+    "data": "2026-11-28",
+    "local": "Praia de Boa Viagem, Recife",
+    "foto": "/campeonatos/circuito-nordeste-2026.svg",
+    "descricao": "Etapa pernambucana do circuito nordestino de futevôlei. Duplas de todos os níveis."
+  },
+  {
+    "id": "copa-litoral-sul-2026",
+    "nome": "Copa Litoral Sul 2026",
+    "data": "2026-12-05",
+    "local": "Praia de Mariscal, Bombinhas",
+    "foto": "/campeonatos/copa-litoral-sul-2026.svg",
+    "descricao": "Primeira edição da Copa Litoral Sul. Categorias iniciante, intermediário e profissional."
+  },
+  {
+    "id": "desafio-das-areias-2027",
+    "nome": "Desafio das Areias 2027",
+    "data": "2027-01-18",
+    "local": "Praia do Futuro, Fortaleza",
+    "foto": "/campeonatos/desafio-das-areias-2027.svg",
+    "descricao": "Torneio de verão com transmissão ao vivo e presença de atletas profissionais."
+  }
+]
