@@ -2,68 +2,43 @@
 import { comBase } from "../utils/url";
 
 interface Props {
-  /** "escuro" = usado sobre header/footer escuros; "claro" = sobre fundo areia */
+  /** "escuro" = usado sobre header/footer azul-marinho; "claro" = sobre fundo areia */
   variante?: "claro" | "escuro";
   /** quando true, envolve a marca num link para a home */
   comLink?: boolean;
 }
 
 const { variante = "claro", comLink = false } = Astro.props;
-const classeVariante = variante === "escuro" ? "marca--escuro" : "marca--claro";
 const Tag = comLink ? "a" : "div";
 const attrs = comLink ? { href: comBase("/") } : {};
 
 /*
- * Logo "Pingo FTV" como SVG inline recolorível por variante.
+ * Logo oficial "Pingo FTV" (arte PNG com fundo transparente).
  *
- * Composição: símbolo (bola de futevôlei + silhueta de jogador estilizada) +
- * wordmark "PINGO" + bloco "FTV". As cores são aplicadas via CSS por variante
- * (ver <style> abaixo), usando os tokens do tema:
- *   - escuro (header/footer azul-marinho): PINGO branco, FTV + símbolo turquesa
- *   - claro  (sobre areia):                PINGO azul-marinho, FTV + símbolo turquesa escurecido
+ * São duas versões da MESMA arte, escolhidas pela variante para garantir
+ * contraste do wordmark:
+ *   - claro  (sobre areia): logo original, com "PINGO" em azul-marinho.
+ *   - escuro (header/footer azul-marinho): versão com "PINGO"/"FTV" em branco,
+ *     gerada a partir do original por scripts/gerar-logo-claro.mjs. O símbolo
+ *     turquesa e o bloco "FTV" turquesa são idênticos nas duas.
  *
- * ALTERNATIVA — reverter para <img>:
- * Caso a arte final seja fornecida (PNG ou SVG com fundo transparente), basta
- * colocar o arquivo em public/ (ex. public/logo-pingo.png) e substituir o <svg>
- * abaixo por:
- *     <img class="marca__img" src={comBase("/logo-pingo.png")} alt="Pingo FTV"
- *          width="140" height="47" />
- * mantendo alt="Pingo FTV". O SVG inline é o caminho padrão por permitir
- * controle total de cor por variante sem editar binários de imagem.
+ * Proporção da arte: 1388x413 (~3.36:1). A altura é fixada via CSS e a largura
+ * acompanha automaticamente.
  */
+const logo =
+  variante === "escuro"
+    ? comBase("/logo-pingo-ftv-claro.png")
+    : comBase("/logo-pingo-ftv.png");
 ---
 
-<Tag class={`marca ${classeVariante}`} {...attrs} aria-label="Pingo FTV">
-  <svg
-    class="marca__svg"
-    viewBox="0 0 164 48"
-    width="140"
-    height="41"
-    role="img"
-    aria-label="Pingo FTV"
-  >
-    <!-- Símbolo: bola + jogador estilizado (dando um toque na bola) -->
-    <g class="marca__simbolo">
-      <!-- bola de futevôlei -->
-      <circle cx="18" cy="14" r="7" />
-      <!-- costuras da bola (recorte sobre o fundo) -->
-      <path
-        class="marca__bola-linha"
-        d="M18 7.5c-2.6 1.4-4.2 3.8-4.2 6.5s1.6 5.1 4.2 6.5c2.6-1.4 4.2-3.8 4.2-6.5S20.6 8.9 18 7.5z"
-      />
-      <!-- jogador estilizado: cabeça + corpo em arco (bicicleta/toque) -->
-      <circle cx="9" cy="30" r="3.2" />
-      <path
-        d="M11 34c3.5-1 7.5-.4 10.5 2 2.1 1.7 3.4 4 3.8 6.6-2.4-.3-4.3-1.3-5.9-2.9-2.3-2.3-5.3-3.4-8.4-3.1-1.6.2-2.9-.9-2.6-2.4.2-1 1.2-1.6 2.6-2.2z"
-      />
-    </g>
-
-    <!-- Wordmark -->
-    <text class="marca__wordmark" x="34" y="33">PINGO</text>
-    <!-- Bloco "FTV" destacado -->
-    <rect class="marca__ftv-bloco" x="123" y="16" width="39" height="21" rx="4" />
-    <text class="marca__ftv" x="142.5" y="31">FTV</text>
-  </svg>
+<Tag class="marca" {...attrs}>
+  <img
+    class="marca__img"
+    src={logo}
+    alt="Pingo FTV"
+    width="1388"
+    height="413"
+  />
 </Tag>
 
 <style>
@@ -74,60 +49,15 @@ const attrs = comLink ? { href: comBase("/") } : {};
     line-height: 0;
   }
 
-  .marca__svg {
+  .marca__img {
     display: block;
     height: 40px;
     width: auto;
   }
 
-  .marca__wordmark {
-    font-family:
-      "Trebuchet MS", "Segoe UI", system-ui, -apple-system, sans-serif;
-    font-size: 22px;
-    font-weight: 800;
-    letter-spacing: 0.5px;
-  }
-
-  .marca__ftv {
-    font-family:
-      "Trebuchet MS", "Segoe UI", system-ui, -apple-system, sans-serif;
-    font-size: 13px;
-    font-weight: 800;
-    letter-spacing: 1px;
-    text-anchor: middle;
-  }
-
-  /* Variante escuro (sobre azul-marinho) */
-  .marca--escuro .marca__simbolo {
-    fill: var(--cor-destaque);
-  }
-  .marca--escuro .marca__bola-linha {
-    fill: var(--cor-escuro);
-  }
-  .marca--escuro .marca__wordmark {
-    fill: var(--cor-texto-claro);
-  }
-  .marca--escuro .marca__ftv-bloco {
-    fill: var(--cor-destaque);
-  }
-  .marca--escuro .marca__ftv {
-    fill: var(--cor-destaque-contraste);
-  }
-
-  /* Variante claro (sobre areia) */
-  .marca--claro .marca__simbolo {
-    fill: var(--cor-destaque-texto);
-  }
-  .marca--claro .marca__bola-linha {
-    fill: var(--cor-superficie);
-  }
-  .marca--claro .marca__wordmark {
-    fill: var(--cor-texto);
-  }
-  .marca--claro .marca__ftv-bloco {
-    fill: var(--cor-destaque-texto);
-  }
-  .marca--claro .marca__ftv {
-    fill: var(--cor-texto-claro);
+  @media (min-width: 768px) {
+    .marca__img {
+      height: 44px;
+    }
   }
 </style>

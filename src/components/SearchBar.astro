@@ -1,5 +1,7 @@
 ---
 // Barra de busca: visual da referência, inerte na fase atual ("disponível em breve").
+// CSS mobile-first: base é coluna única (mobile); a partir de 768px vira a
+// barra horizontal arredondada com divisores entre os campos.
 ---
 
 <form class="busca" aria-label="Buscar eventos" onsubmit="return false">
@@ -56,23 +58,23 @@
 </form>
 
 <style>
+  /* ---- Base: mobile (coluna única) ---- */
   .busca {
     display: grid;
-    grid-template-columns: repeat(3, 1fr) auto;
-    align-items: center;
-    gap: 0.5rem;
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
     background: var(--cor-superficie);
-    border-radius: 999px;
-    padding: 0.5rem 0.5rem 0.5rem 1rem;
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+    border-radius: var(--raio-card);
+    padding: 0.75rem;
+    box-shadow: 0 12px 30px rgba(16, 42, 67, 0.18);
   }
 
   .busca__campo {
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    padding: 0.35rem 0.75rem;
-    border-right: 1px solid var(--cor-borda);
+    padding: 0.6rem 0.25rem;
+    border-bottom: 1px solid var(--cor-borda);
   }
 
   .busca__texto {
@@ -103,25 +105,29 @@
 
   .busca__botao {
     white-space: nowrap;
+    margin-top: 0.5rem;
+    width: 100%;
   }
 
-  @media (max-width: 767px) {
+  /* ---- A partir de 768px: barra horizontal arredondada ---- */
+  @media (min-width: 768px) {
     .busca {
-      grid-template-columns: 1fr;
-      border-radius: var(--raio-card);
-      padding: 0.75rem;
-      gap: 0.25rem;
+      grid-template-columns: repeat(3, 1fr) auto;
+      align-items: center;
+      gap: 0.5rem;
+      border-radius: 999px;
+      padding: 0.5rem 0.5rem 0.5rem 1rem;
     }
 
     .busca__campo {
-      border-right: none;
-      border-bottom: 1px solid var(--cor-borda);
-      padding: 0.6rem 0.25rem;
+      padding: 0.35rem 0.75rem;
+      border-bottom: none;
+      border-right: 1px solid var(--cor-borda);
     }
 
     .busca__botao {
-      margin-top: 0.5rem;
-      width: 100%;
+      margin-top: 0;
+      width: auto;
     }
   }
 </style>

@@ -1,19 +1,37 @@
-// Gera public/icone.png a partir de public/icone.svg (marca turquesa PINGO FTV).
+// Gera public/icone.png (favicon) a partir do símbolo oficial
+// public/simbolo-pingo.png, redimensionando para um quadrado 256x256 com
+// leve padding e fundo transparente.
 // Uso: node scripts/gerar-favicon.mjs
-// Dependência: sharp (já presente em node_modules via Astro).
-// Dimensão de saída 256x256 (>= 32x32, R6.2) para nitidez em telas HiDPI.
-import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import sharp from "sharp";
 
 const raiz = join(dirname(fileURLToPath(import.meta.url)), "..");
-const svg = readFileSync(join(raiz, "public", "icone.svg"));
+const src = join(raiz, "public", "simbolo-pingo.png");
 const destino = join(raiz, "public", "icone.png");
 
-await sharp(svg, { density: 384 })
-  .resize(256, 256, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+const LADO = 256;
+const PAD = 12; // respiro ao redor do símbolo
+
+// Ajusta o símbolo (516x574) dentro de um quadrado, preservando proporção,
+// sobre um canvas transparente.
+const simbolo = await sharp(src)
+  .resize(LADO - PAD * 2, LADO - PAD * 2, {
+    fit: "contain",
+    background: { r: 0, g: 0, b: 0, alpha: 0 },
+  })
+  .toBuffer();
+
+await sharp({
+  create: {
+    width: LADO,
+    height: LADO,
+    channels: 4,
+    background: { r: 0, g: 0, b: 0, alpha: 0 },
+  },
+})
+  .composite([{ input: simbolo, gravity: "center" }])
   .png()
   .toFile(destino);
 
-console.log("Favicon gerado em public/icone.png (256x256).");
+console.log(`Favicon gerado em public/icone.png (${LADO}x${LADO}).`);
