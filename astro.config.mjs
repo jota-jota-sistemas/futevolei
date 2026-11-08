@@ -3,15 +3,12 @@ import { defineConfig } from "astro/config";
 
 // https://astro.build/config
 export default defineConfig({
-  // GitHub Pages (site de projeto): a URL final é
-  //   https://jota-jota-sistemas.github.io/futevolei/
-  // - "site": domínio base, usado para gerar URLs absolutas.
-  // - "base": subpasta onde o site é servido. Precisa bater com o nome do repo.
-  // Em links internos use caminhos relativos ou prefixe com import.meta.env.BASE_URL.
-  site: "https://jota-jota-sistemas.github.io",
-  base: "/futevolei",
+  // Hospedagem na Vercel: o site é servido na raiz do domínio (/), então NÃO há
+  // mais `base`. A URL final é a da Vercel (ou domínio próprio, quando houver).
+  // Ao configurar um domínio definitivo, atualize o `site` abaixo.
+  site: "https://futevolei.vercel.app",
 
-  // Fase 1: site estático. Na Fase 2 trocamos output/adaptador para habilitar
-  // rotas de servidor (login, admin, salvar) sem reescrever o front.
+  // Continua estático nesta etapa (só migração de hospedagem). A troca para
+  // output "server" + adaptador acontece na etapa de autenticação (Fase 2a).
   output: "static",
 });
