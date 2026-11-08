@@ -21,7 +21,7 @@ const {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={descricao} />
-    <link rel="icon" type="image/svg+xml" href={comBase("/favicon.svg")} />
+    <link rel="icon" type="image/png" href={comBase("/icone.png")} />
     <title>{titulo}</title>
   </head>
   <body>
@@ -35,26 +35,28 @@ const {
 
 <style is:global>
   :root {
-    /* Marca / destaque — laranja vibrante */
-    --cor-destaque: #f97316;
-    --cor-destaque-forte: #ea580c;
-    --cor-destaque-suave: #fff1e6;
+    /* Marca / destaque — turquesa */
+    --cor-destaque: #00b8a9; /* fill de CTA, badges, barras */
+    --cor-destaque-forte: #009b8e; /* hover de fill */
+    --cor-destaque-suave: #e3f5f2; /* fundo de mídia vazia (turquesa bem claro) */
+    --cor-destaque-texto: #00695f; /* turquesa como TEXTO/ícone sobre claro (AA) */
+    --cor-destaque-contraste: #102a43; /* texto sobre fill turquesa (azul-marinho, AA) */
 
     /* Superfícies claras */
-    --cor-fundo: #fdf8f1; /* creme / off-white */
+    --cor-fundo: #f2e8d8; /* areia */
     --cor-superficie: #ffffff; /* cards brancos */
-    --cor-borda: #ece3d6;
+    --cor-borda: #e0d4bf; /* areia mais escura */
 
-    /* Zonas escuras — header e footer */
-    --cor-escuro: #14110f;
-    --cor-escuro-2: #241f1b;
-    --cor-borda-escura: #342d27;
+    /* Zonas escuras — header, footer e hero fallback */
+    --cor-escuro: #102a43; /* azul-marinho */
+    --cor-escuro-2: #1c3d5a; /* azul-marinho mais claro */
+    --cor-borda-escura: #243b53; /* azul-marinho de contorno */
 
     /* Texto */
-    --cor-texto: #1a1a1a;
-    --cor-texto-suave: #6b6b6b;
-    --cor-texto-claro: #f7f3ee;
-    --cor-texto-claro-suave: #b9b0a6;
+    --cor-texto: #102a43; /* azul-marinho (texto escuro sobre claro) */
+    --cor-texto-suave: #4a5b6b; /* azul-acinzentado */
+    --cor-texto-claro: #ffffff; /* branco (sobre escuro) */
+    --cor-texto-claro-suave: #9fb3c8; /* azul-claro dessaturado (sobre escuro) */
 
     /* Layout */
     --largura-conteudo: 1200px;
@@ -94,9 +96,19 @@ const {
     max-width: 100%;
   }
 
+  /*
+   * Indicador de foco com DUPLO CONTORNO, robusto em qualquer fundo do site.
+   * O outline turquesa (--cor-destaque) é visível sobre zonas escuras
+   * (azul-marinho), onde rende ~5.9:1. O anel interno azul-marinho
+   * (--cor-destaque-contraste, #102A43) via box-shadow garante >= 3:1 sobre
+   * fundos claros (areia 8.9:1, branco 14.6:1). Assim o indicador sempre tem
+   * ao menos uma borda com >= 3:1 contra qualquer fundo: o anel escuro em
+   * fundos claros e o turquesa em fundos escuros.
+   */
   :focus-visible {
-    outline: 2px solid var(--cor-destaque);
+    outline: 3px solid var(--cor-destaque);
     outline-offset: 2px;
+    box-shadow: 0 0 0 2px var(--cor-destaque-contraste);
   }
 
   /* Botão de destaque laranja reutilizável */
@@ -110,7 +122,7 @@ const {
     border-radius: 999px;
     font-size: 0.95rem;
     font-weight: 700;
-    color: #ffffff;
+    color: var(--cor-destaque-contraste);
     background: var(--cor-destaque);
     cursor: pointer;
     text-decoration: none;

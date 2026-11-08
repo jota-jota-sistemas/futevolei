@@ -86,14 +86,15 @@ import BrandLogo from "./BrandLogo.astro";
     margin-top: 3rem;
   }
 
+  /* ---- Base: mobile (coluna) ---- */
   .footer__conteudo {
     max-width: var(--largura-conteudo);
     margin: 0 auto;
-    padding: 1.5rem;
+    padding: 1.5rem 1rem;
     display: flex;
-    align-items: center;
-    gap: 1.5rem;
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.25rem;
   }
 
   .footer__marca {
@@ -112,8 +113,8 @@ import BrandLogo from "./BrandLogo.astro";
   .footer__links {
     display: flex;
     align-items: center;
-    gap: 1.5rem;
-    margin-left: auto;
+    flex-wrap: wrap;
+    gap: 1rem;
   }
 
   .footer__link {
@@ -140,17 +141,18 @@ import BrandLogo from "./BrandLogo.astro";
     color: var(--cor-texto-claro);
   }
 
-  @media (max-width: 767px) {
+  /* ---- A partir de 768px: linha horizontal ---- */
+  @media (min-width: 768px) {
     .footer__conteudo {
-      flex-direction: column;
-      align-items: flex-start;
-      padding: 1.5rem 1rem;
+      flex-direction: row;
+      align-items: center;
+      gap: 1.5rem;
+      padding: 1.5rem;
     }
 
     .footer__links {
-      margin-left: 0;
-      flex-wrap: wrap;
-      gap: 1rem;
+      margin-left: auto;
+      gap: 1.5rem;
     }
   }
 </style>

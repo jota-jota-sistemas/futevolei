@@ -17,4 +17,10 @@ export interface Campeonato {
    * botão do Instagram não é exibido no card.
    */
   instagram?: string;
+  /**
+   * Categorias do evento (opcional), ex.: "Open", "Amador B+C", "Feminino".
+   * Puramente visuais no card (chips estáticos). Quando ausente, o bloco de
+   * tags não é renderizado — nenhum dado é inventado a partir da descrição.
+   */
+  categorias?: string[];
 }

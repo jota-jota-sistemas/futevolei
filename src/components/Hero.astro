@@ -39,7 +39,9 @@ const bg = imagem ? comBase(imagem) : null;
     position: relative;
     background-color: var(--cor-escuro);
     background-size: cover;
-    background-position: center;
+    /* Foto paisagem (3:2) com a ação no centro-superior; ancorar no topo
+       mantém o jogador e a bola visíveis ao cortar verticalmente. */
+    background-position: center top;
     overflow: hidden;
   }
 
@@ -50,19 +52,21 @@ const bg = imagem ? comBase(imagem) : null;
   .hero__overlay {
     position: absolute;
     inset: 0;
+    /* No mobile o texto ocupa a largura toda: overlay mais uniforme para
+       garantir contraste em qualquer ponto. */
     background: linear-gradient(
-      90deg,
-      rgba(10, 8, 6, 0.85) 0%,
-      rgba(10, 8, 6, 0.5) 60%,
-      rgba(10, 8, 6, 0.3) 100%
+      180deg,
+      rgba(16, 42, 67, 0.8) 0%,
+      rgba(16, 42, 67, 0.68) 100%
     );
   }
 
+  /* ---- Base: mobile ---- */
   .hero__conteudo {
     position: relative;
     max-width: var(--largura-conteudo);
     margin: 0 auto;
-    padding: 4rem 1.5rem 2.5rem;
+    padding: 2.5rem 1rem 1.5rem;
   }
 
   .hero__texto {
@@ -91,12 +95,32 @@ const bg = imagem ? comBase(imagem) : null;
   }
 
   .hero__conteudo :global(.busca) {
-    margin-top: 2.5rem;
+    margin-top: 1.75rem;
   }
 
-  @media (max-width: 767px) {
+  /* ---- A partir de 768px ---- */
+  @media (min-width: 768px) {
+    .hero {
+      /* No desktop o texto fica à esquerda; a jogada (jogador + bola) está à
+         direita/centro da foto, então o gradiente deixa a direita mais clara. */
+      background-position: center center;
+    }
+
+    .hero__overlay {
+      background: linear-gradient(
+        90deg,
+        rgba(16, 42, 67, 0.9) 0%,
+        rgba(16, 42, 67, 0.65) 45%,
+        rgba(16, 42, 67, 0.3) 100%
+      );
+    }
+
     .hero__conteudo {
-      padding: 2.5rem 1rem 1.5rem;
+      padding: 4rem 1.5rem 2.5rem;
+    }
+
+    .hero__conteudo :global(.busca) {
+      margin-top: 2.5rem;
     }
   }
 </style>

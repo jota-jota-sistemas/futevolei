@@ -5,6 +5,12 @@ import EventsSection from "../components/EventsSection.astro";
 ---
 
 <Layout>
-  <Hero />
+  {/*
+    Hero com foto de futevôlei de fundo (Requirement 3.3). O overlay
+    azul-marinho do Hero preserva o contraste AA do texto sobreposto.
+    Para trocar a foto, substitua public/hero-futevolei.jpg (mantém-se o
+    fallback azul-marinho caso a prop `imagem` seja removida).
+  */}
+  <Hero imagem="/hero-futevolei.jpg" />
   <EventsSection />
 </Layout>

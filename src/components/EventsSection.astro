@@ -2,13 +2,12 @@
 import type { Campeonato } from "../types";
 import campeonatosData from "../data/campeonatos.json";
 import EventCard from "./EventCard.astro";
+import { ordenarPorDataId } from "../utils/eventos";
 
 const campeonatos = campeonatosData as Campeonato[];
 
 // Ordena por data (asc); desempate por id para uma ordem determinística.
-const ordenados = [...campeonatos].sort(
-  (a, b) => a.data.localeCompare(b.data) || a.id.localeCompare(b.id),
-);
+const ordenados = ordenarPorDataId(campeonatos);
 ---
 
 <section class="eventos" aria-label="Próximos eventos">
@@ -36,25 +35,27 @@ const ordenados = [...campeonatos].sort(
 </section>
 
 <style>
+  /* ---- Base: mobile ---- */
   .eventos__conteudo {
     max-width: var(--largura-conteudo);
     margin: 0 auto;
-    padding: 2.5rem 1.5rem 1rem;
+    padding: 2rem 1rem 1rem;
   }
 
   .eventos__topo {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    margin-bottom: 1.25rem;
   }
 
   .eventos__titulo {
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    font-size: 1.5rem;
+    font-size: 1.35rem;
     font-weight: 800;
     margin: 0;
   }
@@ -69,8 +70,9 @@ const ordenados = [...campeonatos].sort(
   .eventos__ver-todos {
     font-size: 0.9rem;
     font-weight: 600;
-    color: var(--cor-destaque);
+    color: var(--cor-destaque-texto);
     text-decoration: none;
+    white-space: nowrap;
   }
 
   .eventos__vazio {
@@ -81,25 +83,38 @@ const ordenados = [...campeonatos].sort(
 
   .eventos__grid {
     display: grid;
-    gap: 1.5rem;
+    gap: 1.25rem;
     grid-template-columns: 1fr; /* mobile: 1 coluna */
   }
 
-  @media (min-width: 768px) {
+  /* ---- Breakpoints crescentes ---- */
+  @media (min-width: 640px) {
     .eventos__grid {
-      grid-template-columns: repeat(2, 1fr); /* tablet: 2 colunas */
+      grid-template-columns: repeat(2, 1fr); /* 2 colunas */
+    }
+  }
+
+  @media (min-width: 768px) {
+    .eventos__conteudo {
+      padding: 2.5rem 1.5rem 1rem;
+    }
+
+    .eventos__titulo {
+      font-size: 1.5rem;
+    }
+
+    .eventos__topo {
+      margin-bottom: 1.5rem;
+    }
+
+    .eventos__grid {
+      gap: 1.5rem;
     }
   }
 
   @media (min-width: 1024px) {
     .eventos__grid {
       grid-template-columns: repeat(4, 1fr); /* desktop: 4 colunas */
-    }
-  }
-
-  @media (max-width: 767px) {
-    .eventos__conteudo {
-      padding: 2rem 1rem 1rem;
     }
   }
 </style>
