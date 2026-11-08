@@ -220,6 +220,24 @@ campeonatos.json  →  Feed.astro  →  CampeonatoCard.astro  →  HTML na tela
 
 > As imagens atuais em `public/campeonatos/*.svg` são placeholders. Basta substituir pelos arquivos reais e ajustar o campo `foto` no JSON.
 
+## Deploy (GitHub Pages)
+
+O site é publicado em **GitHub Pages** como site de projeto, custo zero. URL final:
+
+```
+https://jota-jota-sistemas.github.io/futevolei/
+```
+
+**Como funciona:**
+- O workflow `.github/workflows/deploy.yml` roda a cada push na `main`: faz o build com Astro e publica o conteúdo de `dist/`.
+- `astro.config.mjs` define `site` e `base: "/futevolei"` — necessários porque o site é servido numa subpasta do domínio, não na raiz.
+- Caminhos de assets e links internos passam pela função `src/utils/url.ts` (`comBase`), que prefixa o `base` automaticamente. Por isso o `campeonatos.json` continua usando caminhos simples (`/campeonatos/...`).
+
+**Ativação (uma vez só, no site do GitHub):**
+1. Repositório → **Settings** → **Pages**.
+2. Em **Build and deployment** → **Source**, selecione **GitHub Actions**.
+3. Pronto. A partir daí, todo push na `main` publica automaticamente. Acompanhe o progresso na aba **Actions**.
+
 ## Status
 
 - [x] Definir escopo e fases
@@ -228,5 +246,6 @@ campeonatos.json  →  Feed.astro  →  CampeonatoCard.astro  →  HTML na tela
 - [x] Inicializar projeto Astro
 - [x] Criar modelo de dados e dados de exemplo
 - [x] Implementar o feed vertical de campeonatos
+- [x] Configurar deploy no GitHub Pages (workflow + base)
+- [ ] Ativar GitHub Pages no repositório (Settings → Pages → Source: GitHub Actions)
 - [ ] Trocar placeholders pelas fotos reais dos campeonatos
-- [ ] Deploy da Fase 1 (Netlify / Vercel / GitHub Pages)

@@ -1,5 +1,6 @@
 ---
 import type { Campeonato } from "../types";
+import { comBase } from "../utils/url";
 
 interface Props {
   campeonato: Campeonato;
@@ -23,7 +24,7 @@ function formatarData(iso: string): string {
 <article class="card">
   <div class="card__foto">
     <img
-      src={campeonato.foto}
+      src={comBase(campeonato.foto)}
       alt={`Foto do campeonato ${campeonato.nome}`}
       loading="lazy"
       decoding="async"

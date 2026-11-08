@@ -1,9 +1,10 @@
 ---
+import { comBase } from "../utils/url";
 ---
 
 <header class="header">
   <div class="header__conteudo">
-    <a class="header__logo" href="/">
+    <a class="header__logo" href={comBase("/")}>
       <span class="header__logo-icone" aria-hidden="true">🏐</span>
       <span class="header__logo-texto">futevôlei</span>
     </a>
