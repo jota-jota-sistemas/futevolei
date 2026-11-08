@@ -8,27 +8,27 @@
     "descricao": "Categoria Estreante, $150 por dupla. Caso tenha duplas fora do nível poderá ser desclassificada, Pix: 11940559723"
   },
   {
-    "id": "circuito-nordeste-2026",
-    "nome": "Circuito Nordeste 2026",
-    "data": "2026-11-28",
-    "local": "Praia de Boa Viagem, Recife",
-    "foto": "/campeonatos/circuito-nordeste-2026.svg",
-    "descricao": "Etapa pernambucana do circuito nordestino de futevôlei. Duplas de todos os níveis."
+    "id": "261122_morumbi_copa_cabeca",
+    "nome": "Copa Cabeça - 5ª Edição",
+    "data": "2026-11-22",
+    "local": "Morumbi, São Paulo",
+    "foto": "/campeonatos/261122_morumbi_copa_cabeca.jpeg",
+    "descricao": "Mais que um jogo, é paixão! Categorias Open (1º R$3.000, 2º R$2.000, 3º R$1.000), Amador B+C (1º R$700, 2º R$400), Feminino Intermediário (1º R$500, 2º R$250) e Misto Iniciante (1º R$500, 2º R$250). Todas com troféu e brindes."
   },
   {
-    "id": "copa-litoral-sul-2026",
-    "nome": "Copa Litoral Sul 2026",
-    "data": "2026-12-05",
-    "local": "Praia de Mariscal, Bombinhas",
-    "foto": "/campeonatos/copa-litoral-sul-2026.svg",
-    "descricao": "Primeira edição da Copa Litoral Sul. Categorias iniciante, intermediário e profissional."
+    "id": "261129_gv_copa_2m",
+    "nome": "Copa 2M - Futvôlei Cup",
+    "data": "2026-11-29",
+    "local": "Granja Vianna, Cotia",
+    "foto": "/campeonatos/261129_gv_copa_2m.jpeg",
+    "descricao": "Inscreva-se! Dias 28 e 29 de novembro. Categorias: Masculino Estreante e Iniciante, Misto Estreante, Feminino Iniciante + C (1º R$400), Amador C (1º R$600, 2º R$300) e Reis da Copa / Amador B (1º R$1.200, 2º R$600, 3º R$300)."
   },
   {
-    "id": "desafio-das-areias-2027",
-    "nome": "Desafio das Areias 2027",
-    "data": "2027-01-18",
-    "local": "Praia do Futuro, Fortaleza",
-    "foto": "/campeonatos/desafio-das-areias-2027.svg",
-    "descricao": "Torneio de verão com transmissão ao vivo e presença de atletas profissionais."
+    "id": "261212_pirituba_mss_cup",
+    "nome": "MSS Cup",
+    "data": "2026-12-12",
+    "local": "Riplay Ma Kai, Pirituba, São Paulo",
+    "foto": "/campeonatos/261212_pirituba_mss_cup.png",
+    "descricao": "Torneio nos dias 12 e 13 de dezembro no Riplay Ma Kai. As categorias da MSS Cup já estão definidas."
   }
 ]
