@@ -161,13 +161,17 @@ futevolei/
 │  ├─ components/
 │  │  ├─ Header.astro           # cabeçalho fixo (logo + busca futura)
 │  │  ├─ Feed.astro             # lê os dados, ordena por data e monta o feed
-│  │  └─ CampeonatoCard.astro   # card de um campeonato (foto, nome, data, local)
+│  │  └─ CampeonatoCard.astro   # card clicável (foto, nome, data, local) → leva ao detalhe
 │  ├─ data/
 │  │  └─ campeonatos.json       # FONTE DA VERDADE na Fase 1
 │  ├─ layouts/
 │  │  └─ Layout.astro           # HTML base, estilos globais, tema claro/escuro
 │  ├─ pages/
-│  │  └─ index.astro            # página inicial (monta o Feed)
+│  │  ├─ index.astro            # página inicial (monta o Feed)
+│  │  └─ campeonatos/
+│  │     └─ [id].astro          # página de detalhe (uma por campeonato, via id)
+│  ├─ utils/
+│  │  └─ url.ts                 # helpers: comBase, instagramUrl, formatarData
 │  └─ types.ts                  # tipo Campeonato
 ├─ astro.config.mjs
 ├─ package.json
@@ -201,6 +205,7 @@ campeonatos.json  →  Feed.astro  →  CampeonatoCard.astro  →  HTML na tela
 |--------------|-----------|
 | Adicionar/editar/remover um campeonato | `src/data/campeonatos.json` |
 | Mudar a aparência dos cards | `src/components/CampeonatoCard.astro` |
+| Mudar a página de detalhe do campeonato | `src/pages/campeonatos/[id].astro` |
 | Mudar a ordem ou filtrar a lista | `src/components/Feed.astro` |
 | Mudar cabeçalho, logo, cores globais, tema | `src/components/Header.astro` e `src/layouts/Layout.astro` |
 | Criar uma nova página (ex.: "Sobre") | novo arquivo em `src/pages/` |

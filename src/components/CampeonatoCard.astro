@@ -1,6 +1,6 @@
 ---
 import type { Campeonato } from "../types";
-import { comBase, instagramUrl } from "../utils/url";
+import { comBase, formatarData } from "../utils/url";
 
 interface Props {
   campeonato: Campeonato;
@@ -8,23 +8,11 @@ interface Props {
 
 const { campeonato } = Astro.props;
 
-// URL do Instagram do evento (null se o campo não existir).
-const instagram = instagramUrl(campeonato.instagram);
-
-// Formata a data ISO (YYYY-MM-DD) para pt-BR sem depender do fuso do servidor.
-function formatarData(iso: string): string {
-  const [ano, mes, dia] = iso.split("-").map(Number);
-  if (!ano || !mes || !dia) return iso;
-  const data = new Date(ano, mes - 1, dia);
-  return data.toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-}
+// URL da página de detalhe deste campeonato.
+const href = comBase(`/campeonatos/${campeonato.id}`);
 ---
 
-<article class="card">
+<a class="card" href={href} aria-label={`Ver detalhes de ${campeonato.nome}`}>
   <div class="card__foto">
     <img
       src={comBase(campeonato.foto)}
@@ -38,12 +26,10 @@ function formatarData(iso: string): string {
     <header class="card__header">
       <h2 class="card__nome">{campeonato.nome}</h2>
       <!-- Salvar: inativo na Fase 1, ativado na Fase 2 (login + favoritos). -->
-      <button
+      <span
         class="card__salvar"
-        type="button"
         aria-label="Salvar campeonato (disponível em breve)"
         title="Salvar campeonato (disponível em breve)"
-        disabled
       >
         <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
           <path
@@ -54,7 +40,7 @@ function formatarData(iso: string): string {
             stroke-linecap="round"
             stroke-linejoin="round"></path>
         </svg>
-      </button>
+      </span>
     </header>
 
     <p class="card__meta">
@@ -63,50 +49,29 @@ function formatarData(iso: string): string {
     </p>
 
     <p class="card__descricao">{campeonato.descricao}</p>
-
-    {
-      instagram && (
-        <a
-          class="card__instagram"
-          href={instagram}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-            <rect
-              x="3"
-              y="3"
-              width="18"
-              height="18"
-              rx="5"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-            />
-            <circle
-              cx="12"
-              cy="12"
-              r="4"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-            />
-            <circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" />
-          </svg>
-          <span>Ver no Instagram</span>
-        </a>
-      )
-    }
   </div>
-</article>
+</a>
 
 <style>
   .card {
+    display: block;
     background: var(--cor-superficie);
     border: 1px solid var(--cor-borda);
     border-radius: 16px;
     overflow: hidden;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    text-decoration: none;
+    color: inherit;
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease,
+      border-color 0.15s ease;
+  }
+
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+    border-color: var(--cor-destaque);
   }
 
   .card__foto {
@@ -140,11 +105,8 @@ function formatarData(iso: string): string {
 
   .card__salvar {
     flex-shrink: 0;
-    background: none;
-    border: none;
-    padding: 0.2rem;
+    display: inline-flex;
     color: var(--cor-texto-suave);
-    cursor: not-allowed;
     opacity: 0.45;
   }
 
@@ -162,32 +124,10 @@ function formatarData(iso: string): string {
     font-size: 0.95rem;
     line-height: 1.5;
     color: var(--cor-texto);
-  }
-
-  .card__instagram {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    margin-top: 0.9rem;
-    padding: 0.5rem 0.9rem;
-    border: 1px solid var(--cor-borda);
-    border-radius: 999px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    text-decoration: none;
-    color: var(--cor-texto);
-    transition:
-      background-color 0.15s ease,
-      border-color 0.15s ease;
-  }
-
-  .card__instagram:hover {
-    background: var(--cor-fundo);
-    border-color: var(--cor-destaque);
-    color: var(--cor-destaque);
-  }
-
-  .card__instagram svg {
-    flex-shrink: 0;
+    /* limita a 3 linhas no feed; o texto completo fica no detalhe */
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 </style>
