@@ -95,9 +95,12 @@ Registro das decisões discutidas, com a data e o porquê.
   "data": "2026-12-15",
   "local": "Praia de Copacabana, Rio de Janeiro",
   "foto": "/campeonatos/aberto-de-verao-2026.jpg",
-  "descricao": "Campeonato aberto, categorias masculina e feminina."
+  "descricao": "Campeonato aberto, categorias masculina e feminina.",
+  "instagram": "@perfil_do_evento"
 }
 ```
+
+> O campo `instagram` é **opcional**. Aceita `@usuario`, `usuario` ou a URL completa. Quando presente, o card exibe um botão "Ver no Instagram"; quando ausente, o botão não aparece.
 
 ### Fase 2 (planejada) — backend-as-a-service
 
@@ -215,9 +218,11 @@ campeonatos.json  →  Feed.astro  →  CampeonatoCard.astro  →  HTML na tela
      "data": "2026-12-20",
      "local": "Praia X, Cidade Y",
      "foto": "/campeonatos/meu-torneio.jpg",
-     "descricao": "Descrição curta do campeonato."
+     "descricao": "Descrição curta do campeonato.",
+     "instagram": "@perfil_do_evento"
    }
    ```
+   O campo `instagram` é opcional — pode omitir se o evento não tiver perfil.
 3. Pronto — o feed ordena automaticamente por data (os próximos aparecem primeiro).
 
 > As imagens atuais em `public/campeonatos/*.svg` são placeholders. Basta substituir pelos arquivos reais e ajustar o campo `foto` no JSON.
