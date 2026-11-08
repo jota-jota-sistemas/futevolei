@@ -2,7 +2,7 @@
 
 Site que lista campeonatos de futevôlei em um feed vertical de fotos, estilo Instagram.
 
-🔗 Site publicado: https://jota-jota-sistemas.github.io/futevolei/
+🔗 **Site publicado:** https://jota-jota-sistemas.github.io/futevolei/
 
 > Este README é a **documentação viva** do projeto: toda decisão de produto, arquitetura e design fica registrada aqui conforme a gente discute.
 
