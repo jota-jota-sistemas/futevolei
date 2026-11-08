@@ -2,13 +2,12 @@
 import type { Campeonato } from "../types";
 import campeonatosData from "../data/campeonatos.json";
 import EventCard from "./EventCard.astro";
+import { ordenarPorDataId } from "../utils/eventos";
 
 const campeonatos = campeonatosData as Campeonato[];
 
 // Ordena por data (asc); desempate por id para uma ordem determinística.
-const ordenados = [...campeonatos].sort(
-  (a, b) => a.data.localeCompare(b.data) || a.id.localeCompare(b.id),
-);
+const ordenados = ordenarPorDataId(campeonatos);
 ---
 
 <section class="eventos" aria-label="Próximos eventos">
@@ -69,7 +68,7 @@ const ordenados = [...campeonatos].sort(
   .eventos__ver-todos {
     font-size: 0.9rem;
     font-weight: 600;
-    color: var(--cor-destaque);
+    color: var(--cor-destaque-texto);
     text-decoration: none;
   }
 

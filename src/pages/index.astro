@@ -5,6 +5,17 @@ import EventsSection from "../components/EventsSection.astro";
 ---
 
 <Layout>
+  {/*
+    Hero com fundo azul-marinho (fallback elegante, comportamento padrão).
+
+    Para ativar a foto de praia/futevôlei de fundo (Requirement 3.3):
+      1. Coloque a imagem em public/ — ex. public/hero-praia.jpg
+         (landscape, >= 1600px de largura, otimizada em JPEG/WebP).
+      2. Passe a prop: <Hero imagem="/hero-praia.jpg" />
+
+    O overlay azul-marinho do Hero preserva o contraste AA do texto
+    sobreposto. Sem a prop `imagem`, mantém-se o fundo azul-marinho.
+  */}
   <Hero />
   <EventsSection />
 </Layout>

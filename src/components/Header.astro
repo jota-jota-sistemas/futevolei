@@ -26,6 +26,22 @@ import BrandLogo from "./BrandLogo.astro";
 
     <div class="header__acoes">
       <button
+        class="header__menu placeholder"
+        type="button"
+        disabled
+        aria-label="Abrir menu (disponível em breve)"
+        title="Abrir menu (disponível em breve)"
+      >
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+          <path
+            d="M4 7h16M4 12h16M4 17h16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"></path>
+        </svg>
+      </button>
+      <button
         class="btn-destaque placeholder"
         type="button"
         disabled
@@ -100,6 +116,18 @@ import BrandLogo from "./BrandLogo.astro";
     margin-left: auto;
   }
 
+  .header__menu {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    border: 1px solid var(--cor-borda-escura);
+    background: var(--cor-escuro-2);
+    color: var(--cor-texto-claro);
+  }
+
   .header__conta {
     display: inline-flex;
     align-items: center;
@@ -115,6 +143,10 @@ import BrandLogo from "./BrandLogo.astro";
   @media (max-width: 767px) {
     .header__nav {
       display: none;
+    }
+
+    .header__menu {
+      display: inline-flex;
     }
 
     .header__conteudo {
