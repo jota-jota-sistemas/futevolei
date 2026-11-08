@@ -136,7 +136,7 @@ Mobile-first, feed vertical estilo Instagram.
 
 ## Como rodar
 
-Pré-requisitos: Node.js 18+ e npm.
+Pré-requisitos: Node.js 22.23.4+ e npm (exigência do Astro 7).
 
 ```bash
 npm install     # instala dependências (primeira vez)
