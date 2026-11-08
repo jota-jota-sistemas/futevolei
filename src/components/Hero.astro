@@ -1,0 +1,102 @@
+---
+import SearchBar from "./SearchBar.astro";
+import { comBase } from "../utils/url";
+
+interface Props {
+  /**
+   * Imagem de fundo do hero (relativa à pasta public/). Opcional:
+   * quando ausente, o hero usa o gradiente escuro como fundo, mantendo
+   * o texto legível. Basta colocar um arquivo em public/ e passar o caminho.
+   */
+  imagem?: string;
+}
+
+const { imagem } = Astro.props;
+const bg = imagem ? comBase(imagem) : null;
+---
+
+<section
+  class="hero"
+  style={bg ? `--hero-bg: url('${bg}')` : undefined}
+  data-com-imagem={bg ? "true" : "false"}
+>
+  <div class="hero__overlay"></div>
+  <div class="hero__conteudo">
+    <div class="hero__texto">
+      <h1 class="hero__titulo">
+        Encontre seu<br />próximo <span class="hero__realce">jogo</span>.
+      </h1>
+      <p class="hero__subtitulo">
+        Campeonatos, partidas e experiências de futevôlei em um só lugar.
+      </p>
+    </div>
+    <SearchBar />
+  </div>
+</section>
+
+<style>
+  .hero {
+    position: relative;
+    background-color: var(--cor-escuro);
+    background-size: cover;
+    background-position: center;
+    overflow: hidden;
+  }
+
+  .hero[data-com-imagem="true"] {
+    background-image: var(--hero-bg);
+  }
+
+  .hero__overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      rgba(10, 8, 6, 0.85) 0%,
+      rgba(10, 8, 6, 0.5) 60%,
+      rgba(10, 8, 6, 0.3) 100%
+    );
+  }
+
+  .hero__conteudo {
+    position: relative;
+    max-width: var(--largura-conteudo);
+    margin: 0 auto;
+    padding: 4rem 1.5rem 2.5rem;
+  }
+
+  .hero__texto {
+    max-width: 560px;
+  }
+
+  .hero__titulo {
+    font-size: clamp(2.2rem, 6vw, 3.6rem);
+    line-height: 1.05;
+    font-weight: 800;
+    font-style: italic;
+    color: var(--cor-texto-claro);
+    margin: 0;
+    letter-spacing: -0.02em;
+  }
+
+  .hero__realce {
+    color: var(--cor-destaque);
+  }
+
+  .hero__subtitulo {
+    margin: 1rem 0 0;
+    font-size: clamp(1rem, 2.5vw, 1.2rem);
+    color: var(--cor-texto-claro-suave);
+    max-width: 440px;
+  }
+
+  .hero__conteudo :global(.busca) {
+    margin-top: 2.5rem;
+  }
+
+  @media (max-width: 767px) {
+    .hero__conteudo {
+      padding: 2.5rem 1rem 1.5rem;
+    }
+  }
+</style>
