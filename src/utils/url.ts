@@ -32,6 +32,24 @@ export function instagramUrl(valor?: string): string | null {
 }
 
 /**
+ * Normaliza o valor de `inscricao` de um campeonato para uma URL de inscrição.
+ * Aceita apenas URLs completas http/https; qualquer outro valor (vazio, só
+ * espaços, ou sem o esquema http/https) retorna null — mantendo o botão
+ * "Inscreva-se" oculto. Pura e sem efeitos colaterais.
+ *
+ * Ex.: inscricaoUrl("https://movisport.pro/")  -> "https://movisport.pro/"
+ *      inscricaoUrl("  http://x.com/a ")        -> "http://x.com/a"
+ *      inscricaoUrl("movisport.pro")            -> null
+ *      inscricaoUrl("")                          -> null
+ */
+export function inscricaoUrl(valor?: string): string | null {
+  if (!valor) return null;
+  const v = valor.trim();
+  if (v === "") return null;
+  return /^https?:\/\//i.test(v) ? v : null;
+}
+
+/**
  * Formata uma data ISO (YYYY-MM-DD) para pt-BR por extenso, sem depender
  * do fuso do servidor. Ex.: "2026-12-15" -> "15 de dezembro de 2026".
  */
