@@ -1463,6 +1463,16 @@ const { campeonato, categoriaNome } = Astro.props;
     gap: 0.6rem;
   }
 
+  /* O atributo `hidden` deve SEMPRE esconder o elemento. Várias classes desta
+     página definem `display` explícito (flex/block), que sobreporia o
+     `display: none` implícito de [hidden] — foi o que fazia o painel de
+     confirmação de substituição aparecer sempre ao carregar. Esta regra única
+     garante que qualquer elemento com [hidden] na área de organização fique
+     oculto até o JS remover o atributo. */
+  .org [hidden] {
+    display: none !important;
+  }
+
   .org__confirmar-msg {
     margin: 0;
     font-size: 0.92rem;
