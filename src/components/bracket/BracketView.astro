@@ -1,0 +1,174 @@
+---
+import type { Bracket, Match, Pair } from "../../domain/bracket/types";
+import GroupTable from "./GroupTable.astro";
+import EliminationTree from "./EliminationTree.astro";
+
+/**
+ * BracketView — visualização pública do chaveamento de UMA categoria.
+ *
+ * Escolhe o layout conforme o FORMATO da própria categoria (R8.2, R8.3):
+ *
+ *  - "fase de grupos":
+ *      1. renderiza um `GroupTable` por grupo (na ordem determinística dos
+ *         grupos) e, em seguida,
+ *      2. o mata-mata de dupla eliminação (`EliminationTree`) — mas apenas
+ *         quando já existirem jogos de mata-mata (side upper/lower/
+ *         grande-final). Antes da transição grupos→mata-mata esses jogos
+ *         ainda não existem, então somente os grupos aparecem.
+ *
+ *  - "dupla eliminação":
+ *      renderiza apenas o `EliminationTree`.
+ *
+ * Quando a categoria já tem campeã definida (`bracket.campeaId`), destaca a
+ * dupla com marcação visual distinta e o rótulo textual "campeã" (R8.6).
+ *
+ * Componente puramente visual: não executa lógica de domínio (geração,
+ * progressão). Apenas organiza os jogos já presentes no `Bracket` e os
+ * distribui entre `GroupTable` e `EliminationTree`.
+ */
+interface Props {
+  /** O chaveamento de uma categoria. */
+  bracket: Bracket;
+}
+
+const { bracket } = Astro.props;
+
+// Mapa pairId -> Pair, montado uma vez e repassado aos filhos para resolver
+// nomes de dupla de forma consistente.
+const duplasPorId: Record<string, Pair> = Object.fromEntries(
+  bracket.duplas.map((d) => [d.id, d]),
+);
+
+const ehFaseDeGrupos = bracket.formato === "fase de grupos";
+
+// Jogos do mata-mata de dupla eliminação (qualquer side que não seja "grupo").
+const sidesMataMata = new Set(["upper", "lower", "grande-final"]);
+const matchesMataMata: Match[] = bracket.matches.filter((m) =>
+  sidesMataMata.has(m.side),
+);
+const temMataMata = matchesMataMata.length > 0;
+
+// Campeã (R8.6): só há destaque quando `campeaId` está definida. Fallback
+// defensivo para o id caso a dupla não esteja no mapa (não inventa dados).
+const temCampea = bracket.campeaId !== null;
+const nomeCampea = temCampea
+  ? (duplasPorId[bracket.campeaId!]?.nomeDupla ?? bracket.campeaId!)
+  : "";
+---
+
+<div class="bracket-view">
+  {
+    temCampea && (
+      <div class="bracket-view__campea" role="status">
+        <span class="bracket-view__campea-rotulo">Campeã</span>
+        <span class="bracket-view__campea-nome">{nomeCampea}</span>
+      </div>
+    )
+  }
+
+  {
+    ehFaseDeGrupos ? (
+      <div class="bracket-view__conteudo">
+        <section class="bracket-view__fase" aria-label="Fase de grupos">
+          <h3 class="bracket-view__fase-titulo">Fase de grupos</h3>
+          <div class="bracket-view__grupos">
+            {bracket.grupos.map((grupo) => (
+              <GroupTable
+                grupo={grupo}
+                matches={bracket.matches}
+                duplasPorId={duplasPorId}
+              />
+            ))}
+          </div>
+        </section>
+
+        {temMataMata && (
+          <section class="bracket-view__fase" aria-label="Mata-mata">
+            <h3 class="bracket-view__fase-titulo">Mata-mata</h3>
+            <EliminationTree
+              matches={matchesMataMata}
+              duplasPorId={duplasPorId}
+            />
+          </section>
+        )}
+      </div>
+    ) : (
+      <div class="bracket-view__conteudo">
+        <section class="bracket-view__fase" aria-label="Mata-mata">
+          <EliminationTree
+            matches={matchesMataMata}
+            duplasPorId={duplasPorId}
+          />
+        </section>
+      </div>
+    )
+  }
+</div>
+
+<style>
+  .bracket-view {
+    display: flex;
+    flex-direction: column;
+    gap: 1.4rem;
+  }
+
+  /* Banner da dupla campeã (R8.6): destaque visual distinto + rótulo textual.
+     Usa o preenchimento turquesa da marca para diferenciar das demais
+     seções. O rótulo "Campeã" é textual e também fica disponível via
+     role="status" para leitores de tela. */
+  .bracket-view__campea {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    background: var(--cor-destaque);
+    color: var(--cor-destaque-contraste);
+    border-radius: var(--raio-card);
+    padding: 0.9rem 1.2rem;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  }
+
+  .bracket-view__campea-rotulo {
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    background: var(--cor-destaque-contraste);
+    color: var(--cor-texto-claro);
+  }
+
+  .bracket-view__campea-nome {
+    font-size: 1.15rem;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+
+  .bracket-view__conteudo {
+    display: flex;
+    flex-direction: column;
+    gap: 1.6rem;
+  }
+
+  .bracket-view__fase {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .bracket-view__fase-titulo {
+    margin: 0;
+    font-size: 1.2rem;
+    line-height: 1.3;
+    color: var(--cor-texto);
+  }
+
+  /* Grid de grupos: cartões lado a lado, quebrando conforme a largura. */
+  .bracket-view__grupos {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+    align-items: start;
+  }
+</style>

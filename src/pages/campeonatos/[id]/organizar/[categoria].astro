@@ -1,0 +1,1851 @@
+---
+import type { Campeonato } from "../../../../types";
+import campeonatosData from "../../../../data/campeonatos.json";
+import Layout from "../../../../layouts/Layout.astro";
+import { comBase, slugCategoria } from "../../../../utils/url";
+
+/**
+ * Página de ORGANIZAÇÃO de UMA categoria (R9.1): gerencia duplas, configura o
+ * formato, define o seeding, gera o chaveamento e registra resultados — tudo
+ * POR CATEGORIA, de forma independente das demais categorias do campeonato.
+ *
+ * ## Arquitetura estática + organização no navegador
+ *
+ * O site é `output: "static"` (ver astro.config.mjs). Esta rota é
+ * PRÉ-RENDERIDA em build a partir do JSON `src/data/campeonatos.json`: o
+ * `getStaticPaths()` emite uma página para cada par (campeonato, categoria),
+ * usando o SLUG estável do nome da categoria (`slugCategoria`, a mesma
+ * convenção da 18.1). O `id` (uuid) real da categoria vive no Supabase; ele é
+ * resolvido em RUNTIME, no navegador, por (campeonato_id, nome) na tabela
+ * `categorias` (mesma convenção de resolução da página pública [id].astro).
+ *
+ * Toda a INTERAÇÃO de organização é client-side (o `<script>` abaixo). Ela:
+ *   - usa a lógica de domínio PURA (validação de duplas/formato/seeding,
+ *     geração, progressão, serialização) de `src/domain/...`;
+ *   - persiste/lê via `criarBracketStoreBrowser(supabase)` de
+ *     `src/store/bracketStore.ts` (cliente público com RLS);
+ *   - reutiliza `renderBracketClient` para exibir o estado atual do chaveamento.
+ *
+ * Esta rota NÃO é linkada publicamente e o controle de acesso completo chega na
+ * Fase 2a (R9.3). Como o ambiente de build não tem Supabase real, o script é
+ * DEFENSIVO (try/catch): sem Supabase a página apenas mostra avisos e não
+ * quebra a geração estática.
+ *
+ * ## Escopo do "gerar" (decisão documentada)
+ *
+ * O botão "Gerar chaveamento" cria a ESTRUTURA INICIAL do chaveamento da
+ * categoria, chamando o domínio puro `gerarChaveamento`:
+ *   - "dupla eliminação" → gera o mata-mata completo (upper/lower/grande final);
+ *   - "fase de grupos"  → gera a FASE DE GRUPOS (grupos + round-robin).
+ *
+ * A TRANSIÇÃO grupos → mata-mata (posicionar os classificados) NÃO é feita no
+ * "gerar". Ela depende dos resultados dos jogos de grupo e fica num passo
+ * SEPARADO: quando todos os grupos estão completos, aparece o botão "Gerar
+ * mata-mata", que usa `selecionarClassificados` + `posicionarClassificadosNoMataMata`
+ * e re-salva o chaveamento (mantendo o fluxo simples e explícito).
+ */
+export function getStaticPaths() {
+  const lista = campeonatosData as Campeonato[];
+  const paths: Array<{
+    params: { id: string; categoria: string };
+    props: { campeonato: Campeonato; categoriaNome: string };
+  }> = [];
+
+  for (const campeonato of lista) {
+    const categorias = campeonato.categorias ?? [];
+    for (const categoriaNome of categorias) {
+      paths.push({
+        params: { id: campeonato.id, categoria: slugCategoria(categoriaNome) },
+        props: { campeonato, categoriaNome },
+      });
+    }
+  }
+
+  return paths;
+}
+
+interface Props {
+  campeonato: Campeonato;
+  categoriaNome: string;
+}
+
+const { campeonato, categoriaNome } = Astro.props;
+---
+
+<Layout
+  titulo={`Organizar ${categoriaNome} — ${campeonato.nome}`}
+  descricao={`Organização da categoria ${categoriaNome} do campeonato ${campeonato.nome}.`}
+>
+  <section
+    class="org"
+    data-campeonato-id={campeonato.id}
+    data-categoria-nome={categoriaNome}
+  >
+    <a
+      class="org__voltar"
+      href={comBase(`/campeonatos/${campeonato.id}/organizar`)}
+    >
+      <span aria-hidden="true">←</span> Voltar às categorias
+    </a>
+
+    <header class="org__cabecalho">
+      <p class="org__rotulo">Organização da categoria</p>
+      <h1 class="org__titulo">{categoriaNome}</h1>
+      <p class="org__subtitulo">{campeonato.nome}</p>
+    </header>
+
+    {/* Faixa de status/erros global da página (persistência, carregamento). */}
+    <p class="org__status" data-status role="status" aria-live="polite"></p>
+
+    {/* Estado de inicialização: trocado pelo script quando pronto/indisponível. */}
+    <p class="org__init" data-init role="status">Carregando organização…</p>
+
+    {/* Conteúdo de organização, oculto até o script conseguir inicializar. */}
+    <div class="org__conteudo" data-conteudo hidden>
+      <!-- ============================ DUPLAS ============================ -->
+      <section class="org__bloco" aria-labelledby="titulo-duplas">
+        <h2 class="org__bloco-titulo" id="titulo-duplas">Duplas</h2>
+
+        <form class="org__form" data-form-dupla novalidate>
+          <div class="org__campo">
+            <label for="dupla-nome">Nome da dupla</label>
+            <input
+              id="dupla-nome"
+              name="nomeDupla"
+              type="text"
+              autocomplete="off"
+              maxlength="80"
+              required
+            />
+          </div>
+          <div class="org__linha">
+            <div class="org__campo">
+              <label for="dupla-atleta-a">Atleta A</label>
+              <input
+                id="dupla-atleta-a"
+                name="atletaA"
+                type="text"
+                autocomplete="off"
+                maxlength="80"
+                required
+              />
+            </div>
+            <div class="org__campo">
+              <label for="dupla-atleta-b">Atleta B</label>
+              <input
+                id="dupla-atleta-b"
+                name="atletaB"
+                type="text"
+                autocomplete="off"
+                maxlength="80"
+                required
+              />
+            </div>
+          </div>
+          <button class="org__botao" type="submit" data-add-dupla>
+            Adicionar dupla
+          </button>
+          <p class="org__erro" data-erro-dupla role="alert"></p>
+        </form>
+
+        <p class="org__contagem" data-contagem-duplas></p>
+        <ul class="org__duplas" data-lista-duplas></ul>
+      </section>
+
+      <!-- ============================ FORMATO =========================== -->
+      <section class="org__bloco" aria-labelledby="titulo-formato">
+        <h2 class="org__bloco-titulo" id="titulo-formato">Formato</h2>
+
+        <form class="org__form" data-form-formato novalidate>
+          <fieldset class="org__fieldset">
+            <legend>Escolha o formato do chaveamento</legend>
+            <label class="org__radio">
+              <input
+                type="radio"
+                name="formato"
+                value="dupla eliminação"
+                data-formato
+              />
+              <span>Dupla eliminação</span>
+            </label>
+            <label class="org__radio">
+              <input
+                type="radio"
+                name="formato"
+                value="fase de grupos"
+                data-formato
+              />
+              <span>Fase de grupos</span>
+            </label>
+          </fieldset>
+
+          {/* Parâmetros exclusivos da fase de grupos. */}
+          <div class="org__grupos-params" data-grupos-params hidden>
+            <div class="org__linha">
+              <div class="org__campo">
+                <label for="formato-grupos">Número de grupos</label>
+                <input
+                  id="formato-grupos"
+                  name="numeroDeGrupos"
+                  type="number"
+                  min="1"
+                  step="1"
+                  inputmode="numeric"
+                />
+              </div>
+              <div class="org__campo">
+                <label for="formato-classificados">
+                  Classificados por grupo
+                </label>
+                <input
+                  id="formato-classificados"
+                  name="classificadosPorGrupo"
+                  type="number"
+                  min="1"
+                  step="1"
+                  inputmode="numeric"
+                />
+              </div>
+            </div>
+          </div>
+
+          <button class="org__botao" type="submit" data-salvar-formato>
+            Salvar formato
+          </button>
+          <p class="org__erro" data-erro-formato role="alert"></p>
+        </form>
+      </section>
+
+      <!-- ============================ SEEDING =========================== -->
+      <section class="org__bloco" aria-labelledby="titulo-seeding">
+        <h2 class="org__bloco-titulo" id="titulo-seeding">Seeding</h2>
+        <p class="org__ajuda">
+          O seeding é opcional. Se você não definir posições, ao gerar o
+          chaveamento será usado o seeding padrão (ordem alfabética do nome da
+          dupla). Para definir manualmente, atribua posições 1…N sem repetir
+          nem deixar lacunas.
+        </p>
+
+        <form class="org__form" data-form-seeding novalidate>
+          <ul class="org__seeding" data-lista-seeding></ul>
+          <button class="org__botao" type="submit" data-salvar-seeding>
+            Salvar seeding
+          </button>
+          <p class="org__erro" data-erro-seeding role="alert"></p>
+        </form>
+      </section>
+
+      <!-- =========================== GERAR ============================== -->
+      <section class="org__bloco" aria-labelledby="titulo-gerar">
+        <h2 class="org__bloco-titulo" id="titulo-gerar">Chaveamento</h2>
+
+        <div class="org__acoes">
+          <button class="org__botao org__botao--primario" type="button" data-gerar>
+            Gerar chaveamento
+          </button>
+          {/* Botão de transição grupos → mata-mata; só habilitado quando todos
+              os grupos estão completos (fase de grupos). */}
+          <button class="org__botao" type="button" data-gerar-matamata hidden>
+            Gerar mata-mata
+          </button>
+        </div>
+
+        {/* Confirmação de substituição (R4.8/R4.9): só aparece quando já existe
+            um chaveamento. Sem "Confirmar", nada é gravado. */}
+        <div class="org__confirmar" data-confirmar hidden role="alertdialog" aria-labelledby="confirmar-msg">
+          <p class="org__confirmar-msg" id="confirmar-msg">
+            Já existe um chaveamento para esta categoria. Gerar novamente vai
+            substituí-lo. Deseja continuar?
+          </p>
+          <div class="org__acoes">
+            <button class="org__botao org__botao--perigo" type="button" data-confirmar-sim>
+              Confirmar substituição
+            </button>
+            <button class="org__botao" type="button" data-confirmar-nao>
+              Cancelar
+            </button>
+          </div>
+        </div>
+
+        <p class="org__erro" data-erro-gerar role="alert"></p>
+      </section>
+
+      <!-- ===================== ESTADO ATUAL / RESULTADOS ================ -->
+      <section class="org__bloco" aria-labelledby="titulo-estado">
+        <h2 class="org__bloco-titulo" id="titulo-estado">Estado atual</h2>
+
+        {/* Controles para registrar o vencedor de cada jogo pronto. */}
+        <div class="org__jogos" data-jogos-prontos></div>
+
+        {/* Visualização do chaveamento (renderBracketClient). */}
+        <div class="org__bracket" data-bracket-slot>
+          <p class="org__indisponivel">Nenhum chaveamento gerado ainda.</p>
+        </div>
+      </section>
+    </div>
+  </section>
+</Layout>
+
+<script>
+  // ========================================================================
+  // Organização de UMA categoria — toda a interação roda no NAVEGADOR.
+  //
+  // Importa a lógica de domínio PURA e a store de I/O. É DEFENSIVO: se o
+  // Supabase não estiver configurado (ex.: build/preview sem env), a página
+  // exibe um aviso e não quebra. Cada operação de I/O passa pelo Result do
+  // domínio e traduz DomainError para mensagens amigáveis em português.
+  // ========================================================================
+  import type { SupabaseClient } from "@supabase/supabase-js";
+  import { criarBracketStoreBrowser } from "../../../../store/bracketStore";
+  import type {
+    BracketStore,
+    CategoryRef,
+  } from "../../../../store/bracketStore";
+  import { renderBracketClient } from "../../../../components/bracket/renderBracketClient";
+
+  import type {
+    Bracket,
+    BracketConfig,
+    DomainError,
+    Format,
+    Pair,
+  } from "../../../../domain/bracket/types";
+  import type { Result } from "../../../../domain/result";
+
+  import { validarDuplaCandidata } from "../../../../domain/pairs/validation";
+  import {
+    exigirFormato,
+    validarNumeroDeGrupos,
+    validarClassificadosPorGrupo,
+  } from "../../../../domain/bracket/config";
+  import {
+    validarSeeding,
+    seedingPadrao,
+    type SeedAssignment,
+  } from "../../../../domain/bracket/seeding";
+  import {
+    gerarChaveamento,
+    posicionarClassificadosNoMataMata,
+    type ClassificadoDoGrupo,
+  } from "../../../../domain/bracket/generator";
+  import { registrarVencedor } from "../../../../domain/bracket/progression";
+  import {
+    selecionarClassificados,
+    indiceDeSeed,
+  } from "../../../../domain/bracket/standings";
+
+  // --------------------------------------------------------------------
+  // Tradução de DomainError → mensagem amigável em português (R7/R2/etc.)
+  // --------------------------------------------------------------------
+  function mensagemErro(erro: DomainError): string {
+    switch (erro.code) {
+      case "NOME_DUPLA_INVALIDO":
+        return "Informe um nome de dupla válido (1 a 80 caracteres).";
+      case "NOME_ATLETA_INVALIDO":
+        return `Informe um nome válido para o atleta ${erro.qual} (1 a 80 caracteres).`;
+      case "NOME_DUPLICADO":
+        return "Já existe uma dupla com esse nome nesta categoria.";
+      case "REMOCAO_BLOQUEADA":
+        return "Não é possível remover duplas depois que o chaveamento foi gerado.";
+      case "FORMATO_AUSENTE":
+        return "Escolha um formato antes de gerar o chaveamento.";
+      case "FORMATO_INVALIDO":
+        return "Formato inválido. Escolha 'fase de grupos' ou 'dupla eliminação'.";
+      case "GRUPOS_INVALIDO":
+        return "Número de grupos inválido (inteiro de 1 até a metade do número de duplas).";
+      case "CLASSIFICADOS_INVALIDO":
+        return "Número de classificados por grupo inválido (inteiro, de 1 até o tamanho do menor grupo menos 1).";
+      case "SEED_DUPLICADO":
+        return `A posição de seeding ${erro.posicao} está repetida.`;
+      case "SEED_FORA_INTERVALO":
+        return `A posição de seeding ${erro.posicao} está fora do intervalo permitido.`;
+      case "SEED_LACUNA":
+        return `Há uma lacuna no seeding: falta a posição ${erro.posicao}.`;
+      case "DUPLAS_INSUFICIENTES":
+        return "São necessárias pelo menos 2 duplas para gerar o chaveamento.";
+      case "DUPLAS_EXCEDEM_LIMITE":
+        return "O número de duplas excede o limite suportado (máximo de 128).";
+      case "VENCEDOR_INVALIDO":
+        return "A dupla informada não participa deste jogo.";
+      case "JOGO_NAO_PRONTO":
+        return "Este jogo ainda não está pronto para registro (falta definir uma das duplas).";
+      case "FALHA_PERSISTENCIA":
+        return "Falha ao salvar. Tente novamente em instantes.";
+      case "FALHA_LEITURA":
+        return "Falha ao carregar os dados. Tente novamente em instantes.";
+      default:
+        // Exaustividade: qualquer código novo cai aqui com mensagem genérica.
+        return "Ocorreu um erro inesperado.";
+    }
+  }
+
+  // --------------------------------------------------------------------
+  // Helpers de DOM
+  // --------------------------------------------------------------------
+  function q<T extends HTMLElement>(
+    raiz: ParentNode,
+    seletor: string,
+  ): T | null {
+    return raiz.querySelector<T>(seletor);
+  }
+
+  function setTexto(el: Element | null, texto: string): void {
+    if (el) el.textContent = texto;
+  }
+
+  function limparErro(el: Element | null): void {
+    setTexto(el, "");
+  }
+
+  // Escopo da organização: elementos e estado da página.
+  interface Ctx {
+    ref: CategoryRef;
+    store: BracketStore;
+    secao: HTMLElement;
+    status: HTMLElement | null;
+    // Estado em memória
+    duplas: Pair[];
+    bracket: Bracket | null;
+  }
+
+  // --------------------------------------------------------------------
+  // Inicialização
+  // --------------------------------------------------------------------
+  async function iniciar(): Promise<void> {
+    const secao = q<HTMLElement>(document, ".org[data-campeonato-id]");
+    if (!secao) return;
+
+    const campeonatoId = secao.dataset.campeonatoId;
+    const categoriaNome = secao.dataset.categoriaNome;
+    const init = q<HTMLElement>(secao, "[data-init]");
+    const conteudo = q<HTMLElement>(secao, "[data-conteudo]");
+
+    if (!campeonatoId || !categoriaNome) {
+      setTexto(init, "Categoria inválida.");
+      return;
+    }
+
+    // Import DINÂMICO do cliente público: `src/lib/supabase.ts` lança se as
+    // variáveis de ambiente estiverem ausentes. Capturando aqui, a página não
+    // quebra em ambientes sem Supabase (build/preview) — mostra um aviso.
+    let supabase: SupabaseClient;
+    try {
+      const mod = await import("../../../../lib/supabase");
+      supabase = mod.supabase;
+    } catch {
+      setTexto(
+        init,
+        "Organização indisponível: conexão com o banco não configurada neste ambiente.",
+      );
+      return;
+    }
+
+    // Resolve o id (uuid) da categoria por (campeonato_id, nome). Convenção da
+    // página pública [id].astro: o nome é único por campeonato.
+    let categoriaId: string;
+    try {
+      const { data, error } = await supabase
+        .from("categorias")
+        .select("id")
+        .eq("campeonato_id", campeonatoId)
+        .eq("nome", categoriaNome)
+        .maybeSingle();
+      if (error || !data) {
+        setTexto(
+          init,
+          "Categoria ainda não cadastrada no banco. Rode a migração das categorias antes de organizar.",
+        );
+        return;
+      }
+      categoriaId = data.id as string;
+    } catch {
+      setTexto(init, "Falha ao localizar a categoria no banco.");
+      return;
+    }
+
+    const store = criarBracketStoreBrowser(supabase);
+    const ctx: Ctx = {
+      ref: { campeonatoId, categoriaId },
+      store,
+      secao,
+      status: q<HTMLElement>(secao, "[data-status]"),
+      duplas: [],
+      bracket: null,
+    };
+
+    // Carrega o estado inicial (duplas + chaveamento) antes de exibir a UI.
+    await carregarEstado(ctx);
+
+    // Liga os handlers e revela o conteúdo.
+    ligarHandlers(ctx);
+    if (init) init.hidden = true;
+    if (conteudo) conteudo.hidden = false;
+  }
+
+  // --------------------------------------------------------------------
+  // Carregamento de estado (duplas + chaveamento) e re-render
+  // --------------------------------------------------------------------
+  async function carregarEstado(ctx: Ctx): Promise<void> {
+    limparErro(ctx.status);
+
+    const duplasRes = await ctx.store.listarDuplas(ctx.ref);
+    if (duplasRes.ok) {
+      ctx.duplas = duplasRes.valor;
+    } else {
+      ctx.duplas = [];
+      setTexto(ctx.status, mensagemErro(duplasRes.erro));
+    }
+
+    const brRes = await ctx.store.carregarChaveamento(ctx.ref);
+    if (brRes.ok) {
+      ctx.bracket = brRes.valor;
+    } else {
+      ctx.bracket = null;
+      setTexto(ctx.status, mensagemErro(brRes.erro));
+    }
+
+    renderTudo(ctx);
+  }
+
+  function renderTudo(ctx: Ctx): void {
+    renderDuplas(ctx);
+    renderSeeding(ctx);
+    renderBracket(ctx);
+    renderJogosProntos(ctx);
+    renderBotaoMataMata(ctx);
+  }
+
+  // --------------------------------------------------------------------
+  // DUPLAS (R1)
+  // --------------------------------------------------------------------
+  function renderDuplas(ctx: Ctx): void {
+    const lista = q<HTMLElement>(ctx.secao, "[data-lista-duplas]");
+    const contagem = q<HTMLElement>(ctx.secao, "[data-contagem-duplas]");
+    if (!lista) return;
+
+    setTexto(
+      contagem,
+      ctx.duplas.length === 0
+        ? "Nenhuma dupla cadastrada."
+        : `${ctx.duplas.length} dupla(s) cadastrada(s).`,
+    );
+
+    lista.replaceChildren();
+    // Já existe chaveamento? A remoção fica bloqueada (R1.6) — escondemos o
+    // botão de remover e avisamos.
+    const temBracket = ctx.bracket !== null;
+
+    for (const dupla of ctx.duplas) {
+      const li = document.createElement("li");
+      li.className = "org__dupla";
+
+      const info = document.createElement("div");
+      info.className = "org__dupla-info";
+      const nome = document.createElement("span");
+      nome.className = "org__dupla-nome";
+      nome.textContent = dupla.nomeDupla;
+      const atletas = document.createElement("span");
+      atletas.className = "org__dupla-atletas";
+      atletas.textContent = `${dupla.atletaA} / ${dupla.atletaB}`;
+      info.append(nome, atletas);
+      li.append(info);
+
+      if (!temBracket) {
+        const remover = document.createElement("button");
+        remover.type = "button";
+        remover.className = "org__remover";
+        remover.textContent = "Remover";
+        remover.setAttribute(
+          "aria-label",
+          `Remover dupla ${dupla.nomeDupla}`,
+        );
+        remover.addEventListener("click", () => void removerDupla(ctx, dupla));
+        li.append(remover);
+      }
+
+      lista.append(li);
+    }
+  }
+
+  async function adicionarDupla(ctx: Ctx): Promise<void> {
+    const form = q<HTMLFormElement>(ctx.secao, "[data-form-dupla]");
+    const erro = q<HTMLElement>(ctx.secao, "[data-erro-dupla]");
+    if (!form) return;
+    limparErro(erro);
+
+    const dados = {
+      nomeDupla: (q<HTMLInputElement>(form, "#dupla-nome")?.value ?? ""),
+      atletaA: (q<HTMLInputElement>(form, "#dupla-atleta-a")?.value ?? ""),
+      atletaB: (q<HTMLInputElement>(form, "#dupla-atleta-b")?.value ?? ""),
+    };
+
+    // Validação de domínio ANTES de qualquer I/O (R1.2–R1.4). A store também
+    // revalida contra o banco (unicidade), mas validar aqui dá feedback rápido.
+    const nomesExistentes = ctx.duplas.map((d) => d.nomeDupla);
+    const validada = validarDuplaCandidata(dados, nomesExistentes);
+    if (!validada.ok) {
+      setTexto(erro, mensagemErro(validada.erro));
+      return;
+    }
+
+    const res = await ctx.store.adicionarDupla(ctx.ref, dados);
+    if (!res.ok) {
+      setTexto(erro, mensagemErro(res.erro));
+      return;
+    }
+
+    form.reset();
+    await carregarEstado(ctx);
+    q<HTMLInputElement>(form, "#dupla-nome")?.focus();
+  }
+
+  async function removerDupla(ctx: Ctx, dupla: Pair): Promise<void> {
+    const erro = q<HTMLElement>(ctx.secao, "[data-erro-dupla]");
+    limparErro(erro);
+    const res = await ctx.store.removerDupla(dupla.id);
+    if (!res.ok) {
+      setTexto(erro, mensagemErro(res.erro));
+      return;
+    }
+    await carregarEstado(ctx);
+  }
+
+  // --------------------------------------------------------------------
+  // FORMATO (R2)
+  // --------------------------------------------------------------------
+  function formatoSelecionado(ctx: Ctx): string | null {
+    const marcado = q<HTMLInputElement>(
+      ctx.secao,
+      "input[name='formato']:checked",
+    );
+    return marcado?.value ?? null;
+  }
+
+  function atualizarVisibilidadeGrupos(ctx: Ctx): void {
+    const params = q<HTMLElement>(ctx.secao, "[data-grupos-params]");
+    if (!params) return;
+    params.hidden = formatoSelecionado(ctx) !== "fase de grupos";
+  }
+
+  async function salvarFormato(ctx: Ctx): Promise<void> {
+    const erro = q<HTMLElement>(ctx.secao, "[data-erro-formato]");
+    limparErro(erro);
+
+    const formatoRes = exigirFormato(formatoSelecionado(ctx));
+    if (!formatoRes.ok) {
+      setTexto(erro, mensagemErro(formatoRes.erro));
+      return;
+    }
+    const formato: Format = formatoRes.valor;
+
+    const config: BracketConfig = { formato };
+
+    if (formato === "fase de grupos") {
+      const n = ctx.duplas.length;
+      const gInput = q<HTMLInputElement>(ctx.secao, "#formato-grupos");
+      const cInput = q<HTMLInputElement>(ctx.secao, "#formato-classificados");
+      const g = Number(gInput?.value);
+      const c = Number(cInput?.value);
+
+      const gRes = validarNumeroDeGrupos(g, n);
+      if (!gRes.ok) {
+        setTexto(erro, mensagemErro(gRes.erro));
+        return;
+      }
+      const cRes = validarClassificadosPorGrupo(c, n, gRes.valor);
+      if (!cRes.ok) {
+        setTexto(erro, mensagemErro(cRes.erro));
+        return;
+      }
+      config.numeroDeGrupos = gRes.valor;
+      config.classificadosPorGrupo = cRes.valor;
+    }
+
+    const res = await ctx.store.salvarConfig(ctx.ref, config);
+    if (!res.ok) {
+      setTexto(erro, mensagemErro(res.erro));
+      return;
+    }
+    setTexto(ctx.status, "Formato salvo.");
+  }
+
+  // --------------------------------------------------------------------
+  // SEEDING (R3)
+  // --------------------------------------------------------------------
+  function renderSeeding(ctx: Ctx): void {
+    const lista = q<HTMLElement>(ctx.secao, "[data-lista-seeding]");
+    if (!lista) return;
+    lista.replaceChildren();
+
+    if (ctx.duplas.length === 0) {
+      const vazio = document.createElement("li");
+      vazio.className = "org__seeding-vazio";
+      vazio.textContent = "Cadastre duplas para definir o seeding.";
+      lista.append(vazio);
+      return;
+    }
+
+    for (const dupla of ctx.duplas) {
+      const li = document.createElement("li");
+      li.className = "org__seeding-item";
+
+      const label = document.createElement("label");
+      label.className = "org__seeding-label";
+      label.textContent = dupla.nomeDupla;
+      const inputId = `seed-${dupla.id}`;
+      label.htmlFor = inputId;
+
+      const input = document.createElement("input");
+      input.id = inputId;
+      input.type = "number";
+      input.min = "1";
+      input.step = "1";
+      input.inputMode = "numeric";
+      input.className = "org__seeding-input";
+      input.dataset.pairId = dupla.id;
+      // Preenche com o seed atual quando já definido (>0).
+      if (dupla.seed && dupla.seed > 0) input.value = String(dupla.seed);
+
+      li.append(label, input);
+      lista.append(li);
+    }
+  }
+
+  async function salvarSeeding(ctx: Ctx): Promise<void> {
+    const erro = q<HTMLElement>(ctx.secao, "[data-erro-seeding]");
+    limparErro(erro);
+
+    const inputs = Array.from(
+      ctx.secao.querySelectorAll<HTMLInputElement>(".org__seeding-input"),
+    );
+    const seeds: SeedAssignment[] = inputs.map((input) => ({
+      pairId: input.dataset.pairId ?? "",
+      posicao: Number(input.value),
+    }));
+
+    const valido = validarSeeding(seeds, ctx.duplas.length);
+    if (!valido.ok) {
+      setTexto(erro, mensagemErro(valido.erro));
+      return;
+    }
+
+    const res = await ctx.store.salvarSeeding(ctx.ref, valido.valor);
+    if (!res.ok) {
+      setTexto(erro, mensagemErro(res.erro));
+      return;
+    }
+    setTexto(ctx.status, "Seeding salvo.");
+    await carregarEstado(ctx);
+  }
+
+  // --------------------------------------------------------------------
+  // GERAR (R4) — com confirmação de substituição (R4.8/R4.9)
+  // --------------------------------------------------------------------
+
+  /**
+   * Monta a lista de duplas com seeding RESOLVIDO para alimentar o gerador:
+   * usa o seed salvo em cada dupla quando TODAS têm seed válido (1..N); caso
+   * contrário aplica o seeding padrão alfabético (R3.4).
+   */
+  function duplasComSeeding(ctx: Ctx): Pair[] {
+    const n = ctx.duplas.length;
+    const todasComSeed = ctx.duplas.every(
+      (d) => Number.isInteger(d.seed) && d.seed >= 1 && d.seed <= n,
+    );
+    // Também exige que o conjunto de seeds seja exatamente {1..N}.
+    const seedsOk =
+      todasComSeed &&
+      new Set(ctx.duplas.map((d) => d.seed)).size === n;
+
+    if (seedsOk) {
+      return ctx.duplas.map((d) => ({ ...d }));
+    }
+
+    const padrao = seedingPadrao(ctx.duplas);
+    const posicaoPorId = new Map(padrao.map((s) => [s.pairId, s.posicao]));
+    return ctx.duplas.map((d) => ({
+      ...d,
+      seed: posicaoPorId.get(d.id) ?? d.seed,
+    }));
+  }
+
+  /**
+   * Lê o formato a partir do que está marcado na UI OU do chaveamento/estado
+   * existente. Exige um formato (R2.7). Para "fase de grupos", valida os
+   * parâmetros contra o número de duplas.
+   */
+  function resolverConfigParaGerar(ctx: Ctx): Result<BracketConfig> {
+    const n = ctx.duplas.length;
+
+    const formatoRes = exigirFormato(formatoSelecionado(ctx));
+    if (!formatoRes.ok) return { ok: false, erro: formatoRes.erro };
+    const formato = formatoRes.valor;
+
+    const config: BracketConfig = { formato };
+    if (formato === "fase de grupos") {
+      const g = Number(
+        q<HTMLInputElement>(ctx.secao, "#formato-grupos")?.value,
+      );
+      const c = Number(
+        q<HTMLInputElement>(ctx.secao, "#formato-classificados")?.value,
+      );
+      const gRes = validarNumeroDeGrupos(g, n);
+      if (!gRes.ok) return { ok: false, erro: gRes.erro };
+      const cRes = validarClassificadosPorGrupo(c, n, gRes.valor);
+      if (!cRes.ok) return { ok: false, erro: cRes.erro };
+      config.numeroDeGrupos = gRes.valor;
+      config.classificadosPorGrupo = cRes.valor;
+    }
+    return { ok: true, valor: config };
+  }
+
+  async function clicarGerar(ctx: Ctx): Promise<void> {
+    const erro = q<HTMLElement>(ctx.secao, "[data-erro-gerar]");
+    limparErro(erro);
+
+    // Se já existe chaveamento, NÃO gera direto: exige confirmação explícita
+    // (R4.8). Enquanto não confirmar, nada é gravado (R4.9).
+    if (ctx.bracket !== null) {
+      const confirmar = q<HTMLElement>(ctx.secao, "[data-confirmar]");
+      if (confirmar) confirmar.hidden = false;
+      return;
+    }
+
+    await gerarEffetivo(ctx);
+  }
+
+  async function gerarEffetivo(ctx: Ctx): Promise<void> {
+    const erro = q<HTMLElement>(ctx.secao, "[data-erro-gerar]");
+    limparErro(erro);
+
+    const configRes = resolverConfigParaGerar(ctx);
+    if (!configRes.ok) {
+      setTexto(erro, mensagemErro(configRes.erro));
+      return;
+    }
+
+    const duplas = duplasComSeeding(ctx);
+    const gen = gerarChaveamento({ duplas, config: configRes.valor });
+    if (!gen.ok) {
+      setTexto(erro, mensagemErro(gen.erro));
+      return;
+    }
+
+    // Preenche os identificadores do par (campeonato, categoria) no bracket.
+    const bracket: Bracket = {
+      ...gen.bracket,
+      campeonatoId: ctx.ref.campeonatoId,
+      categoriaId: ctx.ref.categoriaId,
+    };
+
+    const res = await ctx.store.salvarChaveamento(ctx.ref, bracket);
+    if (!res.ok) {
+      setTexto(erro, mensagemErro(res.erro));
+      return;
+    }
+
+    setTexto(ctx.status, "Chaveamento gerado e salvo.");
+    await carregarEstado(ctx);
+  }
+
+  // --------------------------------------------------------------------
+  // GERAR MATA-MATA (transição grupos → mata-mata, R5.4/R5.5/R5.6)
+  // --------------------------------------------------------------------
+
+  /** Verdadeiro sse o bracket atual é de fase de grupos com todos os grupos
+   *  completos (todos os jogos de grupo têm vencedor). */
+  function gruposTodosCompletos(bracket: Bracket): boolean {
+    if (bracket.formato !== "fase de grupos") return false;
+    if (bracket.grupos.length === 0) return false;
+    const jogosGrupo = bracket.matches.filter((m) => m.side === "grupo");
+    if (jogosGrupo.length === 0) return false;
+    return jogosGrupo.every((m) => m.vencedorId !== null);
+  }
+
+  /** Verdadeiro sse o mata-mata já foi gerado (há jogos fora de "grupo"). */
+  function temMataMata(bracket: Bracket): boolean {
+    return bracket.matches.some((m) => m.side !== "grupo");
+  }
+
+  function renderBotaoMataMata(ctx: Ctx): void {
+    const botao = q<HTMLButtonElement>(ctx.secao, "[data-gerar-matamata]");
+    if (!botao) return;
+    const mostrar =
+      ctx.bracket !== null &&
+      gruposTodosCompletos(ctx.bracket) &&
+      !temMataMata(ctx.bracket);
+    botao.hidden = !mostrar;
+  }
+
+  async function gerarMataMata(ctx: Ctx): Promise<void> {
+    const erro = q<HTMLElement>(ctx.secao, "[data-erro-gerar]");
+    limparErro(erro);
+    const bracket = ctx.bracket;
+    if (!bracket || !gruposTodosCompletos(bracket)) return;
+
+    const classificadosPorGrupo = bracket.config.classificadosPorGrupo ?? 1;
+    const seedIndex = indiceDeSeed(bracket.duplas);
+    const duplaPorId = new Map(bracket.duplas.map((d) => [d.id, d]));
+
+    // Monta a lista de classificados (dupla + grupo + posição) para posicionar.
+    const classificados: ClassificadoDoGrupo[] = [];
+    for (const grupo of bracket.grupos) {
+      const top = selecionarClassificados(
+        grupo,
+        bracket.matches,
+        seedIndex,
+        classificadosPorGrupo,
+      );
+      if (top === null) {
+        setTexto(erro, "A fase de grupos ainda não está completa.");
+        return;
+      }
+      for (const standing of top) {
+        const pair = duplaPorId.get(standing.pairId);
+        if (!pair) continue;
+        classificados.push({
+          pair,
+          grupoId: grupo.id,
+          posicaoNoGrupo: standing.posicao,
+        });
+      }
+    }
+
+    const pos = posicionarClassificadosNoMataMata(
+      classificados,
+      bracket.config,
+    );
+    if (!pos.ok) {
+      setTexto(erro, mensagemErro(pos.erro));
+      return;
+    }
+
+    // O mata-mata gerado é um bracket independente; mesclamos os jogos/duplas
+    // do mata-mata ao bracket de grupos existente, preservando os jogos de
+    // grupo e seus resultados.
+    const mataMata = pos.bracket;
+    const jogosGrupo = bracket.matches.filter((m) => m.side === "grupo");
+    const jogosMataMata = mataMata.matches.filter((m) => m.side !== "grupo");
+
+    // União das duplas (snapshot): grupos + classificados (sem duplicar por id).
+    const duplasUnidas = new Map<string, Pair>();
+    for (const d of bracket.duplas) duplasUnidas.set(d.id, d);
+    for (const d of mataMata.duplas) duplasUnidas.set(d.id, { ...d });
+
+    const combinado: Bracket = {
+      ...bracket,
+      duplas: Array.from(duplasUnidas.values()),
+      matches: [...jogosGrupo, ...jogosMataMata],
+    };
+
+    const res = await ctx.store.salvarChaveamento(ctx.ref, combinado);
+    if (!res.ok) {
+      setTexto(erro, mensagemErro(res.erro));
+      return;
+    }
+    setTexto(ctx.status, "Mata-mata gerado a partir dos classificados.");
+    await carregarEstado(ctx);
+  }
+
+  // --------------------------------------------------------------------
+  // REGISTRAR RESULTADOS (R6) — para cada jogo pronto (sem bye, ambas as duplas)
+  // --------------------------------------------------------------------
+  function nomeDupla(bracket: Bracket, pairId: string | null): string {
+    if (!pairId) return "(indefinida)";
+    const d = bracket.duplas.find((x) => x.id === pairId);
+    return d ? d.nomeDupla : "(indefinida)";
+  }
+
+  function renderJogosProntos(ctx: Ctx): void {
+    const container = q<HTMLElement>(ctx.secao, "[data-jogos-prontos]");
+    if (!container) return;
+    container.replaceChildren();
+
+    const bracket = ctx.bracket;
+    if (!bracket) return;
+
+    // Um jogo está PRONTO para registro quando ambas as duplas estão definidas
+    // (pairId não-nulo) e nenhuma é bye (R6.3). Oferecemos um controle de
+    // escolha de vencedor para cada um; se já há vencedor, pré-seleciona (a
+    // troca registra a correção com cascata, R6.6).
+    const prontos = bracket.matches.filter(
+      (m) =>
+        m.a.pairId !== null &&
+        m.b.pairId !== null &&
+        m.a.bye !== true &&
+        m.b.bye !== true,
+    );
+
+    if (prontos.length === 0) {
+      const vazio = document.createElement("p");
+      vazio.className = "org__ajuda";
+      vazio.textContent =
+        "Nenhum jogo pronto para registro no momento.";
+      container.append(vazio);
+      return;
+    }
+
+    const titulo = document.createElement("h3");
+    titulo.className = "org__subtitulo-bloco";
+    titulo.textContent = "Registrar resultados";
+    container.append(titulo);
+
+    for (const jogo of prontos) {
+      const linha = document.createElement("div");
+      linha.className = "org__jogo";
+
+      const confronto = document.createElement("span");
+      confronto.className = "org__jogo-confronto";
+      confronto.textContent = `${nomeDupla(bracket, jogo.a.pairId)} × ${nomeDupla(bracket, jogo.b.pairId)}`;
+      linha.append(confronto);
+
+      const grupo = document.createElement("div");
+      grupo.className = "org__jogo-escolha";
+      grupo.setAttribute("role", "group");
+      grupo.setAttribute(
+        "aria-label",
+        `Escolher vencedor de ${confronto.textContent}`,
+      );
+
+      for (const slot of ["a", "b"] as const) {
+        const pid = jogo[slot].pairId as string;
+        const botao = document.createElement("button");
+        botao.type = "button";
+        botao.className = "org__jogo-botao";
+        if (jogo.vencedorId === pid) {
+          botao.classList.add("org__jogo-botao--vencedor");
+          botao.setAttribute("aria-pressed", "true");
+        } else {
+          botao.setAttribute("aria-pressed", "false");
+        }
+        botao.textContent = nomeDupla(bracket, pid);
+        botao.addEventListener("click", () =>
+          void registrarResultado(ctx, jogo.id, pid),
+        );
+        grupo.append(botao);
+      }
+
+      linha.append(grupo);
+      container.append(linha);
+    }
+  }
+
+  async function registrarResultado(
+    ctx: Ctx,
+    matchId: string,
+    vencedorId: string,
+  ): Promise<void> {
+    const erro = q<HTMLElement>(ctx.secao, "[data-erro-gerar]");
+    limparErro(erro);
+    const bracket = ctx.bracket;
+    if (!bracket) return;
+
+    // Progressão PURA: produz um novo bracket (avanço + cascata). `agora` é
+    // injetado na borda para manter a função pura (R6.1).
+    const res = registrarVencedor(
+      bracket,
+      matchId,
+      vencedorId,
+      new Date().toISOString(),
+    );
+    if (!res.ok) {
+      setTexto(ctx.status, mensagemErro(res.erro));
+      return;
+    }
+
+    const salvo = await ctx.store.salvarChaveamento(ctx.ref, res.bracket);
+    if (!salvo.ok) {
+      setTexto(ctx.status, mensagemErro(salvo.erro));
+      return;
+    }
+    setTexto(ctx.status, "Resultado registrado.");
+    await carregarEstado(ctx);
+  }
+
+  // --------------------------------------------------------------------
+  // VISUALIZAÇÃO do estado atual (renderBracketClient)
+  // --------------------------------------------------------------------
+  function renderBracket(ctx: Ctx): void {
+    const slot = q<HTMLElement>(ctx.secao, "[data-bracket-slot]");
+    if (!slot) return;
+
+    if (!ctx.bracket) {
+      const vazio = document.createElement("p");
+      vazio.className = "org__indisponivel";
+      vazio.textContent = "Nenhum chaveamento gerado ainda.";
+      slot.replaceChildren(vazio);
+      return;
+    }
+
+    try {
+      const view = renderBracketClient(ctx.bracket);
+      slot.replaceChildren(view);
+    } catch {
+      const err = document.createElement("p");
+      err.className = "org__indisponivel";
+      err.textContent = "Não foi possível exibir o chaveamento.";
+      slot.replaceChildren(err);
+    }
+  }
+
+  // --------------------------------------------------------------------
+  // Ligação de handlers
+  // --------------------------------------------------------------------
+  function ligarHandlers(ctx: Ctx): void {
+    // Duplas
+    const formDupla = q<HTMLFormElement>(ctx.secao, "[data-form-dupla]");
+    formDupla?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      void adicionarDupla(ctx);
+    });
+
+    // Formato: mostra/esconde parâmetros de grupos ao trocar o radio.
+    for (const radio of Array.from(
+      ctx.secao.querySelectorAll<HTMLInputElement>("[data-formato]"),
+    )) {
+      radio.addEventListener("change", () => atualizarVisibilidadeGrupos(ctx));
+    }
+    atualizarVisibilidadeGrupos(ctx);
+
+    const formFormato = q<HTMLFormElement>(ctx.secao, "[data-form-formato]");
+    formFormato?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      void salvarFormato(ctx);
+    });
+
+    // Seeding
+    const formSeeding = q<HTMLFormElement>(ctx.secao, "[data-form-seeding]");
+    formSeeding?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      void salvarSeeding(ctx);
+    });
+
+    // Gerar
+    q<HTMLButtonElement>(ctx.secao, "[data-gerar]")?.addEventListener(
+      "click",
+      () => void clicarGerar(ctx),
+    );
+
+    // Gerar mata-mata
+    q<HTMLButtonElement>(ctx.secao, "[data-gerar-matamata]")?.addEventListener(
+      "click",
+      () => void gerarMataMata(ctx),
+    );
+
+    // Confirmação de substituição (R4.8/R4.9)
+    q<HTMLButtonElement>(ctx.secao, "[data-confirmar-sim]")?.addEventListener(
+      "click",
+      () => {
+        const confirmar = q<HTMLElement>(ctx.secao, "[data-confirmar]");
+        if (confirmar) confirmar.hidden = true;
+        void gerarEffetivo(ctx);
+      },
+    );
+    q<HTMLButtonElement>(ctx.secao, "[data-confirmar-nao]")?.addEventListener(
+      "click",
+      () => {
+        // Cancela: nada é gravado (R4.9); apenas fecha o painel.
+        const confirmar = q<HTMLElement>(ctx.secao, "[data-confirmar]");
+        if (confirmar) confirmar.hidden = true;
+        setTexto(ctx.status, "Substituição cancelada. Nada foi alterado.");
+      },
+    );
+  }
+
+  iniciar();
+</script>
+
+<style>
+  .org {
+    width: 100%;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 3rem;
+  }
+
+  .org__voltar {
+    display: inline-block;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--cor-texto-suave);
+    text-decoration: none;
+  }
+
+  .org__voltar:hover {
+    color: var(--cor-destaque-texto);
+  }
+
+  .org__cabecalho {
+    margin-bottom: 1rem;
+  }
+
+  .org__rotulo {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--cor-destaque-texto);
+  }
+
+  .org__titulo {
+    font-size: 1.6rem;
+    line-height: 1.2;
+    margin: 0.3rem 0 0;
+  }
+
+  .org__subtitulo {
+    margin: 0.3rem 0 0;
+    color: var(--cor-texto-suave);
+  }
+
+  .org__status {
+    margin: 0 0 1rem;
+    min-height: 1.2em;
+    font-size: 0.95rem;
+    color: var(--cor-destaque-texto);
+    font-weight: 600;
+  }
+
+  .org__init {
+    margin: 0;
+    padding: 1rem;
+    border: 1px dashed var(--cor-borda);
+    border-radius: 12px;
+    color: var(--cor-texto-suave);
+    text-align: center;
+  }
+
+  .org__conteudo {
+    display: flex;
+    flex-direction: column;
+    gap: 1.6rem;
+  }
+
+  .org__bloco {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-card);
+    padding: 1.1rem 1.2rem 1.3rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+
+  .org__bloco-titulo {
+    margin: 0;
+    font-size: 1.2rem;
+    line-height: 1.3;
+    color: var(--cor-texto);
+  }
+
+  .org__subtitulo-bloco {
+    margin: 0 0 0.6rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--cor-texto);
+  }
+
+  .org__form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .org__linha {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  @media (max-width: 480px) {
+    .org__linha {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .org__campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .org__campo label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--cor-texto-suave);
+  }
+
+  .org__campo input,
+  .org__seeding-input {
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 10px;
+    font-size: 0.95rem;
+    background: var(--cor-fundo);
+    color: var(--cor-texto);
+  }
+
+  .org__campo input:focus,
+  .org__seeding-input:focus {
+    outline: 2px solid var(--cor-destaque);
+    outline-offset: 1px;
+  }
+
+  .org__fieldset {
+    border: 1px solid var(--cor-borda);
+    border-radius: 10px;
+    padding: 0.75rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .org__fieldset legend {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--cor-texto-suave);
+    padding: 0 0.3rem;
+  }
+
+  .org__radio {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+
+  .org__botao {
+    align-self: flex-start;
+    padding: 0.6rem 1.1rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 999px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    background: var(--cor-fundo);
+    color: var(--cor-texto);
+    cursor: pointer;
+    transition: border-color 0.15s ease, transform 0.15s ease;
+  }
+
+  .org__botao:hover {
+    border-color: var(--cor-destaque);
+    transform: translateY(-1px);
+  }
+
+  .org__botao--primario {
+    background: var(--cor-destaque);
+    color: var(--cor-destaque-contraste);
+    border-color: var(--cor-destaque);
+  }
+
+  .org__botao--perigo {
+    background: #c0392b;
+    color: #fff;
+    border-color: #c0392b;
+  }
+
+  .org__acoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .org__erro {
+    margin: 0;
+    min-height: 1.1em;
+    font-size: 0.88rem;
+    color: #c0392b;
+    font-weight: 600;
+  }
+
+  .org__ajuda {
+    margin: 0;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: var(--cor-texto-suave);
+  }
+
+  .org__contagem {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--cor-texto-suave);
+  }
+
+  .org__duplas,
+  .org__seeding {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .org__dupla {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 10px;
+    background: var(--cor-fundo);
+  }
+
+  .org__dupla-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .org__dupla-nome {
+    font-weight: 700;
+  }
+
+  .org__dupla-atletas {
+    font-size: 0.85rem;
+    color: var(--cor-texto-suave);
+  }
+
+  .org__remover {
+    flex-shrink: 0;
+    padding: 0.4rem 0.8rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    background: transparent;
+    color: #c0392b;
+    cursor: pointer;
+  }
+
+  .org__remover:hover {
+    border-color: #c0392b;
+  }
+
+  .org__seeding-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+    padding: 0.5rem 0.8rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 10px;
+    background: var(--cor-fundo);
+  }
+
+  .org__seeding-label {
+    font-weight: 600;
+  }
+
+  .org__seeding-input {
+    width: 5rem;
+  }
+
+  .org__seeding-vazio {
+    color: var(--cor-texto-suave);
+    font-size: 0.9rem;
+  }
+
+  .org__confirmar {
+    margin-top: 0.4rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid #c0392b;
+    border-left: 4px solid #c0392b;
+    border-radius: 10px;
+    background: rgba(192, 57, 43, 0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .org__confirmar-msg {
+    margin: 0;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    color: var(--cor-texto);
+  }
+
+  .org__jogos {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .org__jogo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 10px;
+    background: var(--cor-fundo);
+  }
+
+  .org__jogo-confronto {
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  .org__jogo-escolha {
+    display: flex;
+    gap: 0.4rem;
+  }
+
+  .org__jogo-botao {
+    padding: 0.35rem 0.75rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    background: var(--cor-superficie);
+    color: var(--cor-texto);
+    cursor: pointer;
+  }
+
+  .org__jogo-botao:hover {
+    border-color: var(--cor-destaque);
+  }
+
+  .org__jogo-botao--vencedor {
+    background: var(--cor-destaque);
+    color: var(--cor-destaque-contraste);
+    border-color: var(--cor-destaque);
+  }
+
+  .org__bracket {
+    margin-top: 0.5rem;
+  }
+
+  .org__indisponivel {
+    margin: 0;
+    font-size: 0.95rem;
+    color: var(--cor-texto-suave);
+    font-style: italic;
+  }
+</style>
+
+<!--
+  Estilos GLOBAIS do chaveamento renderizado em runtime por `renderBracketClient`.
+  O DOM criado no cliente não recebe o hash de escopo do Astro, então as classes
+  .bracket-view / .group-table / .elim-tree / .match-card precisam de CSS GLOBAL,
+  espelhando os mesmos tokens do tema — idêntico ao que a página pública
+  [id].astro faz para manter a visualização coerente.
+-->
+<style is:global>
+  .bracket-view {
+    display: flex;
+    flex-direction: column;
+    gap: 1.4rem;
+  }
+
+  .bracket-view__campea {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    background: var(--cor-destaque);
+    color: var(--cor-destaque-contraste);
+    border-radius: var(--raio-card);
+    padding: 0.9rem 1.2rem;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  }
+
+  .bracket-view__campea-rotulo {
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    background: var(--cor-destaque-contraste);
+    color: var(--cor-texto-claro);
+  }
+
+  .bracket-view__campea-nome {
+    font-size: 1.15rem;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+
+  .bracket-view__conteudo {
+    display: flex;
+    flex-direction: column;
+    gap: 1.6rem;
+  }
+
+  .bracket-view__fase {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .bracket-view__fase-titulo {
+    margin: 0;
+    font-size: 1.2rem;
+    line-height: 1.3;
+    color: var(--cor-texto);
+  }
+
+  .bracket-view__grupos {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .group-table {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-card);
+    padding: 1rem 1.1rem 1.2rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+
+  .group-table__titulo {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.3;
+    color: var(--cor-texto);
+  }
+
+  .group-table__tabela {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+  }
+
+  .group-table__caption {
+    caption-side: top;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--cor-texto-suave);
+    padding-bottom: 0.4rem;
+  }
+
+  .group-table__pendente {
+    text-transform: none;
+    font-weight: 600;
+    letter-spacing: 0;
+    font-style: italic;
+  }
+
+  .group-table__tabela th {
+    text-align: left;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--cor-texto-suave);
+    padding: 0.35rem 0.5rem;
+    border-bottom: 1px solid var(--cor-borda);
+  }
+
+  .group-table__tabela td {
+    padding: 0.45rem 0.5rem;
+    border-bottom: 1px solid var(--cor-borda);
+    color: var(--cor-texto);
+  }
+
+  .group-table__col-pos,
+  .group-table__col-vit {
+    width: 1%;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  .group-table__col-dupla {
+    font-weight: 600;
+  }
+
+  .group-table__linha--lider .group-table__col-dupla {
+    color: var(--cor-destaque-texto);
+    font-weight: 800;
+  }
+
+  .group-table__linha--lider .group-table__col-pos {
+    color: var(--cor-destaque-texto);
+    font-weight: 800;
+  }
+
+  .group-table__subtitulo {
+    margin: 0 0 0.5rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cor-texto-suave);
+  }
+
+  .group-table__lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.6rem;
+  }
+
+  .group-table__item {
+    display: block;
+  }
+
+  .elim-tree {
+    display: flex;
+    flex-direction: column;
+    gap: 1.4rem;
+  }
+
+  .elim-tree__secao {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+
+  .elim-tree__titulo {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.3;
+    color: var(--cor-texto);
+    padding-bottom: 0.4rem;
+    border-bottom: 2px solid var(--cor-destaque-suave);
+  }
+
+  .elim-tree__rodadas {
+    display: flex;
+    gap: 1rem;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+  }
+
+  .elim-tree__rodada {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    min-width: 230px;
+    flex: 0 0 auto;
+  }
+
+  .elim-tree__rodada-titulo {
+    margin: 0;
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cor-texto-suave);
+  }
+
+  .elim-tree__lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    justify-content: space-around;
+    height: 100%;
+  }
+
+  .elim-tree__item {
+    display: block;
+  }
+
+  .match-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-card);
+    padding: 0.6rem 0.75rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+
+  .match-card__slots {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .match-card__slot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.4rem 0.55rem;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    color: var(--cor-texto);
+    background: var(--cor-fundo);
+  }
+
+  .match-card__dupla {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .match-card__slot--bye .match-card__dupla,
+  .match-card__slot--indefinido .match-card__dupla {
+    font-weight: 500;
+    color: var(--cor-texto-suave);
+    font-style: italic;
+  }
+
+  .match-card__slot--vencedora {
+    background: var(--cor-destaque-suave);
+    color: var(--cor-destaque-texto);
+    border-left: 3px solid var(--cor-destaque);
+    font-weight: 800;
+  }
+
+  .match-card__slot--vencedora .match-card__dupla {
+    color: var(--cor-destaque-texto);
+    font-weight: 800;
+  }
+
+  .match-card__marca {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.3rem;
+    height: 1.3rem;
+    border-radius: 50%;
+    background: var(--cor-destaque);
+    color: var(--cor-destaque-contraste);
+    font-size: 0.8rem;
+    font-weight: 900;
+    line-height: 1;
+  }
+
+  .match-card__estado {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    align-self: flex-start;
+  }
+
+  .match-card__estado--pendente {
+    color: var(--cor-texto-suave);
+  }
+</style>

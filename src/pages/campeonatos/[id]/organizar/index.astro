@@ -1,0 +1,201 @@
+---
+import type { Campeonato } from "../../../../types";
+import campeonatosData from "../../../../data/campeonatos.json";
+import Layout from "../../../../layouts/Layout.astro";
+import { comBase, slugCategoria } from "../../../../utils/url";
+
+/**
+ * Área de ORGANIZAÇÃO (R9.1) de um campeonato: lista as categorias do
+ * campeonato, cada uma com um link para a sua página de organização
+ * (`/campeonatos/[id]/organizar/[categoria]`, criada na tarefa 18.2). A
+ * organização opera POR CATEGORIA — cada categoria tem um chaveamento
+ * independente.
+ *
+ * Esta rota NÃO é linkada publicamente (sem link a partir das páginas públicas)
+ * e o controle de acesso completo do organizador chega na Fase 2a (R9.3). A
+ * visualização pública (R9.2) continua na página `/campeonatos/[id]`.
+ *
+ * Fonte das categorias no estático: o JSON `src/data/campeonatos.json` (campo
+ * `categorias?`), igual ao restante do site, para gerar as rotas estáticas e a
+ * lista. No RUNTIME, a organização lê/grava categorias e chaveamentos via
+ * Bracket_Store/Supabase (fonte de verdade).
+ */
+export function getStaticPaths() {
+  const lista = campeonatosData as Campeonato[];
+  return lista.map((campeonato) => ({
+    params: { id: campeonato.id },
+    props: { campeonato },
+  }));
+}
+
+interface Props {
+  campeonato: Campeonato;
+}
+
+const { campeonato } = Astro.props;
+
+// Categorias a partir do JSON; ausência de `categorias` => lista vazia.
+const categorias = campeonato.categorias ?? [];
+
+// Deriva o slug estável do nome (mesma convenção que a rota [categoria] da
+// tarefa 18.2 deve seguir: slugCategoria em src/utils/url.ts).
+const itens = categorias.map((nome) => ({
+  nome,
+  href: comBase(`/campeonatos/${campeonato.id}/organizar/${slugCategoria(nome)}`),
+}));
+---
+
+<Layout
+  titulo={`Organização — ${campeonato.nome}`}
+  descricao={`Área de organização do campeonato ${campeonato.nome}.`}
+>
+  <section class="organizar">
+    <a class="organizar__voltar" href={comBase(`/campeonatos/${campeonato.id}`)}>
+      <span aria-hidden="true">←</span> Voltar ao campeonato
+    </a>
+
+    <header class="organizar__cabecalho">
+      <p class="organizar__rotulo">Área de organização</p>
+      <h1 class="organizar__titulo">Organização — {campeonato.nome}</h1>
+      <p class="organizar__descricao">
+        Escolha uma categoria para gerenciar duplas, formato, seeding e
+        resultados. Cada categoria tem um chaveamento independente.
+      </p>
+    </header>
+
+    <p class="organizar__aviso" role="note">
+      Área restrita de organização. O controle de acesso completo chega na
+      Fase 2a — por ora estas páginas não são divulgadas publicamente.
+    </p>
+
+    {
+      itens.length > 0 ? (
+        <ul class="organizar__lista">
+          {itens.map((item) => (
+            <li class="organizar__item">
+              <a class="organizar__link" href={item.href}>
+                <span class="organizar__categoria">{item.nome}</span>
+                <span class="organizar__seta" aria-hidden="true">
+                  →
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="organizar__vazio">
+          Este campeonato ainda não tem categorias cadastradas.
+        </p>
+      )
+    }
+  </section>
+</Layout>
+
+<style>
+  .organizar {
+    width: 100%;
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 3rem;
+  }
+
+  .organizar__voltar {
+    display: inline-block;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--cor-texto-suave);
+    text-decoration: none;
+  }
+
+  .organizar__voltar:hover {
+    color: var(--cor-destaque-texto);
+  }
+
+  .organizar__cabecalho {
+    margin-bottom: 1.25rem;
+  }
+
+  .organizar__rotulo {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--cor-destaque-texto);
+  }
+
+  .organizar__titulo {
+    font-size: 1.5rem;
+    line-height: 1.25;
+    margin: 0.35rem 0 0;
+  }
+
+  .organizar__descricao {
+    margin: 0.75rem 0 0;
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--cor-texto-suave);
+  }
+
+  .organizar__aviso {
+    margin: 0 0 1.5rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--cor-borda);
+    border-left: 4px solid var(--cor-destaque);
+    border-radius: 8px;
+    background: var(--cor-destaque-suave);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--cor-texto);
+  }
+
+  .organizar__lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .organizar__link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem 1.1rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 12px;
+    background: var(--cor-superficie);
+    text-decoration: none;
+    color: var(--cor-texto);
+    transition: border-color 0.15s ease, transform 0.15s ease;
+  }
+
+  .organizar__link:hover {
+    border-color: var(--cor-destaque);
+    transform: translateY(-1px);
+  }
+
+  .organizar__categoria {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .organizar__seta {
+    flex-shrink: 0;
+    font-size: 1.1rem;
+    color: var(--cor-destaque-texto);
+  }
+
+  .organizar__vazio {
+    margin: 0;
+    padding: 1.1rem;
+    border: 1px dashed var(--cor-borda);
+    border-radius: 12px;
+    font-size: 0.95rem;
+    color: var(--cor-texto-suave);
+    text-align: center;
+  }
+</style>
