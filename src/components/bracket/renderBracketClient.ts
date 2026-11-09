@@ -42,6 +42,42 @@ import {
 /** Mapa pairId -> Pair. */
 type DuplasPorId = Record<string, Pair>;
 
+/**
+ * Opções de interação da renderização. São OPCIONAIS: a página pública chama
+ * `renderBracketClient` sem elas (visualização inerte, somente leitura — R9.2),
+ * enquanto a página de organização passa `aoEscolherVencedor` para habilitar o
+ * clique direto na dupla.
+ *
+ * IMPORTANTE (fronteira R9.1/R9.2): este módulo permanece PURO em relação a I/O.
+ * Ele apenas chama o callback recebido ao clicar num slot; não conhece store,
+ * Supabase nem qualquer operação de escrita. Quem persiste é a página de
+ * organização, dona do callback.
+ */
+export interface RenderOpcoes {
+  /**
+   * Quando fornecido, os slots de duplas DEFINIDAS de um jogo pronto (ambas as
+   * duplas definidas, sem bye) ficam clicáveis. Ao clicar, chama este callback
+   * com o id do jogo e o id da dupla escolhida como vencedora.
+   */
+  aoEscolherVencedor?: (matchId: string, pairId: string) => void;
+}
+
+/**
+ * Comparador de jogos pela ORDEM DE DISPUTA (número do jogo). Jogos numerados
+ * vêm primeiro, em ordem crescente do número; jogos ainda sem número (null)
+ * vão ao fim, mantendo uma ordem estável por (rodada, ordem, id).
+ */
+function compararPorOrdemDisputa(a: Match, b: Match): number {
+  const na = a.ordemDisputa;
+  const nb = b.ordemDisputa;
+  if (na !== null && nb !== null) return na - nb;
+  if (na !== null) return -1; // numerado antes de não-numerado
+  if (nb !== null) return 1;
+  if (a.rodada !== b.rodada) return a.rodada - b.rodada;
+  if (a.ordem !== b.ordem) return a.ordem - b.ordem;
+  return a.id.localeCompare(b.id);
+}
+
 // ---------------------------------------------------------------------------
 // Utilitários de DOM
 // ---------------------------------------------------------------------------
@@ -116,13 +152,22 @@ function resolverSlot(
   };
 }
 
-function renderMatchCard(match: Match, duplasPorId: DuplasPorId): HTMLElement {
+function renderMatchCard(
+  match: Match,
+  duplasPorId: DuplasPorId,
+  opcoes?: RenderOpcoes,
+): HTMLElement {
   const slotA = resolverSlot(match.a, match, duplasPorId);
   const slotB = resolverSlot(match.b, match, duplasPorId);
 
   const ambasDefinidas = slotA.pairId !== null && slotB.pairId !== null;
   const temVencedor = match.vencedorId !== null;
   const pendente = !temVencedor && ambasDefinidas;
+
+  // Interativo apenas quando há callback E ambas as duplas estão definidas
+  // (jogo pronto). Vale também para jogos já decididos: clicar na OUTRA dupla
+  // corrige o vencedor (a cascata é tratada pela progressão).
+  const interativo = typeof opcoes?.aoEscolherVencedor === "function" && ambasDefinidas;
 
   const ariaConfronto = (() => {
     const base = `Confronto: ${slotA.rotulo} contra ${slotB.rotulo}`;
@@ -147,6 +192,34 @@ function renderMatchCard(match: Match, duplasPorId: DuplasPorId): HTMLElement {
         }),
       );
     }
+
+    // Slot clicável de escolha de vencedor (só na organização). Usamos <button>
+    // para acessibilidade (foco e teclado nativos); na visualização pública
+    // (sem callback) renderizamos <li> inerte, como antes.
+    const clicavel = interativo && slot.estado === "definido" && slot.pairId !== null;
+    if (clicavel) {
+      const botao = el("button", {
+        classes: [
+          "match-card__slot",
+          "match-card__slot--definido",
+          "match-card__slot--clicavel",
+          slot.vencedora && "match-card__slot--vencedora",
+        ],
+        attrs: {
+          type: "button",
+          "aria-pressed": slot.vencedora ? "true" : "false",
+          "aria-label": slot.vencedora
+            ? `${slot.rotulo} — vencedora (clique em outra para corrigir)`
+            : `Marcar ${slot.rotulo} como vencedora`,
+        },
+        filhos,
+      });
+      botao.addEventListener("click", () => {
+        opcoes!.aoEscolherVencedor!(match.id, slot.pairId as string);
+      });
+      return el("li", { classes: ["match-card__slot-wrap"], filhos: [botao] });
+    }
+
     return el("li", {
       classes: [
         "match-card__slot",
@@ -157,12 +230,25 @@ function renderMatchCard(match: Match, duplasPorId: DuplasPorId): HTMLElement {
     });
   };
 
-  const filhos: Node[] = [
+  const filhos: Node[] = [];
+
+  // Número do jogo (ordem de disputa), quando já atribuído. Fica no topo do
+  // card, como "Jogo N", para facilitar a chamada dos participantes.
+  if (match.ordemDisputa !== null) {
+    filhos.push(
+      el("p", {
+        classes: ["match-card__numero"],
+        texto: `Jogo ${match.ordemDisputa}`,
+      }),
+    );
+  }
+
+  filhos.push(
     el("ul", {
       classes: ["match-card__slots"],
       filhos: [slotLi(slotA), slotLi(slotB)],
     }),
-  ];
+  );
   if (pendente) {
     filhos.push(
       el("p", {
@@ -172,9 +258,14 @@ function renderMatchCard(match: Match, duplasPorId: DuplasPorId): HTMLElement {
     );
   }
 
+  const ariaCompleta =
+    match.ordemDisputa !== null
+      ? `Jogo ${match.ordemDisputa}. ${ariaConfronto}`
+      : ariaConfronto;
+
   return el("div", {
     classes: ["match-card"],
-    attrs: { role: "group", "aria-label": ariaConfronto },
+    attrs: { role: "group", "aria-label": ariaCompleta },
     filhos,
   });
 }
@@ -187,6 +278,7 @@ function renderGroupTable(
   grupo: Bracket["grupos"][number],
   matches: Match[],
   duplasPorId: DuplasPorId,
+  opcoes?: RenderOpcoes,
 ): HTMLElement {
   const nomeDupla = (pairId: string): string =>
     duplasPorId[pairId]?.nomeDupla ?? pairId;
@@ -314,10 +406,12 @@ function renderGroupTable(
           el("h5", { classes: ["group-table__subtitulo"], texto: "Jogos" }),
           el("ul", {
             classes: ["group-table__lista"],
-            filhos: jogosDoGrupo.map((match) =>
+            filhos: [...jogosDoGrupo]
+              .sort(compararPorOrdemDisputa)
+              .map((match) =>
               el("li", {
                 classes: ["group-table__item"],
-                filhos: [renderMatchCard(match, duplasPorId)],
+                filhos: [renderMatchCard(match, duplasPorId, opcoes)],
               }),
             ),
           }),
@@ -354,7 +448,7 @@ function rodadasDoSide(matches: Match[], side: BracketSide): Rodada[] {
     .sort((a, b) => a[0] - b[0])
     .map(([numero, jogos]) => ({
       numero,
-      jogos: [...jogos].sort((x, y) => x.ordem - y.ordem),
+      jogos: [...jogos].sort(compararPorOrdemDisputa),
     }));
 }
 
@@ -365,6 +459,7 @@ function rotuloRodada(side: BracketSide, numero: number): string {
 function renderEliminationTree(
   matches: Match[],
   duplasPorId: DuplasPorId,
+  opcoes?: RenderOpcoes,
 ): HTMLElement {
   const secoes: Array<{
     side: BracketSide;
@@ -383,6 +478,16 @@ function renderEliminationTree(
       rodadas: rodadasDoSide(matches, s.side as BracketSide),
     }))
     .filter((s) => s.rodadas.length > 0);
+
+  // Eliminação simples: há apenas jogos de side "upper" (chave única, sem
+  // chave de perdedores nem grande final). Nesse caso, rotulamos a seção como
+  // "Mata-mata" em vez de "Chave de vencedores", que só faz sentido quando
+  // existe a contraparte de perdedores (dupla eliminação).
+  const chaveUnica =
+    secoes.length === 1 && secoes[0]?.side === "upper";
+  if (chaveUnica) {
+    secoes[0].titulo = "Mata-mata";
+  }
 
   return el("div", {
     classes: ["elim-tree"],
@@ -408,7 +513,7 @@ function renderEliminationTree(
                     filhos: rodada.jogos.map((match) =>
                       el("li", {
                         classes: ["elim-tree__item"],
-                        filhos: [renderMatchCard(match, duplasPorId)],
+                        filhos: [renderMatchCard(match, duplasPorId, opcoes)],
                       }),
                     ),
                   }),
@@ -434,7 +539,10 @@ function renderEliminationTree(
  *
  * Retorna um único elemento pronto para substituir o placeholder da categoria.
  */
-export function renderBracketClient(bracket: Bracket): HTMLElement {
+export function renderBracketClient(
+  bracket: Bracket,
+  opcoes?: RenderOpcoes,
+): HTMLElement {
   const duplasPorId: DuplasPorId = Object.fromEntries(
     bracket.duplas.map((d) => [d.id, d]),
   );
@@ -490,7 +598,7 @@ export function renderBracketClient(bracket: Bracket): HTMLElement {
           el("div", {
             classes: ["bracket-view__grupos"],
             filhos: bracket.grupos.map((grupo) =>
-              renderGroupTable(grupo, bracket.matches, duplasPorId),
+              renderGroupTable(grupo, bracket.matches, duplasPorId, opcoes),
             ),
           }),
         ],
@@ -507,7 +615,7 @@ export function renderBracketClient(bracket: Bracket): HTMLElement {
               classes: ["bracket-view__fase-titulo"],
               texto: "Mata-mata",
             }),
-            renderEliminationTree(matchesMataMata, duplasPorId),
+            renderEliminationTree(matchesMataMata, duplasPorId, opcoes),
           ],
         }),
       );
@@ -524,7 +632,7 @@ export function renderBracketClient(bracket: Bracket): HTMLElement {
           el("section", {
             classes: ["bracket-view__fase"],
             attrs: { "aria-label": "Mata-mata" },
-            filhos: [renderEliminationTree(matchesMataMata, duplasPorId)],
+            filhos: [renderEliminationTree(matchesMataMata, duplasPorId, opcoes)],
           }),
         ],
       }),

@@ -78,6 +78,8 @@ export function gerarChaveamento(input: GeneratorInput): GeneratorResult {
   switch (input.config.formato) {
     case "dupla eliminação":
       return gerarDuplaEliminacao(input);
+    case "eliminação simples":
+      return gerarEliminacaoSimples(input);
     case "fase de grupos":
       return gerarFaseDeGrupos(input);
     default:
@@ -206,6 +208,7 @@ function gerarDuplaEliminacao(input: GeneratorInput): GeneratorResult {
       b: participanteDoSlot(seedB),
       vencedorId: null,
       registradoEm: null,
+      ordemDisputa: null,
     });
   }
   upperPorRodada.push(upperR1);
@@ -224,6 +227,7 @@ function gerarDuplaEliminacao(input: GeneratorInput): GeneratorResult {
         b: indefinido(),
         vencedorId: null,
         registradoEm: null,
+        ordemDisputa: null,
       });
     }
     upperPorRodada.push(rodada);
@@ -288,6 +292,7 @@ function gerarDuplaEliminacao(input: GeneratorInput): GeneratorResult {
           b: indefinido(),
           vencedorId: null,
           registradoEm: null,
+          ordemDisputa: null,
         });
       }
       lowerPorRodada.push(rodada);
@@ -330,6 +335,7 @@ function gerarDuplaEliminacao(input: GeneratorInput): GeneratorResult {
     b: indefinido(), // campeão da lower
     vencedorId: null,
     registradoEm: null,
+    ordemDisputa: null,
   };
 
   // Campeão da upper → slot "a" da grande final.
@@ -395,6 +401,118 @@ function gerarDuplaEliminacao(input: GeneratorInput): GeneratorResult {
     formato: "dupla eliminação",
     config: { ...input.config },
     duplas: duplasSnapshot,
+    grupos: [],
+    matches: todosOsJogos,
+    campeaId: null,
+    versao: VERSAO_SCHEMA,
+  };
+
+  return { ok: true, bracket };
+}
+
+// ---------------------------------------------------------------------------
+// Eliminação simples
+// ---------------------------------------------------------------------------
+
+/**
+ * Gera um mata-mata de ELIMINAÇÃO SIMPLES de forma pura e determinística.
+ *
+ * Estruturalmente é a CHAVE DE VENCEDORES (side "upper") da dupla eliminação,
+ * porém SEM chave de perdedores e SEM grande final: quem perde é eliminado
+ * (o perdedor NÃO é encaminhado a lugar nenhum — não há `encaminhaPerdedorPara`).
+ * O vencedor do único jogo da última rodada da upper (a final) é o campeão —
+ * definido na progressão (ver progression.ts), não aqui.
+ *
+ * Invariantes (reusa as mesmas regras da upper da dupla eliminação):
+ *  - sobre S = próxima potência de dois ≥ N slots;
+ *  - cada dupla aparece uma vez na 1ª rodada (R4.5);
+ *  - byes = S − N atribuídos às melhores cabeças, que avançam automaticamente (R4.6);
+ *  - cabeças 1 e 2 em metades opostas, só se cruzam na final (R3.7);
+ *  - exatamente N − 1 jogos decisivos (todos os jogos com os dois lados reais).
+ */
+function gerarEliminacaoSimples(input: GeneratorInput): GeneratorResult {
+  const n = input.duplas.length;
+
+  const porSeed = [...input.duplas].sort((a, b) => a.seed - b.seed);
+  const seedParaDupla = new Map<number, Pair>();
+  porSeed.forEach((d) => seedParaDupla.set(d.seed, d));
+
+  const s = proximaPotenciaDeDois(n);
+  const slots = ordemDeSlots(s);
+
+  const participanteDoSlot = (seed: number): Participant => {
+    const dupla = seedParaDupla.get(seed);
+    return dupla ? participante(dupla.id) : byeParticipante();
+  };
+
+  const rodadas = Math.log2(s); // número de rodadas da chave única
+  const porRodada: Match[][] = [];
+
+  // 1ª rodada: pareia os slots pela ordem clássica de seeds.
+  const r1: Match[] = [];
+  for (let j = 0; j < s / 2; j++) {
+    r1.push({
+      id: matchId("upper", 1, j),
+      side: "upper",
+      rodada: 1,
+      ordem: j,
+      a: participanteDoSlot(slots[2 * j]),
+      b: participanteDoSlot(slots[2 * j + 1]),
+      vencedorId: null,
+      registradoEm: null,
+      ordemDisputa: null,
+    });
+  }
+  porRodada.push(r1);
+
+  // Rodadas seguintes (participantes indefinidos, preenchidos por avanço).
+  for (let r = 2; r <= rodadas; r++) {
+    const qtd = s / Math.pow(2, r);
+    const rodada: Match[] = [];
+    for (let j = 0; j < qtd; j++) {
+      rodada.push({
+        id: matchId("upper", r, j),
+        side: "upper",
+        rodada: r,
+        ordem: j,
+        a: indefinido(),
+        b: indefinido(),
+        vencedorId: null,
+        registradoEm: null,
+        ordemDisputa: null,
+      });
+    }
+    porRodada.push(rodada);
+  }
+
+  // Liga avançaVencedorPara entre rodadas consecutivas. A última rodada (final)
+  // NÃO recebe ligação — seu vencedor é o campeão.
+  for (let r = 0; r < porRodada.length - 1; r++) {
+    const atual = porRodada[r];
+    const proxima = porRodada[r + 1];
+    atual.forEach((jogo, idx) => {
+      const destino = proxima[Math.floor(idx / 2)];
+      jogo.avancaVencedorPara = {
+        matchId: destino.id,
+        slot: idx % 2 === 0 ? "a" : "b",
+      };
+    });
+  }
+
+  const todosOsJogos: Match[] = porRodada.flat();
+
+  // Propaga byes e resolve os walkovers da 1ª rodada (dupla real avança). Como
+  // não há lower nem encaminhamento de perdedor, essas passagens só atuam sobre
+  // os avanços de vencedor — exatamente o necessário para a chave única.
+  propagarByes(todosOsJogos);
+  resolverWalkoversUpper(todosOsJogos);
+
+  const bracket: Bracket = {
+    campeonatoId: "",
+    categoriaId: "",
+    formato: "eliminação simples",
+    config: { ...input.config },
+    duplas: porSeed.map((d) => ({ ...d })),
     grupos: [],
     matches: todosOsJogos,
     campeaId: null,
@@ -661,6 +779,7 @@ function gerarFaseDeGrupos(input: GeneratorInput): GeneratorResult {
           b: participante(duplaB.id),
           vencedorId: null,
           registradoEm: null,
+          ordemDisputa: null,
           grupoId: id,
         };
         matches.push(jogo);
@@ -910,7 +1029,7 @@ export function posicionarClassificadosNoMataMata(
   }
 
   // (4) Constrói o mata-mata com o seeding final. Cada classificado recebe como
-  // `seed` a sua posição final (1..M), que `gerarDuplaEliminacao` usa para
+  // `seed` a sua posição final (1..M), que o gerador de mata-mata usa para
   // posicionar nos slots.
   const duplasMataMata: Pair[] = [];
   for (let p = 1; p <= m; p++) {
@@ -918,7 +1037,13 @@ export function posicionarClassificadosNoMataMata(
     duplasMataMata.push({ ...c.pair, seed: p });
   }
 
-  const resultado = gerarDuplaEliminacao({ duplas: duplasMataMata, config });
+  // A fase de grupos classifica para um mata-mata de ELIMINAÇÃO SIMPLES. Usamos
+  // um config próprio desse formato (o `config` recebido é o da fase de grupos).
+  void config;
+  const resultado = gerarEliminacaoSimples({
+    duplas: duplasMataMata,
+    config: { formato: "eliminação simples" },
+  });
   if (!resultado.ok) return resultado;
   return { ok: true, bracket: resultado.bracket };
 }

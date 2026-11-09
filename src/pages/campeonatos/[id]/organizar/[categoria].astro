@@ -163,6 +163,15 @@ const { campeonato, categoriaNome } = Astro.props;
               <input
                 type="radio"
                 name="formato"
+                value="eliminação simples"
+                data-formato
+              />
+              <span>Eliminação simples</span>
+            </label>
+            <label class="org__radio">
+              <input
+                type="radio"
+                name="formato"
                 value="dupla eliminação"
                 data-formato
               />
@@ -274,9 +283,7 @@ const { campeonato, categoriaNome } = Astro.props;
       <section class="org__bloco" aria-labelledby="titulo-estado">
         <h2 class="org__bloco-titulo" id="titulo-estado">Estado atual</h2>
 
-        {/* Controles para registrar o vencedor de cada jogo pronto. */}
-        <div class="org__jogos" data-jogos-prontos></div>
-
+        {/* Clique direto na dupla dentro de cada jogo registra o vencedor. */}
         {/* Visualização do chaveamento (renderBracketClient). */}
         <div class="org__bracket" data-bracket-slot>
           <p class="org__indisponivel">Nenhum chaveamento gerado ainda.</p>
@@ -329,6 +336,7 @@ const { campeonato, categoriaNome } = Astro.props;
     type ClassificadoDoGrupo,
   } from "../../../../domain/bracket/generator";
   import { registrarVencedor } from "../../../../domain/bracket/progression";
+  import { numerarJogos } from "../../../../domain/bracket/ordenacao";
   import {
     selecionarClassificados,
     indiceDeSeed,
@@ -511,7 +519,6 @@ const { campeonato, categoriaNome } = Astro.props;
     renderDuplas(ctx);
     renderSeeding(ctx);
     renderBracket(ctx);
-    renderJogosProntos(ctx);
     renderBotaoMataMata(ctx);
   }
 
@@ -831,12 +838,13 @@ const { campeonato, categoriaNome } = Astro.props;
       return;
     }
 
-    // Preenche os identificadores do par (campeonato, categoria) no bracket.
-    const bracket: Bracket = {
+    // Preenche os identificadores do par (campeonato, categoria) e já numera os
+    // jogos elegíveis (ordem de disputa) antes de persistir.
+    const bracket: Bracket = numerarJogos({
       ...gen.bracket,
       campeonatoId: ctx.ref.campeonatoId,
       categoriaId: ctx.ref.categoriaId,
-    };
+    });
 
     const res = await ctx.store.salvarChaveamento(ctx.ref, bracket);
     if (!res.ok) {
@@ -932,11 +940,11 @@ const { campeonato, categoriaNome } = Astro.props;
     for (const d of bracket.duplas) duplasUnidas.set(d.id, d);
     for (const d of mataMata.duplas) duplasUnidas.set(d.id, { ...d });
 
-    const combinado: Bracket = {
+    const combinado: Bracket = numerarJogos({
       ...bracket,
       duplas: Array.from(duplasUnidas.values()),
       matches: [...jogosGrupo, ...jogosMataMata],
-    };
+    });
 
     const res = await ctx.store.salvarChaveamento(ctx.ref, combinado);
     if (!res.ok) {
@@ -954,80 +962,6 @@ const { campeonato, categoriaNome } = Astro.props;
     if (!pairId) return "(indefinida)";
     const d = bracket.duplas.find((x) => x.id === pairId);
     return d ? d.nomeDupla : "(indefinida)";
-  }
-
-  function renderJogosProntos(ctx: Ctx): void {
-    const container = q<HTMLElement>(ctx.secao, "[data-jogos-prontos]");
-    if (!container) return;
-    container.replaceChildren();
-
-    const bracket = ctx.bracket;
-    if (!bracket) return;
-
-    // Um jogo está PRONTO para registro quando ambas as duplas estão definidas
-    // (pairId não-nulo) e nenhuma é bye (R6.3). Oferecemos um controle de
-    // escolha de vencedor para cada um; se já há vencedor, pré-seleciona (a
-    // troca registra a correção com cascata, R6.6).
-    const prontos = bracket.matches.filter(
-      (m) =>
-        m.a.pairId !== null &&
-        m.b.pairId !== null &&
-        m.a.bye !== true &&
-        m.b.bye !== true,
-    );
-
-    if (prontos.length === 0) {
-      const vazio = document.createElement("p");
-      vazio.className = "org__ajuda";
-      vazio.textContent =
-        "Nenhum jogo pronto para registro no momento.";
-      container.append(vazio);
-      return;
-    }
-
-    const titulo = document.createElement("h3");
-    titulo.className = "org__subtitulo-bloco";
-    titulo.textContent = "Registrar resultados";
-    container.append(titulo);
-
-    for (const jogo of prontos) {
-      const linha = document.createElement("div");
-      linha.className = "org__jogo";
-
-      const confronto = document.createElement("span");
-      confronto.className = "org__jogo-confronto";
-      confronto.textContent = `${nomeDupla(bracket, jogo.a.pairId)} × ${nomeDupla(bracket, jogo.b.pairId)}`;
-      linha.append(confronto);
-
-      const grupo = document.createElement("div");
-      grupo.className = "org__jogo-escolha";
-      grupo.setAttribute("role", "group");
-      grupo.setAttribute(
-        "aria-label",
-        `Escolher vencedor de ${confronto.textContent}`,
-      );
-
-      for (const slot of ["a", "b"] as const) {
-        const pid = jogo[slot].pairId as string;
-        const botao = document.createElement("button");
-        botao.type = "button";
-        botao.className = "org__jogo-botao";
-        if (jogo.vencedorId === pid) {
-          botao.classList.add("org__jogo-botao--vencedor");
-          botao.setAttribute("aria-pressed", "true");
-        } else {
-          botao.setAttribute("aria-pressed", "false");
-        }
-        botao.textContent = nomeDupla(bracket, pid);
-        botao.addEventListener("click", () =>
-          void registrarResultado(ctx, jogo.id, pid),
-        );
-        grupo.append(botao);
-      }
-
-      linha.append(grupo);
-      container.append(linha);
-    }
   }
 
   async function registrarResultado(
@@ -1053,7 +987,11 @@ const { campeonato, categoriaNome } = Astro.props;
       return;
     }
 
-    const salvo = await ctx.store.salvarChaveamento(ctx.ref, res.bracket);
+    // Numera os jogos que passaram a ser elegíveis com este resultado (ex.: a
+    // próxima rodada do mata-mata cujas duplas acabaram de ser definidas). Os
+    // já numerados permanecem estáveis.
+    const numerado = numerarJogos(res.bracket);
+    const salvo = await ctx.store.salvarChaveamento(ctx.ref, numerado);
     if (!salvo.ok) {
       setTexto(ctx.status, mensagemErro(salvo.erro));
       return;
@@ -1078,7 +1016,19 @@ const { campeonato, categoriaNome } = Astro.props;
     }
 
     try {
-      const view = renderBracketClient(ctx.bracket);
+      // Clique direto na dupla para registrar o vencedor (R6). Pede confirmação
+      // antes de salvar (clique único + confirmação). A lógica de registro/
+      // correção/cascata e persistência está em `registrarResultado`.
+      const view = renderBracketClient(ctx.bracket, {
+        aoEscolherVencedor: (matchId, pairId) => {
+          const nome = nomeDupla(ctx.bracket!, pairId);
+          const ok = window.confirm(
+            `Confirmar ${nome} como vencedora deste jogo?`,
+          );
+          if (!ok) return;
+          void registrarResultado(ctx, matchId, pairId);
+        },
+      });
       slot.replaceChildren(view);
     } catch {
       const err = document.createElement("p");
@@ -1784,6 +1734,15 @@ const { campeonato, categoriaNome } = Astro.props;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   }
 
+  .match-card__numero {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cor-destaque-texto);
+  }
+
   .match-card__slots {
     list-style: none;
     margin: 0;
@@ -1803,6 +1762,32 @@ const { campeonato, categoriaNome } = Astro.props;
     font-size: 0.9rem;
     color: var(--cor-texto);
     background: var(--cor-fundo);
+  }
+
+  /* Slot clicável de escolha de vencedor (apenas na organização). É um
+     <button>, então zeramos os estilos padrão e damos feedback de hover/foco.
+     Envolto por .match-card__slot-wrap para ocupar a largura da linha. */
+  .match-card__slot-wrap {
+    display: block;
+  }
+
+  button.match-card__slot--clicavel {
+    width: 100%;
+    border: 1px solid transparent;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease;
+  }
+
+  button.match-card__slot--clicavel:hover {
+    background: var(--cor-destaque-suave);
+    border-color: var(--cor-destaque);
+  }
+
+  button.match-card__slot--clicavel:focus-visible {
+    outline: 2px solid var(--cor-destaque);
+    outline-offset: 1px;
   }
 
   .match-card__dupla {

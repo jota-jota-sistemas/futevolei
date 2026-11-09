@@ -369,13 +369,23 @@ describe("Âncora fase de grupos N=6, G=2, 1 classificado/grupo — R5.2/R5.3/R5
     expect(mataMata.ok).toBe(true);
     if (!mataMata.ok) return;
 
-    // Mata-mata com 2 duplas: dupla eliminação ⇒ 2M−2 = 2 jogos decisivos.
-    expect(contarJogosDecisivos(mataMata.bracket)).toBe(2);
+    // A fase de grupos classifica para ELIMINAÇÃO SIMPLES (chave única). Com
+    // 2 classificados ⇒ M−1 = 1 jogo decisivo, sem chave de perdedores nem
+    // grande final.
+    expect(mataMata.bracket.formato).toBe("eliminação simples");
+    expect(contarJogosDecisivos(mataMata.bracket)).toBe(1);
+    expect(mataMata.bracket.matches.some((j) => j.side === "lower")).toBe(false);
+    expect(
+      mataMata.bracket.matches.some((j) => j.side === "grande-final"),
+    ).toBe(false);
 
     const final = jogarMataMataAteOFim(mataMata.bracket);
-    const grandeFinal = final.matches.find((j) => j.side === "grande-final");
-    expect(grandeFinal).toBeDefined();
-    expect(grandeFinal!.vencedorId).not.toBeNull();
-    expect(final.campeaId).toBe(grandeFinal!.vencedorId);
+    // A campeã é a vencedora da FINAL da chave única (side "upper" sem avanço).
+    const finalMM = final.matches.find(
+      (j) => j.side === "upper" && !j.avancaVencedorPara,
+    );
+    expect(finalMM).toBeDefined();
+    expect(finalMM!.vencedorId).not.toBeNull();
+    expect(final.campeaId).toBe(finalMM!.vencedorId);
   });
 });

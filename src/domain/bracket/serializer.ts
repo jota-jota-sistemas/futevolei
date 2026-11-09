@@ -76,6 +76,7 @@ export interface MatchJson {
   b: ParticipantJson;
   vencedorId: PairId | null;
   registradoEm: string | null;
+  ordemDisputa: number | null;
   // Campos opcionais: presentes apenas quando existirem no match de origem.
   grupoId?: GroupId;
   avancaVencedorPara?: AvancoJson;
@@ -196,6 +197,7 @@ function serializarMatch(match: Match): MatchJson {
     b: serializarParticipant(match.b),
     vencedorId: match.vencedorId,
     registradoEm: match.registradoEm,
+    ordemDisputa: match.ordemDisputa,
   };
   if (match.grupoId !== undefined) {
     json.grupoId = match.grupoId;
@@ -289,6 +291,7 @@ function desserializarMatch(json: MatchJson): Match {
     b: desserializarParticipant(json.b),
     vencedorId: json.vencedorId,
     registradoEm: json.registradoEm,
+    ordemDisputa: json.ordemDisputa ?? null,
   };
   if (json.grupoId !== undefined) {
     match.grupoId = json.grupoId;

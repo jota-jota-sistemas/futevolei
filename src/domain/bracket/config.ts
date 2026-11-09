@@ -13,7 +13,11 @@ import type { Format } from "./types";
 import type { Result } from "../result";
 
 /** Valores de formato aceitos (R2.1). */
-const FORMATOS_VALIDOS: ReadonlyArray<Format> = ["fase de grupos", "dupla eliminação"];
+const FORMATOS_VALIDOS: ReadonlyArray<Format> = [
+  "fase de grupos",
+  "dupla eliminação",
+  "eliminação simples",
+];
 
 /** Verdadeiro sse `x` é um inteiro finito. */
 function ehInteiro(x: unknown): x is number {
@@ -35,8 +39,9 @@ export function tamanhoMenorGrupo(n: number, g: number): number {
 /**
  * Valida o valor de formato (R2.1, R2.2).
  *
- * ACEITA se, e somente se, `formato` é exatamente "fase de grupos" ou
- * "dupla eliminação"; caso contrário rejeita com `FORMATO_INVALIDO`.
+ * ACEITA se, e somente se, `formato` é exatamente "fase de grupos",
+ * "dupla eliminação" ou "eliminação simples"; caso contrário rejeita com
+ * `FORMATO_INVALIDO`.
  */
 export function validarFormato(formato: unknown): Result<Format> {
   if (typeof formato === "string" && (FORMATOS_VALIDOS as string[]).includes(formato)) {

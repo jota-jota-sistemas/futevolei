@@ -119,9 +119,16 @@ export function registrarVencedor(
     if (jogo.side === "upper" && jogo.encaminhaPerdedorPara) {
       invalidarCascata(proximo, jogo.encaminhaPerdedorPara, perdedorAntigo);
     }
-    // Se a própria grande final está sendo corrigida, a campeã some até o novo
-    // resultado ser aplicado logo abaixo.
-    if (jogo.side === "grande-final") {
+    // Se a decisão do título está sendo corrigida, a campeã some até o novo
+    // resultado ser aplicado logo abaixo. Isso vale para a grande final (dupla
+    // eliminação) e para a final da chave única (eliminação simples: side
+    // "upper" sem avanço).
+    const corrigindoTitulo =
+      jogo.side === "grande-final" ||
+      (proximo.formato === "eliminação simples" &&
+        jogo.side === "upper" &&
+        !jogo.avancaVencedorPara);
+    if (corrigindoTitulo) {
       proximo.campeaId = null;
     }
   }
@@ -147,9 +154,17 @@ export function registrarVencedor(
     colocarEmSlot(proximo, jogo.encaminhaPerdedorPara, perdedorId);
   }
 
-  // R6.7 — grande final concluída define a campeã (independe de ter vindo da
-  // chave de vencedores ou de perdedores).
-  if (jogo.side === "grande-final") {
+  // R6.7 — define a campeã:
+  //  - dupla eliminação: ao concluir a GRANDE FINAL (independe da chave de origem);
+  //  - eliminação simples (inclusive o mata-mata pós fase de grupos): ao concluir
+  //    a FINAL da chave única — o jogo de side "upper" que não avança para lugar
+  //    nenhum (sem `avancaVencedorPara`). Nesse formato o perdedor é eliminado
+  //    (não há `encaminhaPerdedorPara`), coerente com a estrutura gerada.
+  const ehFinalEliminacaoSimples =
+    proximo.formato === "eliminação simples" &&
+    jogo.side === "upper" &&
+    !jogo.avancaVencedorPara;
+  if (jogo.side === "grande-final" || ehFinalEliminacaoSimples) {
     proximo.campeaId = vencedorId;
   }
 
