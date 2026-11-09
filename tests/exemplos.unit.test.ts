@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Campeonato } from "../src/types";
-import { badge, ordenarPorDataId } from "../src/utils/eventos";
+import type { FiltrosEventos } from "../src/utils/eventos";
+import { badge, ordenarPorDataId, filtrar } from "../src/utils/eventos";
 
 /**
  * Unit tests de exemplos e edge cases (tarefa 9.6).
@@ -92,5 +93,77 @@ describe("tarefa 9.6: exemplos e edge cases", () => {
       const ids = ordenarPorDataId(entrada).map((c) => c.id);
       expect(ids).toEqual(["a", "b", "c", "d"]);
     });
+  });
+});
+
+/**
+ * Unit tests de exemplos e edge cases para `filtrar` (tarefa 1.8).
+ *
+ * Validates: Requirements 3.3, 4.2, 5.2
+ *
+ * Casos concretos que apoiam as correctness properties da lógica pura de
+ * filtragem em src/utils/eventos.ts:
+ *  - filtro que não casa nada => resultado vazio (R5.2)
+ *  - evento sem `categorias` excluído quando a categoria está ativa (R3.3)
+ *  - todos os filtros vazios => saída = entrada (R4.2)
+ */
+
+describe("tarefa 1.8: exemplos e edge cases de filtrar()", () => {
+  // Fábrica de evento base; `categorias` é opcional para cobrir eventos sem o campo.
+  const evento = (
+    id: string,
+    data: string,
+    local: string,
+    categorias?: string[]
+  ): Campeonato => ({
+    id,
+    nome: "Evento",
+    data,
+    local,
+    foto: "/foto.jpg",
+    descricao: "desc",
+    ...(categorias ? { categorias } : {}),
+  });
+
+  it("filtro que não casa nada => length 0 (R5.2)", () => {
+    const campeonatos: Campeonato[] = [
+      evento("a", "2026-01-01", "Praia Grande", ["Open"]),
+      evento("b", "2026-11-13", "Guarujá", ["Amador B+C"]),
+    ];
+
+    // Nenhum evento tem esse local, então nada corresponde.
+    const filtros: FiltrosEventos = { local: "Inexistente" };
+    const resultado = filtrar(campeonatos, filtros);
+
+    expect(resultado).toHaveLength(0);
+  });
+
+  it("evento sem `categorias` é excluído quando a categoria está ativa (R3.3)", () => {
+    const comCategoria = evento("a", "2026-01-01", "Praia", ["Open"]);
+    const semCategoria = evento("b", "2026-02-01", "Praia"); // sem o campo categorias
+    const campeonatos: Campeonato[] = [comCategoria, semCategoria];
+
+    const resultado = filtrar(campeonatos, { categoria: "Open" });
+
+    // Só o evento que contém a categoria passa; o sem `categorias` é excluído.
+    expect(resultado).toEqual([comCategoria]);
+    expect(resultado.map((c) => c.id)).not.toContain("b");
+  });
+
+  it("todos os filtros vazios => saída = entrada (R4.2)", () => {
+    const campeonatos: Campeonato[] = [
+      evento("a", "2026-01-01", "Praia Grande", ["Open"]),
+      evento("b", "2026-11-13", "Guarujá"),
+      evento("c", "2026-12-31", "Santos", ["Feminino"]),
+    ];
+
+    // Filtros inativos: "" (e campos omitidos) são tratados como identidade.
+    const filtros: FiltrosEventos = { local: "", data: "", categoria: "" };
+    const resultado = filtrar(campeonatos, filtros);
+
+    // Mesmo conteúdo e mesma ordem da entrada (filtrar não reordena).
+    expect(resultado).toEqual(campeonatos);
+    // Objeto vazio também deve se comportar como identidade.
+    expect(filtrar(campeonatos, {})).toEqual(campeonatos);
   });
 });

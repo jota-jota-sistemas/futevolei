@@ -22,9 +22,20 @@ const categorias = (campeonato.categorias ?? [])
 
 // "Ver evento" leva à página de detalhe já existente (/campeonatos/{id}).
 const href = comBase(`/campeonatos/${campeonato.id}`);
+
+// Atributos de dados lidos pelo filtro client-side (contrato de DOM).
+// Anotados no próprio card para que alternar `hidden` oculte o card inteiro.
+// `data-categorias` é a lista separada por "|" (vazia quando ausente).
+const dataCategorias = (campeonato.categorias ?? []).join("|");
 ---
 
-<article class="event-card">
+<article
+  class="event-card"
+  data-evento
+  data-local={campeonato.local}
+  data-data={campeonato.data}
+  data-categorias={dataCategorias}
+>
   <div class="event-card__midia-wrap">
     <a
       class="event-card__midia"
@@ -115,6 +126,15 @@ const href = comBase(`/campeonatos/${campeonato.id}`);
     overflow: hidden;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  /*
+   * Quando o filtro oculta um card (card.hidden = true), o atributo [hidden]
+   * precisa vencer o `display: flex` acima — que, por ser uma classe, tem mais
+   * especificidade que a regra padrão `[hidden] { display: none }` do browser.
+   */
+  .event-card[hidden] {
+    display: none;
   }
 
   .event-card:hover {
