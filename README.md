@@ -96,11 +96,19 @@ Registro das decisões discutidas, com a data e o porquê.
   "local": "Praia de Copacabana, Rio de Janeiro",
   "foto": "/campeonatos/aberto-de-verao-2026.jpg",
   "descricao": "Campeonato aberto, categorias masculina e feminina.",
-  "instagram": "@perfil_do_evento"
+  "instagram": "@perfil_do_evento",
+  "categorias": ["Open", "Amador", "Feminino"],
+  "inscricao": "https://inscricao-do-evento.com/"
 }
 ```
 
-> O campo `instagram` é **opcional**. Aceita `@usuario`, `usuario` ou a URL completa. Quando presente, o card exibe um botão "Ver no Instagram"; quando ausente, o botão não aparece.
+> O campo `instagram` é **opcional**. Aceita `@usuario`, `usuario` ou a URL completa. Quando presente, a página de detalhe exibe um botão "Ver no Instagram"; quando ausente, o botão não aparece.
+>
+> O campo `categorias` é **opcional** (lista de strings). Quando presente, o card e a página de detalhe exibem chips de categoria; quando ausente, o bloco não aparece — nenhuma categoria é inventada a partir da descrição.
+>
+> O campo `inscricao` é **opcional**. Deve ser uma URL completa (`http://` ou `https://`) da página de inscrição. Quando presente e válida, a página de detalhe exibe um botão "Inscreva-se"; valores vazios ou sem o esquema http(s) são ignorados e o botão não aparece.
+>
+> O campo `foto` pode ficar vazio (`""`). Nesse caso, tanto o card quanto a página de detalhe exibem um **placeholder** padrão (símbolo da marca sobre fundo turquesa suave) — nunca uma imagem quebrada.
 
 ### Fase 2 e 3 (planejadas) — backend, autenticação e tempo real
 
@@ -258,13 +266,15 @@ campeonatos.json  →  Feed.astro  →  CampeonatoCard.astro  →  HTML na tela
      "local": "Praia X, Cidade Y",
      "foto": "/campeonatos/meu-torneio.jpg",
      "descricao": "Descrição curta do campeonato.",
-     "instagram": "@perfil_do_evento"
+     "instagram": "@perfil_do_evento",
+     "categorias": ["Masculino Estreante", "Misto Iniciante"],
+     "inscricao": "https://pagina-de-inscricao.com/"
    }
    ```
-   O campo `instagram` é opcional — pode omitir se o evento não tiver perfil.
+   Os campos `instagram`, `categorias` e `inscricao` são opcionais — pode omitir quando o evento não tiver. Se não houver foto, deixe `"foto": ""` e o site mostra o placeholder padrão.
 3. Pronto — o feed ordena automaticamente por data (os próximos aparecem primeiro).
 
-> As imagens atuais em `public/campeonatos/*.svg` são placeholders. Basta substituir pelos arquivos reais e ajustar o campo `foto` no JSON.
+> A home exibe **8 eventos** inicialmente (para carregar leve); o botão "Ver todos os eventos" revela o restante na própria página. Ao filtrar, todos os eventos correspondentes aparecem, independentemente desse limite.
 
 ## Deploy (GitHub Pages)
 
@@ -293,5 +303,9 @@ https://jota-jota-sistemas.github.io/futevolei/
 - [x] Criar modelo de dados e dados de exemplo
 - [x] Implementar o feed vertical de campeonatos
 - [x] Configurar deploy no GitHub Pages (workflow + base)
+- [x] Buscar e filtrar eventos (cidade, período, categoria) com busca no botão
+- [x] "Ver todos os eventos": home com 8 cards + botão que revela o restante
+- [x] Página de detalhe: placeholder para foto ausente, categorias e botão "Inscreva-se"
+- [x] Placeholder de foto consistente no card e no detalhe (sem imagem quebrada)
 - [ ] Ativar GitHub Pages no repositório (Settings → Pages → Source: GitHub Actions)
-- [ ] Trocar placeholders pelas fotos reais dos campeonatos
+- [ ] Preencher `inscricao` e fotos reais dos campeonatos (conteúdo)

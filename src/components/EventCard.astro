@@ -5,9 +5,15 @@ import { badge } from "../utils/eventos";
 
 interface Props {
   campeonato: Campeonato;
+  /**
+   * Quando true, o card está além do limite inicial da home e começa oculto
+   * (estado colapsado), revelado pelo botão "Ver todos". Marcado com
+   * `data-excedente` e lido pelo script client-side.
+   */
+  excedente?: boolean;
 }
 
-const { campeonato } = Astro.props;
+const { campeonato, excedente = false } = Astro.props;
 
 const dataBadge = badge(campeonato.data);
 const temFoto = campeonato.foto?.trim();
@@ -35,6 +41,7 @@ const dataCategorias = (campeonato.categorias ?? []).join("|");
   data-local={campeonato.local}
   data-data={campeonato.data}
   data-categorias={dataCategorias}
+  data-excedente={excedente ? "true" : undefined}
 >
   <div class="event-card__midia-wrap">
     <a
@@ -52,7 +59,15 @@ const dataCategorias = (campeonato.categorias ?? []).join("|");
             decoding="async"
           />
         ) : (
-          <div class="event-card__img event-card__img--vazia" aria-hidden="true" />
+          <div class="event-card__img midia-vazia" aria-hidden="true">
+            <img
+              class="midia-vazia__simbolo"
+              src={comBase("/simbolo-pingo.png")}
+              alt=""
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
         )
       }
       {
@@ -64,28 +79,6 @@ const dataCategorias = (campeonato.categorias ?? []).join("|");
         )
       }
     </a>
-    {/* Favoritar: placeholder inerte, puramente visual (disponível em breve). */}
-    <button
-      type="button"
-      class="event-card__favorito placeholder"
-      disabled
-      aria-disabled="true"
-      aria-label="Favoritar (disponível em breve)"
-    >
-      <svg
-        class="event-card__coracao"
-        viewBox="0 0 24 24"
-        width="20"
-        height="20"
-        aria-hidden="true"
-        focusable="false"
-      >
-        <path
-          fill="currentColor"
-          d="M12 21s-7.3-4.6-9.6-9.2C.9 8.4 2.4 5 5.6 5c1.9 0 3.3 1 4.4 2.5C11.1 6 12.5 5 14.4 5c3.2 0 4.7 3.4 3.2 6.8C19.3 16.4 12 21 12 21z"
-        />
-      </svg>
-    </button>
   </div>
 
   <div class="event-card__corpo">
@@ -153,45 +146,11 @@ const dataCategorias = (campeonato.categorias ?? []).join("|");
     background: var(--cor-borda);
   }
 
-  /* Favoritar: botão placeholder inerte, ícone branco sobre overlay translúcido. */
-  .event-card__favorito {
-    position: absolute;
-    top: 0.6rem;
-    right: 0.6rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2.1rem;
-    height: 2.1rem;
-    padding: 0;
-    border: none;
-    border-radius: 50%;
-    background: rgba(16, 42, 67, 0.55);
-    color: #ffffff;
-    backdrop-filter: blur(2px);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-  }
-
-  .event-card__favorito.placeholder {
-    cursor: not-allowed;
-    opacity: 0.9;
-  }
-
-  .event-card__coracao {
-    display: block;
-  }
-
   .event-card__img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
-  }
-
-  .event-card__img--vazia {
-    width: 100%;
-    height: 100%;
-    background: var(--cor-destaque-suave);
   }
 
   .event-card__badge {

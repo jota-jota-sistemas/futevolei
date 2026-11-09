@@ -23,6 +23,16 @@ import {
   type FiltrosEventos,
 } from "../utils/eventos";
 
+// Limite de cards exibidos no estado inicial (sem filtro e não expandido).
+// Deve casar com LIMITE_INICIAL de EventsSection.astro, que marca os cards
+// além desse índice com data-excedente.
+const LIMITE_INICIAL = 8;
+
+// Estado de expansão do feed: false = colapsado (mostra só os primeiros
+// LIMITE_INICIAL quando não há filtro ativo); true = todos revelados ("Ver
+// todos"). O limite só se aplica quando NÃO há filtro ativo.
+let expandido = false;
+
 /** Controle (select/input) por chave [data-filtro], ou null. */
 function controle(chave: string): HTMLInputElement | HTMLSelectElement | null {
   return document.querySelector<HTMLInputElement | HTMLSelectElement>(
@@ -114,23 +124,62 @@ function renderizarChips(filtros: FiltrosEventos): void {
   }
 }
 
-/** Lê os filtros, reavalia cards, estado vazio, contador e chips. */
+/** Há ao menos um filtro ativo (cidade, período ou categoria)? */
+function algumFiltroAtivo(filtros: FiltrosEventos): boolean {
+  return Boolean(
+    filtros.cidade || filtros.data || filtros.dataAte || filtros.categoria
+  );
+}
+
+/**
+ * Lê os filtros, reavalia cards, estado vazio, contador, chips e o botão
+ * "Ver todos". Combina DUAS dimensões de visibilidade:
+ *  - correspondência ao filtro (corresponde);
+ *  - limite inicial: quando NÃO há filtro ativo e o feed está colapsado,
+ *    os cards marcados com data-excedente (além de LIMITE_INICIAL) ficam
+ *    ocultos até o clique em "Ver todos".
+ * Um card só aparece se corresponder ao filtro E não estiver sob o limite.
+ */
 function aplicarFiltros(): void {
   const filtros = filtrosAtuais();
   const cards = Array.from(document.querySelectorAll<HTMLElement>("[data-evento]"));
 
-  let visiveis = 0;
+  const temFiltro = algumFiltroAtivo(filtros);
+  // O limite só vale no estado inicial: sem filtro ativo e feed colapsado.
+  const limitar = !temFiltro && !expandido;
+
+  let correspondentes = 0; // passam no filtro (ignorando o limite)
+  let visiveis = 0; // de fato exibidos (filtro E limite)
   for (const card of cards) {
     const bate = corresponde(campeonatoDoCard(card) as Campeonato, filtros);
-    card.hidden = !bate;
-    if (bate) visiveis += 1;
+    if (bate) correspondentes += 1;
+
+    const excedente = card.dataset.excedente === "true";
+    const mostrar = bate && !(limitar && excedente);
+    card.hidden = !mostrar;
+    if (mostrar) visiveis += 1;
   }
 
   const vazioFiltro = document.querySelector<HTMLElement>("[data-vazio-filtro]");
-  if (vazioFiltro) vazioFiltro.hidden = !(visiveis === 0 && cards.length > 0);
+  if (vazioFiltro) vazioFiltro.hidden = !(correspondentes === 0 && cards.length > 0);
 
-  atualizarContador(visiveis, cards.length);
+  // Contador: no estado limitado, reflete "X de Y" (exibidos de total); com
+  // filtro, reflete os correspondentes.
+  atualizarContador(limitar ? visiveis : correspondentes, cards.length);
   renderizarChips(filtros);
+
+  // Botão "Ver todos": visível apenas quando o limite está escondendo cards.
+  const botao = document.querySelector<HTMLElement>("[data-ver-todos]");
+  if (botao) botao.hidden = !(limitar && cards.length > LIMITE_INICIAL);
+
+  const grid = document.querySelector<HTMLElement>("[data-grid-eventos]");
+  if (grid) {
+    // Sinaliza que o JS assumiu o controle da visibilidade: a partir daqui
+    // cada card é mostrado/ocultado via [hidden], e a regra CSS de fallback
+    // do estado colapsado (que usa data-excedente) deixa de atuar.
+    grid.dataset.js = "true";
+    grid.dataset.expandido = String(expandido);
+  }
 }
 
 /** Marca visualmente o chip de período ativo (aria-pressed) e grava o hidden. */
@@ -142,8 +191,13 @@ function selecionarPreset(valor: string): void {
   }
 }
 
-/** Zera dimensões específicas (cidade/preset/categoria) e reaplica. */
-function limpar(chaves: string[]): void {
+/**
+ * Zera dimensões específicas (cidade/preset/categoria) e reaplica. Quando
+ * `recolher` é true (uso do "Limpar filtros"), também volta o feed ao estado
+ * colapsado, de modo que a home retorne a mostrar apenas os primeiros
+ * LIMITE_INICIAL cards. Na remoção de um chip individual, `recolher` é false.
+ */
+function limpar(chaves: string[], recolher = false): void {
   for (const chave of chaves) {
     if (chave === "preset") {
       selecionarPreset("");
@@ -152,6 +206,13 @@ function limpar(chaves: string[]): void {
       if (el) el.value = "";
     }
   }
+  if (recolher) expandido = false;
+  aplicarFiltros();
+}
+
+/** Expande o feed (revela todos os cards) e reaplica. */
+function verTodos(): void {
+  expandido = true;
   aplicarFiltros();
 }
 
@@ -184,10 +245,21 @@ if (!docFlag.__filtrosClienteRegistrado) {
     return;
   }
 
+  // "Ver todos os eventos": expande o feed na própria página.
+  if (alvo.closest("[data-ver-todos]")) {
+    verTodos();
+    return;
+  }
+
   if (alvo.closest("[data-buscar]")) {
     aplicarFiltros();
   } else if (alvo.closest("[data-limpar]")) {
-    limpar(["cidade", "preset", "categoria"]);
+    limpar(["cidade", "preset", "categoria"], true);
   }
-});
+  });
+
+  // Sincroniza o estado inicial assim que o módulo carrega: aplica o limite
+  // colapsado (sem filtro ainda) e passa o controle de visibilidade ao JS.
+  // A partir daqui, a regra CSS de fallback do colapso não é mais necessária.
+  aplicarFiltros();
 }

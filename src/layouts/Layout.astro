@@ -133,6 +133,27 @@ const {
     background: var(--cor-destaque-forte);
   }
 
+  /*
+   * Placeholder de mídia vazia (foto ausente), padrão único do site.
+   * Usado pelo card e pela página de detalhe quando `foto` não existe.
+   * Fundo turquesa suave (--cor-destaque-suave) com o símbolo da marca
+   * centralizado e discreto. Cores dentro da paleta testada (AA).
+   */
+  .midia-vazia {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--cor-destaque-suave);
+  }
+
+  .midia-vazia__simbolo {
+    width: 28%;
+    max-width: 96px;
+    min-width: 40px;
+    height: auto;
+    opacity: 0.45;
+  }
+
   /* Controle placeholder: visual presente, porém inerte ("disponível em breve") */
   .placeholder {
     cursor: not-allowed;

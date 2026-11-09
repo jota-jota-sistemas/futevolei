@@ -8,6 +8,12 @@ const campeonatos = campeonatosData as Campeonato[];
 
 // Ordena por data (asc); desempate por id para uma ordem determinística.
 const ordenados = ordenarPorDataId(campeonatos);
+
+// Quantidade de cards exibidos no estado inicial (sem filtro). Os demais são
+// marcados como "excedentes" e começam ocultos via CSS, de modo que suas
+// imagens (loading="lazy") não baixam na primeira pintura — o botão "Ver todos"
+// os revela. O limite vale apenas sem filtro ativo (ver filtros-cliente.ts).
+const LIMITE_INICIAL = 8;
 ---
 
 <section class="eventos" aria-label="Próximos eventos">
@@ -17,9 +23,18 @@ const ordenados = ordenarPorDataId(campeonatos);
         <span class="eventos__barra" aria-hidden="true"></span>
         Próximos eventos
       </h2>
-      <span class="eventos__ver-todos placeholder" aria-disabled="true"
-        title="Ver todos os eventos (disponível em breve)"
-      >Ver todos os eventos →</span>
+      {/*
+        "Ver todos os eventos": no estado inicial (sem filtro) a home mostra
+        apenas os primeiros LIMITE_INICIAL cards; o botão revela o restante na
+        própria página. O script client-side controla visibilidade e estado.
+        Começa oculto se não houver excedentes a revelar.
+      */}
+      <button
+        type="button"
+        class="eventos__ver-todos"
+        data-ver-todos
+        hidden={ordenados.length <= LIMITE_INICIAL}
+      >Ver todos os eventos <span aria-hidden="true">→</span></button>
     </div>
 
     {/*
@@ -39,8 +54,10 @@ const ordenados = ordenarPorDataId(campeonatos);
       ordenados.length === 0 ? (
         <p class="eventos__vazio">Nenhum evento cadastrado no momento.</p>
       ) : (
-        <div class="eventos__grid" data-grid-eventos>
-          {ordenados.map((c) => <EventCard campeonato={c} />)}
+        <div class="eventos__grid" data-grid-eventos data-expandido="false">
+          {ordenados.map((c, i) => (
+            <EventCard campeonato={c} excedente={i >= LIMITE_INICIAL} />
+          ))}
           {/* Estado vazio de FILTRO: distinto do "nenhum evento cadastrado". */}
           {/* Alternado pelo script client-side quando nada corresponde aos filtros. */}
           <p class="eventos__vazio" data-vazio-filtro hidden>
@@ -90,12 +107,33 @@ const ordenados = ordenarPorDataId(campeonatos);
     background: var(--cor-destaque);
   }
 
+  /* Botão "Ver todos os eventos": link discreto, mas é um <button> real. */
   .eventos__ver-todos {
     font-size: 0.9rem;
     font-weight: 600;
     color: var(--cor-destaque-texto);
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: inherit;
+    cursor: pointer;
     text-decoration: none;
     white-space: nowrap;
+  }
+
+  .eventos__ver-todos:hover {
+    text-decoration: underline;
+  }
+
+  /*
+   * Estado inicial colapsado (data-expandido="false"): esconde os cards
+   * excedentes (data-excedente) já na primeira pintura — sem flash e sem
+   * baixar as imagens lazy fora do limite. Quando o script expande o feed
+   * (data-expandido="true") ou aplica um filtro, ele passa a controlar a
+   * visibilidade via [hidden] em cada card, e esta regra deixa de atuar.
+   */
+  .eventos__grid:not([data-js="true"])[data-expandido="false"] [data-excedente] {
+    display: none;
   }
 
   /* ---- Região de resultados: contador + chips (mobile-first) ---- */
