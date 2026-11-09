@@ -149,6 +149,34 @@ const SIDES_VALIDOS: ReadonlySet<string> = new Set<BracketSide>([
   "grupo",
 ]);
 
+// ===========================================================================
+// Prefixo de identidade por chaveamento
+// ===========================================================================
+//
+// Os MatchId/GroupId do domínio (ex.: "upper-r1-j0", "grupo-0", "grupo-0-s1-s4")
+// são únicos apenas DENTRO de um bracket — não globalmente. Como `jogos.id` e
+// `grupos.id` são PRIMARY KEY globais, duas categorias do mesmo campeonato
+// colidiriam (o jogo "upper-r1-j0" de uma bateria com o da outra). Para manter
+// o domínio com ids limpos e, ao mesmo tempo, ter unicidade global no banco,
+// prefixamos os ids persistidos com o id do chaveamento: `{chaveamentoId}::{id}`.
+// Na leitura, removemos o prefixo e reconstruímos o id de domínio original.
+const SEP = "::";
+
+/** Prefixa um id de domínio com o id do chaveamento, para unicidade global. */
+function prefixar(chaveamentoId: string, idDominio: string): string {
+  return `${chaveamentoId}${SEP}${idDominio}`;
+}
+
+/**
+ * Remove o prefixo `{chaveamentoId}::` de um id persistido, devolvendo o id de
+ * domínio original. Tolerante: se o id não tiver o prefixo esperado (dados
+ * antigos ou gravados por outro caminho), devolve o valor como veio.
+ */
+function desprefixar(valorPersistido: string): string {
+  const i = valorPersistido.indexOf(SEP);
+  return i === -1 ? valorPersistido : valorPersistido.slice(i + SEP.length);
+}
+
 function comoSide(valor: string): BracketSide {
   if (!SIDES_VALIDOS.has(valor)) {
     throw new Error(`Side inválido na linha de jogo: "${valor}"`);
@@ -195,7 +223,7 @@ function participanteDoSlot(duplaId: string | null, bye: boolean): Participant {
  */
 export function jogoRowParaMatch(row: JogoRow): Match {
   const match: Match = {
-    id: row.id,
+    id: desprefixar(row.id),
     side: comoSide(row.side),
     rodada: row.rodada,
     ordem: row.ordem,
@@ -207,13 +235,13 @@ export function jogoRowParaMatch(row: JogoRow): Match {
 
   // `grupoId` só quando side === "grupo".
   if (match.side === "grupo" && row.grupo_id !== null) {
-    match.grupoId = row.grupo_id;
+    match.grupoId = desprefixar(row.grupo_id);
   }
 
   // Ligação de avanço do vencedor: definida só quando a coluna não é null.
   if (row.avanca_vencedor_para !== null) {
     match.avancaVencedorPara = {
-      matchId: row.avanca_vencedor_para,
+      matchId: desprefixar(row.avanca_vencedor_para),
       slot: slotObrigatorio(row.avanca_vencedor_slot, "avanca_vencedor_slot"),
     };
   }
@@ -221,7 +249,7 @@ export function jogoRowParaMatch(row: JogoRow): Match {
   // Ligação de encaminhamento do perdedor: idem.
   if (row.encaminha_perdedor_para !== null) {
     match.encaminhaPerdedorPara = {
-      matchId: row.encaminha_perdedor_para,
+      matchId: desprefixar(row.encaminha_perdedor_para),
       slot: slotObrigatorio(
         row.encaminha_perdedor_slot,
         "encaminha_perdedor_slot",
@@ -301,9 +329,10 @@ function reconstruirGrupos(
       );
       const jogos = [...(jogosPorGrupo.get(grupoRow.id) ?? [])]
         .sort(ordenarJogos)
-        .map((j) => j.id);
+        .map((j) => desprefixar(j.id));
       return {
-        id: grupoRow.id,
+        // `Group.id` de domínio sem o prefixo de chaveamento (ver `prefixar`).
+        id: desprefixar(grupoRow.id),
         indice: grupoRow.indice,
         duplas,
         jogos,
@@ -459,7 +488,7 @@ export function bracketParaLinhas(
   );
 
   const grupos: GrupoRow[] = gruposOrdenados.map((g) => ({
-    id: g.id,
+    id: prefixar(chaveamentoId, g.id),
     chaveamento_id: chaveamentoId,
     indice: g.indice,
   }));
@@ -469,7 +498,7 @@ export function bracketParaLinhas(
   const grupoDuplas: GrupoDuplaRow[] = [];
   for (const g of gruposOrdenados) {
     for (const duplaId of g.duplas) {
-      grupoDuplas.push({ grupo_id: g.id, dupla_id: duplaId });
+      grupoDuplas.push({ grupo_id: prefixar(chaveamentoId, g.id), dupla_id: duplaId });
     }
   }
 
@@ -505,11 +534,18 @@ function ordenarMatch(
 
 /** Converte um `Match` do domínio na linha inserível de `jogos`. */
 export function matchParaJogoRow(match: Match, chaveamentoId: string): JogoRow {
+  // Todos os ids que participam do PK/grafo (id, grupo_id e as ligações de
+  // avanço, que referenciam `jogos.id`) recebem o prefixo do chaveamento para
+  // unicidade global — ver `prefixar`/`desprefixar`.
+  const pref = (id: string): string => prefixar(chaveamentoId, id);
   return {
-    id: match.id,
+    id: pref(match.id),
     chaveamento_id: chaveamentoId,
     side: match.side,
-    grupo_id: match.side === "grupo" ? (match.grupoId ?? null) : null,
+    grupo_id:
+      match.side === "grupo" && match.grupoId !== undefined
+        ? pref(match.grupoId)
+        : null,
     rodada: match.rodada,
     ordem: match.ordem,
     dupla_a: match.a.pairId,
@@ -518,9 +554,13 @@ export function matchParaJogoRow(match: Match, chaveamentoId: string): JogoRow {
     b_bye: match.b.bye === true,
     vencedor_id: match.vencedorId,
     registrado_em: match.registradoEm,
-    avanca_vencedor_para: match.avancaVencedorPara?.matchId ?? null,
+    avanca_vencedor_para: match.avancaVencedorPara
+      ? pref(match.avancaVencedorPara.matchId)
+      : null,
     avanca_vencedor_slot: match.avancaVencedorPara?.slot ?? null,
-    encaminha_perdedor_para: match.encaminhaPerdedorPara?.matchId ?? null,
+    encaminha_perdedor_para: match.encaminhaPerdedorPara
+      ? pref(match.encaminhaPerdedorPara.matchId)
+      : null,
     encaminha_perdedor_slot: match.encaminhaPerdedorPara?.slot ?? null,
   };
 }
