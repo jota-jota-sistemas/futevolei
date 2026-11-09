@@ -8,6 +8,12 @@ const campeonatos = campeonatosData as Campeonato[];
 
 // Ordena por data (asc); desempate por id para uma ordem determinística.
 const ordenados = ordenarPorDataId(campeonatos);
+
+// Quantidade de cards exibidos no estado inicial (sem filtro). Os demais são
+// marcados como "excedentes" e começam ocultos via CSS, de modo que suas
+// imagens (loading="lazy") não baixam na primeira pintura — o botão "Ver todos"
+// os revela. O limite vale apenas sem filtro ativo (ver filtros-cliente.ts).
+const LIMITE_INICIAL = 8;
 ---
 
 <section class="eventos" aria-label="Próximos eventos">
@@ -17,22 +23,56 @@ const ordenados = ordenarPorDataId(campeonatos);
         <span class="eventos__barra" aria-hidden="true"></span>
         Próximos eventos
       </h2>
-      <span class="eventos__ver-todos placeholder" aria-disabled="true"
-        title="Ver todos os eventos (disponível em breve)"
-      >Ver todos os eventos →</span>
+      {/*
+        "Ver todos os eventos": no estado inicial (sem filtro) a home mostra
+        apenas os primeiros LIMITE_INICIAL cards; o botão revela o restante na
+        própria página. O script client-side controla visibilidade e estado.
+        Começa oculto se não houver excedentes a revelar.
+      */}
+      <button
+        type="button"
+        class="eventos__ver-todos"
+        data-ver-todos
+        hidden={ordenados.length <= LIMITE_INICIAL}
+      >Ver todos os eventos <span aria-hidden="true">→</span></button>
+    </div>
+
+    {/*
+      Região de resultados: contador + chips de filtros ativos.
+      Preenchida/atualizada pelo script client-side a cada busca. Começa com o
+      total de eventos e sem chips. `aria-live=polite` anuncia a contagem a
+      leitores de tela após filtrar.
+    */}
+    <div class="eventos__resultados" data-resultados hidden={ordenados.length === 0}>
+      <p class="eventos__contador" data-contador aria-live="polite" role="status">
+        {ordenados.length} eventos
+      </p>
+      <ul class="eventos__chips" data-chips aria-label="Filtros ativos"></ul>
     </div>
 
     {
       ordenados.length === 0 ? (
         <p class="eventos__vazio">Nenhum evento cadastrado no momento.</p>
       ) : (
-        <div class="eventos__grid">
-          {ordenados.map((c) => <EventCard campeonato={c} />)}
+        <div class="eventos__grid" data-grid-eventos data-expandido="false">
+          {ordenados.map((c, i) => (
+            <EventCard campeonato={c} excedente={i >= LIMITE_INICIAL} />
+          ))}
+          {/* Estado vazio de FILTRO: distinto do "nenhum evento cadastrado". */}
+          {/* Alternado pelo script client-side quando nada corresponde aos filtros. */}
+          <p class="eventos__vazio" data-vazio-filtro hidden>
+            Nenhum evento corresponde aos filtros selecionados.
+          </p>
         </div>
       )
     }
   </div>
 </section>
+
+<!-- Filtragem client-side (show/hide dos cards). Lógica detalhada na tarefa 5.1. -->
+<script>
+  import "../scripts/filtros-cliente.ts";
+</script>
 
 <style>
   /* ---- Base: mobile ---- */
@@ -67,18 +107,103 @@ const ordenados = ordenarPorDataId(campeonatos);
     background: var(--cor-destaque);
   }
 
+  /* Botão "Ver todos os eventos": link discreto, mas é um <button> real. */
   .eventos__ver-todos {
     font-size: 0.9rem;
     font-weight: 600;
     color: var(--cor-destaque-texto);
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: inherit;
+    cursor: pointer;
     text-decoration: none;
     white-space: nowrap;
+  }
+
+  .eventos__ver-todos:hover {
+    text-decoration: underline;
+  }
+
+  /*
+   * Estado inicial colapsado (data-expandido="false"): esconde os cards
+   * excedentes (data-excedente) já na primeira pintura — sem flash e sem
+   * baixar as imagens lazy fora do limite. Quando o script expande o feed
+   * (data-expandido="true") ou aplica um filtro, ele passa a controlar a
+   * visibilidade via [hidden] em cada card, e esta regra deixa de atuar.
+   */
+  .eventos__grid:not([data-js="true"])[data-expandido="false"] [data-excedente] {
+    display: none;
+  }
+
+  /* ---- Região de resultados: contador + chips (mobile-first) ---- */
+  .eventos__resultados {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+  }
+
+  .eventos__contador {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--cor-texto-suave);
+  }
+
+  .eventos__chips {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Cada chip é um botão removível (toda a área é tocável — alvo >= 32px). */
+  .eventos__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 2rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 999px;
+    background: var(--cor-destaque-suave);
+    color: var(--cor-destaque-texto);
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: inherit;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .eventos__chip:hover {
+    border-color: var(--cor-destaque-texto);
+  }
+
+  /* O "x" do chip: círculo discreto com contraste suficiente. */
+  .eventos__chip-x {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.1rem;
+    height: 1.1rem;
+    border-radius: 50%;
+    background: rgba(16, 42, 67, 0.12);
+    font-size: 0.75rem;
+    line-height: 1;
   }
 
   .eventos__vazio {
     text-align: center;
     color: var(--cor-texto-suave);
     padding: 3rem 0;
+  }
+
+  /* Dentro do grid, a mensagem de vazio de filtro ocupa a linha inteira. */
+  .eventos__grid > .eventos__vazio {
+    grid-column: 1 / -1;
   }
 
   .eventos__grid {

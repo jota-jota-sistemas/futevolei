@@ -2,7 +2,7 @@
 import type { Campeonato } from "../../types";
 import campeonatosData from "../../data/campeonatos.json";
 import Layout from "../../layouts/Layout.astro";
-import { comBase, instagramUrl, formatarData } from "../../utils/url";
+import { comBase, instagramUrl, inscricaoUrl, formatarData } from "../../utils/url";
 
 const campeonatos = campeonatosData as Campeonato[];
 
@@ -21,11 +21,16 @@ interface Props {
 
 const { campeonato } = Astro.props;
 const instagram = instagramUrl(campeonato.instagram);
+const inscricao = inscricaoUrl(campeonato.inscricao);
+const temFoto = campeonato.foto?.trim();
 
-// Categorias do campeonato (podem estar ausentes no JSON). São apenas NOMES
-// (strings) — o id (uuid) de cada categoria vive no Supabase e é resolvido no
-// cliente por (campeonato_id, nome). Ver o <script> client-side abaixo.
-const categorias = campeonato.categorias ?? [];
+// Chips de categoria (puramente visuais). Renderizados apenas quando o evento
+// realmente possui categorias — nenhum dado é inventado a partir da descrição.
+// São apenas NOMES (strings); o id (uuid) de cada categoria vive no Supabase e
+// é resolvido no cliente por (campeonato_id, nome). Ver o <script> client-side.
+const categorias = (campeonato.categorias ?? [])
+  .map((c) => c?.trim())
+  .filter((c): c is string => Boolean(c));
 
 // Texto ÚNICO e reutilizável de indisponibilidade, compartilhado por R8.4
 // (categoria sem chaveamento) e R8.7 (falha de leitura de uma categoria). A
@@ -43,11 +48,24 @@ const INDISPONIVEL = "Chaveamento ainda não disponível";
     </a>
 
     <div class="detalhe__foto">
-      <img
-        src={comBase(campeonato.foto)}
-        alt={`Arte do campeonato ${campeonato.nome}`}
-        decoding="async"
-      />
+      {
+        temFoto ? (
+          <img
+            src={comBase(campeonato.foto)}
+            alt={`Arte do campeonato ${campeonato.nome}`}
+            decoding="async"
+          />
+        ) : (
+          <div class="detalhe__foto-vazia midia-vazia" aria-hidden="true">
+            <img
+              class="midia-vazia__simbolo"
+              src={comBase("/simbolo-pingo.png")}
+              alt=""
+              decoding="async"
+            />
+          </div>
+        )
+      }
     </div>
 
     <h1 class="detalhe__nome">{campeonato.nome}</h1>
@@ -57,7 +75,30 @@ const INDISPONIVEL = "Chaveamento ainda não disponível";
       <span class="detalhe__meta-item">📍 {campeonato.local}</span>
     </p>
 
+    {
+      categorias.length > 0 && (
+        <ul class="detalhe__tags" aria-label="Categorias">
+          {categorias.map((categoria) => (
+            <li class="detalhe__tag">{categoria}</li>
+          ))}
+        </ul>
+      )
+    }
+
     <p class="detalhe__descricao">{campeonato.descricao}</p>
+
+    {
+      inscricao && (
+        <a
+          class="btn-destaque detalhe__inscricao"
+          href={inscricao}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Inscreva-se <span aria-hidden="true">→</span>
+        </a>
+      )
+    }
 
     {
       instagram && (
@@ -257,10 +298,43 @@ const INDISPONIVEL = "Chaveamento ainda não disponível";
 
   /* No detalhe mostramos a imagem inteira (sem cortar), pois a arte costuma
      conter regras, categorias e valores. */
-  .detalhe__foto img {
+  .detalhe__foto > img {
     width: 100%;
     height: auto;
     display: block;
+  }
+
+  /* Placeholder de foto ausente no detalhe: proporção retrato estável para
+     não causar salto de layout; o símbolo da marca centralizado herda o
+     padrão global .midia-vazia. */
+  .detalhe__foto-vazia {
+    width: 100%;
+    aspect-ratio: 4 / 5;
+  }
+
+  /* Chips de categoria (mesmo padrão visual do card: fundo suave + texto AA). */
+  .detalhe__tags {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 1rem 0 0;
+    padding: 0;
+  }
+
+  .detalhe__tag {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    padding: 0.35rem 0.6rem;
+    border-radius: 999px;
+    background: var(--cor-destaque-suave);
+    color: var(--cor-destaque-texto);
+  }
+
+  .detalhe__inscricao {
+    margin-top: 1.5rem;
   }
 
   .detalhe__nome {

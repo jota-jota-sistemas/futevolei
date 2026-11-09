@@ -7,7 +7,7 @@
     "foto": "/campeonatos/261113_gv_desafio_allan.png",
     "descricao": "Categoria Estreante, $150 por dupla. Caso tenha duplas fora do nível poderá ser desclassificada, Pix: 11940559723",
     "categorias": [
-      "Estreante"
+      "Masculino Estreante"
     ]
   },
   {
@@ -50,5 +50,413 @@
     "foto": "/campeonatos/261212_pirituba_mss_cup.png",
     "descricao": "Torneio nos dias 12 e 13 de dezembro no Riplay Ma Kai. As categorias da MSS Cup já estão definidas.",
     "instagram": "https://www.instagram.com/p/DdRajm3Fkhk/"
+  },
+  {
+    "id": "261113_sao_paulo_trf11",
+    "nome": "TRF11 — Torneio Regional de Futevôlei",
+    "data": "2026-11-13",
+    "local": "Arena Represa Beach, Estrada Vicinal Vicente Polachini, 171, Jardim Vitória Régia, São Paulo, SP",
+    "foto": "",
+    "descricao": "Etapa TRF11, de 13 a 15 de novembro. 9 categorias; site indicava 186 vagas restantes no momento da consulta. Categorias destacadas: Principiante, Misto Iniciante e Amador. Banner oficial do evento: https://trffutevolei.com.br/banner_trf11.jpg. Inscrições: https://trffutevolei.com.br/",
+    "instagram": "",
+    "categorias": [
+      "Principiante",
+      "Misto Iniciante",
+      "Amador"
+    ]
+  },
+  {
+    "id": "261127_limeira_circuito_shark_cup",
+    "nome": "14ª Etapa Circuito Shark Cup",
+    "data": "2026-11-27",
+    "local": "Arena Shark, Limeira, SP",
+    "foto": "",
+    "descricao": "Etapa de circuito com três dias de jogos. Categorias divulgadas: Estreante, Amador e Profissional. O circuito integra o calendário oficial de eventos do município de Limeira. Programação e inscrições: https://circuitosharkcup.app/",
+    "instagram": "https://www.instagram.com/circuitoshark/",
+    "categorias": [
+      "Masculino Estreante",
+      "Amador",
+      "Profissional"
+    ]
+  },
+  {
+    "id": "261206_cotia_open_riplay_granja_viana",
+    "nome": "8º Open Riplay Granja Viana",
+    "data": "2026-12-06",
+    "local": "Riplay Granja Viana, Estrada da Aldeia, 699, Cotia, SP",
+    "foto": "",
+    "descricao": "Evento com categorias de futevôlei femininas, masculinas e mistas. Foram divulgadas categorias Feminino Iniciante e Intermediário, Masculino Estreante, Iniciante e Amador C, Master 35+, Misto Estreante e Iniciante. Limite de 128 duplas em algumas categorias; premiação em dinheiro, troféus, brindes, fotos profissionais, fisioterapia, hidratação e camiseta oficial. Organização: Open Riplay Granja Viana. Inscrições e detalhes: https://letzplay.me/open-riplay/tournaments/460664/about",
+    "instagram": "https://www.instagram.com/open.riplay/",
+    "categorias": [
+      "Feminino Iniciante",
+      "Feminino Intermediário",
+      "Masculino Estreante",
+      "Masculino Iniciante",
+      "Masculino Amador C",
+      "Master 35+",
+      "Misto Estreante",
+      "Misto Iniciante"
+    ]
+  },
+  {
+    "id": "261205_sao_bernardo_campeonato_paulista",
+    "nome": "Campeonato Paulista de Futevôlei",
+    "data": "2026-12-05",
+    "local": "São Bernardo do Campo, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 5 e 6 de dezembro. Confirmar entidade organizadora, categorias, local e inscrições. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261205_santos_elite_cup",
+    "nome": "Elite Cup",
+    "data": "2026-12-05",
+    "local": "Santos, SP",
+    "foto": "",
+    "descricao": "Campeonato anunciado para 5 e 6 de dezembro em Santos. O site oficial informa categorias Masculino Iniciante, Amador A+B, Amador C, Misto Iniciante, Misto Estreante, Feminino Carrega e Masculino Estreante, com premiação em dinheiro e brindes. Endereço da arena não identificado na página consultada. Fonte: https://www.elitecup.com.br/",
+    "instagram": "",
+    "categorias": [
+      "Masculino Iniciante",
+      "Masculino Amador A+B",
+      "Masculino Amador C",
+      "Misto Iniciante",
+      "Misto Estreante",
+      "Feminino Carrega",
+      "Masculino Estreante"
+    ]
+  },
+  {
+    "id": "261121_pedreira_open_lp",
+    "nome": "Open LP",
+    "data": "2026-11-21",
+    "local": "Arena LP, Pedreira, SP",
+    "foto": "",
+    "descricao": "Evento de 21 e 22 de novembro, com 6 categorias. Inscrição anunciada por R$ 175 por atleta na Movisport, sujeita a alteração. Consultar disponibilidade: https://movisport.pro/",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261204_guarulhos_san_cup",
+    "nome": "4º Sãn Cup — Edição Final 2026",
+    "data": "2026-12-04",
+    "local": "Sãn Beach Bar, Guarulhos, SP",
+    "foto": "",
+    "descricao": "Evento de 4 a 6 de dezembro, com 5 categorias. Inscrição anunciada por R$ 144 por atleta na Movisport, sujeita a alteração. Consultar disponibilidade e categorias: https://movisport.pro/",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261120_sao_paulo_copa_cabeca",
+    "nome": "Copa Cabeça — 5ª Edição",
+    "data": "2026-11-20",
+    "local": "São Paulo, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 20 a 22 de novembro. O bairro Morumbi não foi confirmado nesta pesquisa; local exato, categorias e inscrição precisam ser validados. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261121_sao_paulo_besouro_cup",
+    "nome": "3ª Etapa Besouro Cup Futevôlei",
+    "data": "2026-11-21",
+    "local": "São Paulo, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 21 a 23 de novembro. Terceira etapa; arena, categorias e inscrições não detalhadas na listagem consultada. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261205_sao_paulo_sagrada_primeira",
+    "nome": "Sagrada Primeira FTV",
+    "data": "2026-12-05",
+    "local": "São Paulo, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 5 e 6 de dezembro. Arena, categorias e inscrições a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261114_guarulhos_hg_beach",
+    "nome": "6º HG Beach Guarulhos Futevôlei",
+    "data": "2026-11-14",
+    "local": "HG Beach, Guarulhos, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 14 e 15 de novembro. Sexta edição; categorias e inscrições precisam ser confirmadas. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261128_sao_paulo_copa_2m",
+    "nome": "3ª Edição Copa 2M",
+    "data": "2026-11-28",
+    "local": "São Paulo, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 28 e 29 de novembro. Local, categorias e inscrições a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261121_sao_caetano_copa_sanchez",
+    "nome": "Copa Sanchez Futevôlei",
+    "data": "2026-11-21",
+    "local": "São Caetano do Sul, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 21 e 22 de novembro. Local exato, categorias e inscrições a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261204_ribeirao_pires_open_arena_rp",
+    "nome": "4ª Etapa Open Arena RP",
+    "data": "2026-12-04",
+    "local": "Ribeirão Pires, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 4 a 6 de dezembro. Quarta etapa; local exato, categorias e inscrições a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261128_franco_da_rocha_copa_cfr",
+    "nome": "Copa CFR Futevôlei",
+    "data": "2026-11-28",
+    "local": "Franco da Rocha, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 28 e 29 de novembro. Local exato, categorias e inscrições a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261211_sao_paulo_rp_futevolei",
+    "nome": "10ª Edição do Torneio RP Futevôlei",
+    "data": "2026-12-11",
+    "local": "São Paulo, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 11 a 13 de dezembro. Décima edição; local exato, categorias e inscrições a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261111_mogi_das_cruzes_ct_piter_yuri",
+    "nome": "9ª Etapa Torneio CT Piter Yuri de Futevôlei",
+    "data": "2026-12-11",
+    "local": "CT Piter Yuri, Mogi das Cruzes, SP",
+    "foto": "",
+    "descricao": "Etapa de circuito listada no calendário Torneios FTV para 11 a 13 de dezembro. Categorias, endereço e inscrições a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261212_sao_paulo_mss_cup",
+    "nome": "MSS Cup",
+    "data": "2026-12-12",
+    "local": "São Paulo, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 12 e 13 de dezembro. Local, categorias e inscrições a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261204_taubate_torres_cup",
+    "nome": "Torres Cup",
+    "data": "2026-12-04",
+    "local": "Taubaté, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 4 a 6 de dezembro. Local exato, categorias e inscrições a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261122_rio_grande_da_serra_fute_delas",
+    "nome": "Fute Delas — Torneio Futevôlei Exclusivo Feminino",
+    "data": "2026-11-22",
+    "local": "Rio Grande da Serra, SP",
+    "foto": "",
+    "descricao": "Torneio exclusivamente feminino listado no calendário Torneios FTV para 22 de novembro. Local, categorias adicionais e inscrições a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": [
+      "Feminino"
+    ]
+  },
+  {
+    "id": "261114_ribeirao_pires_aberto",
+    "nome": "Aberto de Futevôlei — 2ª Edição 2026",
+    "data": "2026-11-14",
+    "local": "Ribeirão Pires, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 14 e 15 de novembro. Segunda edição; local exato, categorias e inscrições a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261113_sao_paulo_quebrada_cup",
+    "nome": "Quebrada Cup",
+    "data": "2026-11-13",
+    "local": "São Paulo, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 13 a 15 de novembro. Arena, categorias e informações de inscrição precisam ser confirmadas. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261114_jacarei_am_cup",
+    "nome": "AM Cup — Edição Especial Rainhas da Areia",
+    "data": "2026-11-14",
+    "local": "Jacareí, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 14 e 15 de novembro. Edição especial; categorias, local e inscrições a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261114_aruja_open_prainha",
+    "nome": "1º Torneio Open de Futevôlei Prainha Arujá",
+    "data": "2026-11-12",
+    "local": "Prainha, Arujá, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 12 a 15 de novembro. Endereço específico, categorias, inscrições e flyer precisam ser confirmados com a organização. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261113_piracicaba_arena_campestre_resenha",
+    "nome": "Arena Campestre Resenha Cup",
+    "data": "2026-11-13",
+    "local": "Arena Campestre, Piracicaba, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 13 e 14 de novembro. Categorias, endereço completo e inscrições a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261113_ribeirao_preto_caricas_cup",
+    "nome": "Caricas Cup",
+    "data": "2026-11-13",
+    "local": "Ribeirão Preto, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 13 e 14 de novembro. Local exato, categorias e inscrições não detalhados no calendário consultado. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261114_ribeirao_preto_reis_da_areia",
+    "nome": "1ª Copa de Futevôlei Reis da Areia",
+    "data": "2026-11-14",
+    "local": "Ribeirão Preto, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 14 e 15 de novembro. Local exato, categorias e inscrições a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261113_ourinhos_arena_kbeca",
+    "nome": "Torneio Arena Kbeça de Futevôlei",
+    "data": "2026-11-13",
+    "local": "Ourinhos, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 13 e 14 de novembro. Endereço, categorias e inscrições a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "270131_guarulhos_san_beach",
+    "nome": "Torneio San Beach Bar",
+    "data": "2027-01-31",
+    "local": "San Beach Bar, Guarulhos, SP",
+    "foto": "",
+    "descricao": "Evento futuro listado no calendário Torneios FTV para 31 de janeiro de 2027. Não foram localizadas categorias, inscrições ou flyer oficial na pesquisa. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261218_mogi_das_cruzes_c4e",
+    "nome": "Circuito 4 Estações Futevôlei — C4E Etapa Primavera",
+    "data": "2026-12-18",
+    "local": "Mogi das Cruzes, SP",
+    "foto": "",
+    "descricao": "Etapa do circuito listada no calendário Torneios FTV para 18 a 20 de dezembro. Categorias e local exato a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261219_santos_copa_lion",
+    "nome": "2ª Edição Copa Lion Futevôlei",
+    "data": "2026-12-19",
+    "local": "Santos, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 19 e 20 de dezembro. Segunda edição; local, categorias e inscrições a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261113_ibitinga_posto016",
+    "nome": "Torneio de Futevôlei Posto 016",
+    "data": "2026-11-13",
+    "local": "Ibitinga, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 13 a 15 de novembro. Arena, categorias e inscrições a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261114_leme_torneio_burin",
+    "nome": "6º Torneio Burin Futevôlei",
+    "data": "2026-11-14",
+    "local": "Leme, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 14 e 15 de novembro. Local exato, categorias e inscrições a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261114_caraguatatuba_gomes",
+    "nome": "Gomes Futevôlei",
+    "data": "2026-11-14",
+    "local": "Caraguatatuba, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 14 e 15 de novembro. Local exato, categorias e inscrições a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261115_sorocaba_flash",
+    "nome": "Segundo Flash de Futevôlei — Unidade Sorocaba",
+    "data": "2026-11-15",
+    "local": "Sorocaba, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 15 de novembro. Local, categorias e inscrições a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261129_americana_circuito_lyft",
+    "nome": "Circuito Lyft de Futevôlei",
+    "data": "2026-11-29",
+    "local": "Americana, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 29 de novembro. Etapa/categorias e local exato a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261204_pirassununga_arena_mistieri",
+    "nome": "7º Torneio de Futevôlei Arena Mistieri Beach",
+    "data": "2026-12-04",
+    "local": "Arena Mistieri Beach, Pirassununga, SP",
+    "foto": "",
+    "descricao": "Evento listado no calendário Torneios FTV para 4 a 6 de dezembro. Sétima edição; categorias e inscrições a confirmar. Fonte: https://torneios-ftv.com/?view=calendar",
+    "instagram": "",
+    "categorias": []
+  },
+  {
+    "id": "261204_andradina_resenha_mp",
+    "nome": "Resenha do MP",
+    "data": "2026-12-04",
+    "local": "Ataíde Arena Beach, Andradina, SP",
+    "foto": "",
+    "descricao": "Evento de 4 a 6 de dezembro. Inscrição anunciada por R$ 150 por atleta e 7 categorias na Movisport, sujeita a alteração. Consultar categorias e vagas: https://movisport.pro/",
+    "instagram": "",
+    "categorias": [],
+    "inscricao": "https://movisport.pro/"
   }
 ]

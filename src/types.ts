@@ -23,4 +23,11 @@ export interface Campeonato {
    * tags não é renderizado — nenhum dado é inventado a partir da descrição.
    */
   categorias?: string[];
+  /**
+   * Link de inscrição do evento (opcional). URL completa (http/https) da
+   * página onde a pessoa se inscreve. Quando presente e válida, a página de
+   * detalhe exibe um botão "Inscreva-se"; quando ausente ou inválida, o botão
+   * não aparece. Campo estruturado — não extrair de dentro da descrição.
+   */
+  inscricao?: string;
 }
