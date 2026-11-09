@@ -108,6 +108,8 @@ export interface JogoRow {
   vencedor_id: string | null;
   /** ISO timestamp ou `null`. */
   registrado_em: string | null;
+  /** Ordem de disputa (número do jogo) na fila do torneio; `null` se não numerado. */
+  ordem_disputa: number | null;
   avanca_vencedor_para: string | null;
   avanca_vencedor_slot: JogoSlot | null;
   encaminha_perdedor_para: string | null;
@@ -231,6 +233,7 @@ export function jogoRowParaMatch(row: JogoRow): Match {
     b: participanteDoSlot(row.dupla_b, row.b_bye),
     vencedorId: row.vencedor_id,
     registradoEm: row.registrado_em,
+    ordemDisputa: row.ordem_disputa ?? null,
   };
 
   // `grupoId` só quando side === "grupo".
@@ -554,6 +557,7 @@ export function matchParaJogoRow(match: Match, chaveamentoId: string): JogoRow {
     b_bye: match.b.bye === true,
     vencedor_id: match.vencedorId,
     registrado_em: match.registradoEm,
+    ordem_disputa: match.ordemDisputa,
     avanca_vencedor_para: match.avancaVencedorPara
       ? pref(match.avancaVencedorPara.matchId)
       : null,

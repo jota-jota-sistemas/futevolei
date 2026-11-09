@@ -126,6 +126,7 @@ create table if not exists jogos (
   b_bye          boolean not null default false,
   vencedor_id    uuid references duplas(id),
   registrado_em  timestamptz,
+  ordem_disputa  int,                         -- número do jogo na fila do torneio (null = não numerado)
   avanca_vencedor_para text references jogos(id),
   avanca_vencedor_slot text check (avanca_vencedor_slot in ('a','b')),
   encaminha_perdedor_para text references jogos(id),

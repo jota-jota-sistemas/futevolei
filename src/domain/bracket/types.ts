@@ -7,7 +7,10 @@ export type PairId = string;
 export type MatchId = string;
 export type GroupId = string;
 
-export type Format = "fase de grupos" | "dupla eliminação";
+export type Format =
+  | "fase de grupos"
+  | "dupla eliminação"
+  | "eliminação simples";
 export type BracketSide = "upper" | "lower" | "grande-final" | "grupo";
 
 export interface Pair {
@@ -40,6 +43,13 @@ export interface Match {
   b: Participant;
   vencedorId: PairId | null;
   registradoEm: string | null; // ISO (R6.1)
+  /**
+   * Ordem de disputa (número do jogo) na fila única do torneio: 1, 2, 3, …
+   * `null` enquanto o jogo ainda não foi numerado (ex.: confronto futuro do
+   * mata-mata cujas duplas ainda não estão definidas). Uma vez atribuído, o
+   * número é ESTÁVEL — não muda com recálculos posteriores.
+   */
+  ordemDisputa: number | null;
   grupoId?: GroupId; // quando side === "grupo"
   // Ligações de avanço (quem herda os slots deste jogo):
   avancaVencedorPara?: { matchId: MatchId; slot: "a" | "b" };
