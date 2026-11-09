@@ -1,0 +1,216 @@
+---
+import type { Match, Pair, Participant } from "../../domain/bracket/types";
+
+/**
+ * MatchCard — exibe UM confronto (Match) de um chaveamento.
+ *
+ * Componente puramente visual: lê apenas os campos do `Match` e resolve o
+ * nome de cada dupla via `duplasPorId` (mapa pairId -> Pair). Não executa
+ * qualquer lógica de domínio (geração, progressão, classificação).
+ *
+ * Estados de cada slot (participante):
+ *  - `bye`              → rótulo "BYE" (avanço automático; R4.6)
+ *  - `pairId === null`  → rótulo "A definir" (aguardando jogo anterior)
+ *  - dupla resolvida    → `nomeDupla` da dupla correspondente
+ *
+ * Estado do confronto:
+ *  - há `vencedorId`                         → destaca a dupla vencedora e
+ *                                              exibe o resultado (R8.1)
+ *  - sem vencedor e ambas as duplas definidas → rótulo textual "Pendente"
+ *                                              (R8.5)
+ */
+interface Props {
+  /** O confronto a exibir. */
+  match: Match;
+  /** Mapa de duplas por id, usado para resolver o nome de cada participante. */
+  duplasPorId: Record<string, Pair>;
+}
+
+const { match, duplasPorId } = Astro.props;
+
+type SlotEstado = "bye" | "indefinido" | "definido";
+
+interface SlotInfo {
+  estado: SlotEstado;
+  /** Texto exibido para o slot. */
+  rotulo: string;
+  /** id da dupla quando definida; null caso contrário. */
+  pairId: string | null;
+  /** true quando esta é a dupla vencedora do confronto. */
+  vencedora: boolean;
+}
+
+function resolverSlot(p: Participant): SlotInfo {
+  if (p.bye) {
+    return { estado: "bye", rotulo: "BYE", pairId: null, vencedora: false };
+  }
+  if (p.pairId === null) {
+    return {
+      estado: "indefinido",
+      rotulo: "A definir",
+      pairId: null,
+      vencedora: false,
+    };
+  }
+  const dupla = duplasPorId[p.pairId];
+  return {
+    estado: "definido",
+    // Fallback defensivo: se a dupla não estiver no mapa, mostra o id em vez
+    // de quebrar a renderização. Não inventa dados.
+    rotulo: dupla ? dupla.nomeDupla : p.pairId,
+    pairId: p.pairId,
+    vencedora: match.vencedorId !== null && match.vencedorId === p.pairId,
+  };
+}
+
+const slotA = resolverSlot(match.a);
+const slotB = resolverSlot(match.b);
+
+// Ambas as duplas definidas (têm pairId): condição para o estado "Pendente".
+const ambasDefinidas = slotA.pairId !== null && slotB.pairId !== null;
+const temVencedor = match.vencedorId !== null;
+const pendente = !temVencedor && ambasDefinidas;
+
+// aria-label do confronto, descrevendo participantes e desfecho.
+const ariaConfronto = (() => {
+  const base = `Confronto: ${slotA.rotulo} contra ${slotB.rotulo}`;
+  if (temVencedor) {
+    const vencedora = slotA.vencedora ? slotA.rotulo : slotB.rotulo;
+    return `${base}. Vencedora: ${vencedora}`;
+  }
+  if (pendente) return `${base}. Resultado pendente`;
+  return base;
+})();
+---
+
+<div class="match-card" role="group" aria-label={ariaConfronto}>
+  <ul class="match-card__slots">
+    <li
+      class:list={[
+        "match-card__slot",
+        `match-card__slot--${slotA.estado}`,
+        slotA.vencedora && "match-card__slot--vencedora",
+      ]}
+    >
+      <span class="match-card__dupla">{slotA.rotulo}</span>
+      {
+        slotA.vencedora && (
+          <span class="match-card__marca" aria-label="vencedora" title="vencedora">
+            ✓
+          </span>
+        )
+      }
+    </li>
+    <li
+      class:list={[
+        "match-card__slot",
+        `match-card__slot--${slotB.estado}`,
+        slotB.vencedora && "match-card__slot--vencedora",
+      ]}
+    >
+      <span class="match-card__dupla">{slotB.rotulo}</span>
+      {
+        slotB.vencedora && (
+          <span class="match-card__marca" aria-label="vencedora" title="vencedora">
+            ✓
+          </span>
+        )
+      }
+    </li>
+  </ul>
+  {
+    pendente && (
+      <p class="match-card__estado match-card__estado--pendente">Pendente</p>
+    )
+  }
+</div>
+
+<style>
+  .match-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-card);
+    padding: 0.6rem 0.75rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+
+  .match-card__slots {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .match-card__slot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.4rem 0.55rem;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    color: var(--cor-texto);
+    background: var(--cor-fundo);
+  }
+
+  .match-card__dupla {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Slot de bye ou indefinido: texto suave, sem ênfase. */
+  .match-card__slot--bye .match-card__dupla,
+  .match-card__slot--indefinido .match-card__dupla {
+    font-weight: 500;
+    color: var(--cor-texto-suave);
+    font-style: italic;
+  }
+
+  /* Dupla vencedora: destaque com fundo suave e barra lateral turquesa. */
+  .match-card__slot--vencedora {
+    background: var(--cor-destaque-suave);
+    color: var(--cor-destaque-texto);
+    border-left: 3px solid var(--cor-destaque);
+    font-weight: 800;
+  }
+
+  .match-card__slot--vencedora .match-card__dupla {
+    color: var(--cor-destaque-texto);
+    font-weight: 800;
+  }
+
+  .match-card__marca {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.3rem;
+    height: 1.3rem;
+    border-radius: 50%;
+    background: var(--cor-destaque);
+    color: var(--cor-destaque-contraste);
+    font-size: 0.8rem;
+    font-weight: 900;
+    line-height: 1;
+  }
+
+  .match-card__estado {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    align-self: flex-start;
+  }
+
+  .match-card__estado--pendente {
+    color: var(--cor-texto-suave);
+  }
+</style>

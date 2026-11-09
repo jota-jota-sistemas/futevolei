@@ -1,0 +1,181 @@
+---
+import type {
+  Bracket,
+  BracketSide,
+  Match,
+  Pair,
+} from "../../domain/bracket/types";
+import MatchCard from "./MatchCard.astro";
+
+/**
+ * EliminationTree — exibe o mata-mata de dupla eliminação (R8.1, R8.3).
+ *
+ * Separa os jogos em três seções, na ordem em que o torneio avança:
+ *   1. CHAVE DE VENCEDORES  (side === "upper")
+ *   2. CHAVE DE PERDEDORES  (side === "lower")
+ *   3. GRANDE FINAL         (side === "grande-final")
+ *
+ * Dentro de cada seção os jogos são agrupados por rodada (ordenada crescente)
+ * e, dentro da rodada, ordenados por `ordem` — a mesma ordem determinística
+ * produzida pelo gerador. Cada confronto é renderizado com `MatchCard`.
+ *
+ * Jogos da fase de grupos (side === "grupo") não pertencem a esta árvore e são
+ * ignorados: a fase de grupos é exibida por `GroupTable`.
+ *
+ * Aceita, por conveniência, duas assinaturas (uma OU outra):
+ *  - `{ bracket }`                  → usa `bracket.matches` e monta o mapa de
+ *                                     duplas a partir de `bracket.duplas`;
+ *  - `{ matches, duplasPorId }`     → recebe os jogos e o mapa já prontos.
+ */
+interface PropsComBracket {
+  bracket: Bracket;
+  matches?: undefined;
+  duplasPorId?: undefined;
+}
+
+interface PropsComMatches {
+  bracket?: undefined;
+  matches: Match[];
+  duplasPorId: Record<string, Pair>;
+}
+
+type Props = PropsComBracket | PropsComMatches;
+
+const props = Astro.props as Props;
+
+const matches: Match[] = props.bracket ? props.bracket.matches : props.matches;
+const duplasPorId: Record<string, Pair> = props.bracket
+  ? Object.fromEntries(props.bracket.duplas.map((d) => [d.id, d]))
+  : props.duplasPorId;
+
+// Agrupa os jogos de um side por rodada e ordena (rodada asc, ordem asc).
+interface Rodada {
+  numero: number;
+  jogos: Match[];
+}
+
+function rodadasDoSide(side: BracketSide): Rodada[] {
+  const porRodada = new Map<number, Match[]>();
+  for (const m of matches) {
+    if (m.side !== side) continue;
+    const lista = porRodada.get(m.rodada) ?? [];
+    lista.push(m);
+    porRodada.set(m.rodada, lista);
+  }
+  return [...porRodada.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([numero, jogos]) => ({
+      numero,
+      jogos: [...jogos].sort((x, y) => x.ordem - y.ordem),
+    }));
+}
+
+const secoes: Array<{ side: BracketSide; titulo: string; rodadas: Rodada[] }> = [
+  { side: "upper", titulo: "Chave de vencedores", rodadas: rodadasDoSide("upper") },
+  { side: "lower", titulo: "Chave de perdedores", rodadas: rodadasDoSide("lower") },
+  {
+    side: "grande-final",
+    titulo: "Grande final",
+    rodadas: rodadasDoSide("grande-final"),
+  },
+].filter((s) => s.rodadas.length > 0);
+
+// Rótulo de rodada. A grande final é um jogo único, então dispensa número.
+const rotuloRodada = (side: BracketSide, numero: number): string =>
+  side === "grande-final" ? "Jogo decisivo" : `Rodada ${numero}`;
+---
+
+<div class="elim-tree">
+  {
+    secoes.map((secao) => (
+      <section class="elim-tree__secao" aria-label={secao.titulo}>
+        <h4 class="elim-tree__titulo">{secao.titulo}</h4>
+        <div class="elim-tree__rodadas">
+          {secao.rodadas.map((rodada) => (
+            <div
+              class="elim-tree__rodada"
+              aria-label={rotuloRodada(secao.side, rodada.numero)}
+            >
+              <h5 class="elim-tree__rodada-titulo">
+                {rotuloRodada(secao.side, rodada.numero)}
+              </h5>
+              <ul class="elim-tree__lista">
+                {rodada.jogos.map((match) => (
+                  <li class="elim-tree__item">
+                    <MatchCard match={match} duplasPorId={duplasPorId} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </section>
+    ))
+  }
+</div>
+
+<style>
+  .elim-tree {
+    display: flex;
+    flex-direction: column;
+    gap: 1.4rem;
+  }
+
+  .elim-tree__secao {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+
+  .elim-tree__titulo {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.3;
+    color: var(--cor-texto);
+    padding-bottom: 0.4rem;
+    border-bottom: 2px solid var(--cor-destaque-suave);
+  }
+
+  /* Rodadas lado a lado (fluxo esquerda→direita do mata-mata), com rolagem
+     horizontal quando necessário em telas estreitas. */
+  .elim-tree__rodadas {
+    display: flex;
+    gap: 1rem;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+  }
+
+  .elim-tree__rodada {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    min-width: 230px;
+    flex: 0 0 auto;
+  }
+
+  .elim-tree__rodada-titulo {
+    margin: 0;
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cor-texto-suave);
+  }
+
+  .elim-tree__lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    /* Centraliza verticalmente os jogos da rodada, aproximando o visual de
+       uma árvore de mata-mata. */
+    justify-content: space-around;
+    height: 100%;
+  }
+
+  .elim-tree__item {
+    display: block;
+  }
+</style>

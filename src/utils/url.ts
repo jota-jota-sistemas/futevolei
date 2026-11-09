@@ -65,3 +65,29 @@ export function formatarData(iso: string): string {
     year: "numeric",
   });
 }
+
+/**
+ * Converte o NOME de uma categoria em um slug estável para uso em URLs da área
+ * de organização (`/campeonatos/[id]/organizar/[categoria]`).
+ *
+ * Convenção (fonte de verdade para a rota [categoria] — tarefa 18.2 deve seguir
+ * exatamente esta função): minúsculas, acentos removidos, qualquer sequência de
+ * caracteres não alfanuméricos vira um único hífen, sem hífens nas extremidades.
+ *
+ * Ex.: slugCategoria("Amador B+C")            -> "amador-b-c"
+ *      slugCategoria("Feminino Intermediário") -> "feminino-intermediario"
+ *      slugCategoria("Open")                    -> "open"
+ *
+ * Observação: o slug é derivado do nome porque, no estático, as categorias vêm
+ * do JSON (src/data/campeonatos.json). No runtime a organização lê/grava as
+ * categorias e o chaveamento via Bracket_Store/Supabase (fonte de verdade),
+ * mas as rotas estáticas e a lista continuam derivadas do nome por este slug.
+ */
+export function slugCategoria(nome: string): string {
+  return nome
+    .normalize("NFD") // separa os acentos das letras
+    .replace(/[\u0300-\u036f]/g, "") // remove os acentos
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-") // não alfanumérico -> hífen
+    .replace(/^-+|-+$/g, ""); // tira hífens das extremidades
+}

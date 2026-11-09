@@ -1,0 +1,250 @@
+---
+import type { Group, Match, Pair } from "../../domain/bracket/types";
+import { classificarGrupo, indiceDeSeed } from "../../domain/bracket/standings";
+import MatchCard from "./MatchCard.astro";
+
+/**
+ * GroupTable — exibe UM grupo da fase de grupos (R8.1, R8.2).
+ *
+ * Mostra duas partes:
+ *  1. A tabela de classificação do grupo (duplas, vitórias, posição).
+ *  2. Os jogos do grupo (round-robin), reutilizando `MatchCard` para cada um.
+ *
+ * Decisão sobre classificação pendente:
+ * `classificarGrupo` é determinística e só produz posições/vitórias finais
+ * quando TODOS os jogos do grupo têm vencedor registrado; caso contrário
+ * devolve `null` (não há classificação "parcial"). Seguimos esse contrato:
+ *  - grupo completo  → tabela com posição e vitórias por dupla;
+ *  - grupo pendente  → tabela apenas com as duplas (em ordem de seed, por
+ *                      determinismo) e um aviso textual "Classificação
+ *                      pendente", sem inventar posições nem vitórias.
+ *
+ * Componente puramente visual: a única lógica de domínio usada é
+ * `classificarGrupo`/`indiceDeSeed`, ambas puras e determinísticas.
+ */
+interface Props {
+  /** O grupo a exibir (usa `duplas` e `jogos`). */
+  grupo: Group;
+  /** Todos os jogos disponíveis; os do grupo são filtrados internamente. */
+  matches: Match[];
+  /** Mapa de duplas por id, para resolver nomes e montar o SeedIndex. */
+  duplasPorId: Record<string, Pair>;
+}
+
+const { grupo, matches, duplasPorId } = Astro.props;
+
+const nomeDupla = (pairId: string): string =>
+  duplasPorId[pairId]?.nomeDupla ?? pairId;
+
+// Jogos deste grupo, na ordem determinística registrada em `grupo.jogos`.
+const porId = new Map<string, Match>();
+for (const m of matches) porId.set(m.id, m);
+const jogosDoGrupo: Match[] = [];
+for (const matchId of grupo.jogos) {
+  const jogo = porId.get(matchId);
+  if (jogo) jogosDoGrupo.push(jogo);
+}
+
+// Classificação (null quando o grupo ainda não está completo).
+const seedIndex = indiceDeSeed(
+  grupo.duplas
+    .map((pairId) => duplasPorId[pairId])
+    .filter((d): d is Pair => Boolean(d)),
+);
+const classificacao = classificarGrupo(grupo, jogosDoGrupo, seedIndex);
+
+const grupoCompleto = classificacao !== null;
+
+// Linhas da tabela. Quando completo, usa a classificação (já ordenada); caso
+// contrário, lista as duplas em ordem de seed (determinística) sem posições.
+type Linha = {
+  pairId: string;
+  nome: string;
+  posicao: number | null;
+  vitorias: number | null;
+};
+
+const linhas: Linha[] = grupoCompleto
+  ? classificacao!.map((s) => ({
+      pairId: s.pairId,
+      nome: nomeDupla(s.pairId),
+      posicao: s.posicao,
+      vitorias: s.vitorias,
+    }))
+  : [...grupo.duplas]
+      .sort(
+        (x, y) =>
+          (seedIndex.get(x) ?? Number.POSITIVE_INFINITY) -
+          (seedIndex.get(y) ?? Number.POSITIVE_INFINITY),
+      )
+      .map((pairId) => ({
+        pairId,
+        nome: nomeDupla(pairId),
+        posicao: null,
+        vitorias: null,
+      }));
+
+const tituloGrupo = `Grupo ${grupo.indice + 1}`;
+---
+
+<section class="group-table" aria-label={`Classificação e jogos do ${tituloGrupo}`}>
+  <h4 class="group-table__titulo">{tituloGrupo}</h4>
+
+  <table class="group-table__tabela">
+    <caption class="group-table__caption">
+      Classificação do {tituloGrupo}
+      {
+        !grupoCompleto && (
+          <span class="group-table__pendente"> — classificação pendente</span>
+        )
+      }
+    </caption>
+    <thead>
+      <tr>
+        <th scope="col" class="group-table__col-pos">#</th>
+        <th scope="col" class="group-table__col-dupla">Dupla</th>
+        <th scope="col" class="group-table__col-vit">Vitórias</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        linhas.map((linha) => (
+          <tr
+            class:list={[
+              "group-table__linha",
+              linha.posicao === 1 && "group-table__linha--lider",
+            ]}
+          >
+            <td class="group-table__col-pos">
+              {linha.posicao ?? "—"}
+            </td>
+            <td class="group-table__col-dupla">{linha.nome}</td>
+            <td class="group-table__col-vit">
+              {linha.vitorias ?? "—"}
+            </td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+
+  {
+    jogosDoGrupo.length > 0 && (
+      <div class="group-table__jogos">
+        <h5 class="group-table__subtitulo">Jogos</h5>
+        <ul class="group-table__lista">
+          {jogosDoGrupo.map((match) => (
+            <li class="group-table__item">
+              <MatchCard match={match} duplasPorId={duplasPorId} />
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+</section>
+
+<style>
+  .group-table {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-card);
+    padding: 1rem 1.1rem 1.2rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+
+  .group-table__titulo {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.3;
+    color: var(--cor-texto);
+  }
+
+  .group-table__tabela {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+  }
+
+  .group-table__caption {
+    caption-side: top;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--cor-texto-suave);
+    padding-bottom: 0.4rem;
+  }
+
+  .group-table__pendente {
+    text-transform: none;
+    font-weight: 600;
+    letter-spacing: 0;
+    font-style: italic;
+  }
+
+  .group-table__tabela th {
+    text-align: left;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--cor-texto-suave);
+    padding: 0.35rem 0.5rem;
+    border-bottom: 1px solid var(--cor-borda);
+  }
+
+  .group-table__tabela td {
+    padding: 0.45rem 0.5rem;
+    border-bottom: 1px solid var(--cor-borda);
+    color: var(--cor-texto);
+  }
+
+  .group-table__col-pos,
+  .group-table__col-vit {
+    width: 1%;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  .group-table__col-dupla {
+    font-weight: 600;
+  }
+
+  /* Líder do grupo: leve destaque turquesa, consistente com o tema. */
+  .group-table__linha--lider .group-table__col-dupla {
+    color: var(--cor-destaque-texto);
+    font-weight: 800;
+  }
+
+  .group-table__linha--lider .group-table__col-pos {
+    color: var(--cor-destaque-texto);
+    font-weight: 800;
+  }
+
+  .group-table__subtitulo {
+    margin: 0 0 0.5rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cor-texto-suave);
+  }
+
+  .group-table__lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.6rem;
+  }
+
+  .group-table__item {
+    display: block;
+  }
+</style>
