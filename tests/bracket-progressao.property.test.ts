@@ -221,6 +221,11 @@ describe("Feature: criar-chaveamento-campeonato, Property 24: Jogo com dupla ind
     fc.assert(
       fc.property(arbM, (m) => {
         const bracket = gerarBracketDuplaEliminacao(m);
+        // Snapshot ÚNICO por run: `registrarVencedor` é imutável (não muta a
+        // entrada), então basta clonar/comparar uma vez — clonar a cada jogo
+        // dentro do loop é O(runs × jogos × tamanho) e estourava o timeout.
+        const original = structuredClone(bracket);
+
         // Jogos com ao menos um slot indefinido (pairId null; inclui bye).
         const naoProntos = bracket.matches.filter(
           (j) =>
@@ -233,7 +238,6 @@ describe("Feature: criar-chaveamento-campeonato, Property 24: Jogo com dupla ind
         fc.pre(naoProntos.length > 0);
 
         for (const alvo of naoProntos) {
-          const original = structuredClone(bracket);
           // Tenta registrar uma dupla qualquer (mesmo que uma esteja definida).
           const candidato =
             (alvo.a.pairId as PairId | null) ??
@@ -248,12 +252,14 @@ describe("Feature: criar-chaveamento-campeonato, Property 24: Jogo com dupla ind
           expect(res.ok).toBe(false);
           if (res.ok) return;
           expect(res.erro.code).toBe("JOGO_NAO_PRONTO");
-          expect(bracket).toEqual(original);
         }
+
+        // A entrada permanece intacta após todas as tentativas rejeitadas.
+        expect(bracket).toEqual(original);
       }),
       { numRuns: NUM_RUNS },
     );
-  });
+  }, 20000);
 });
 
 // ---------------------------------------------------------------------------
