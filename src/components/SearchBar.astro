@@ -1,60 +1,92 @@
 ---
-// Barra de busca: visual da referência, inerte na fase atual ("disponível em breve").
-// CSS mobile-first: base é coluna única (mobile); a partir de 768px vira a
-// barra horizontal arredondada com divisores entre os campos.
+// Barra de busca: filtros de Cidade, Período (presets) e Categoria.
+//
+// - Cidade: <select> alimentado por cidades normalizadas (cidadeDoLocal) com
+//   contagem — lista curta e compreensível, no lugar das 33 arenas/locais.
+// - Período: chips de preset ("Este mês", "Próximo mês" e um por mês com
+//   eventos). O chip ativo grava seu valor no input hidden [data-filtro="preset"].
+// - Categoria: <select> com contagem por opção ("Open (1)").
+//
+// A filtragem é disparada no clique de "Buscar eventos" (data-buscar), lido
+// pelo script client-side. "Limpar filtros" (data-limpar) zera tudo.
+// CSS mobile-first.
+
+interface Props {
+  cidades: { cidade: string; total: number }[];
+  categorias: { categoria: string; total: number }[];
+  presetsMes: { valor: string; rotulo: string; total: number }[];
+}
+
+const { cidades = [], categorias = [], presetsMes = [] } = Astro.props;
+
+// Presets relativos fixos + presets de mês derivados dos dados.
+const presets = [
+  { valor: "este-mes", rotulo: "Este mês" },
+  { valor: "proximo-mes", rotulo: "Próximo mês" },
+  ...presetsMes.map((p) => ({ valor: p.valor, rotulo: p.rotulo })),
+];
 ---
 
 <form class="busca" aria-label="Buscar eventos" onsubmit="return false">
   <div class="busca__campo">
     <span class="busca__icone" aria-hidden="true">📍</span>
     <div class="busca__texto">
-      <label class="busca__rotulo">Onde?</label>
-      <input
-        class="busca__input placeholder"
-        type="text"
-        placeholder="Cidade, bairro ou arena"
-        disabled
-        title="Busca por local (disponível em breve)"
-      />
+      <label class="busca__rotulo" for="busca-cidade">Onde?</label>
+      <select class="busca__input" id="busca-cidade" data-filtro="cidade">
+        <option value="">Todas as cidades</option>
+        {cidades.map(({ cidade, total }) => (
+          <option value={cidade}>{cidade} ({total})</option>
+        ))}
+      </select>
     </div>
   </div>
 
-  <div class="busca__campo">
+  <div class="busca__campo busca__campo--periodo">
     <span class="busca__icone" aria-hidden="true">📅</span>
     <div class="busca__texto">
-      <label class="busca__rotulo">Quando?</label>
-      <input
-        class="busca__input placeholder"
-        type="text"
-        placeholder="Selecione uma data"
-        disabled
-        title="Busca por data (disponível em breve)"
-      />
+      <span class="busca__rotulo" id="busca-periodo-rotulo">Quando?</span>
+      {/* Chips de período (grupo de seleção única). O valor ativo é gravado no
+          input hidden abaixo, lido pelo filtro como preset de data. */}
+      <div
+        class="busca__chips"
+        role="group"
+        aria-labelledby="busca-periodo-rotulo"
+        data-presets
+      >
+        {presets.map(({ valor, rotulo }) => (
+          <button
+            type="button"
+            class="busca__chip-periodo"
+            data-preset={valor}
+            aria-pressed="false"
+          >{rotulo}</button>
+        ))}
+      </div>
+      <input type="hidden" data-filtro="preset" value="" />
     </div>
   </div>
 
   <div class="busca__campo">
     <span class="busca__icone" aria-hidden="true">🏷️</span>
     <div class="busca__texto">
-      <label class="busca__rotulo">Categoria</label>
-      <input
-        class="busca__input placeholder"
-        type="text"
-        placeholder="Todas as categorias"
-        disabled
-        title="Busca por categoria (disponível em breve)"
-      />
+      <label class="busca__rotulo" for="busca-categoria">Categoria</label>
+      <select class="busca__input" id="busca-categoria" data-filtro="categoria">
+        <option value="">Todas as categorias</option>
+        {categorias.map(({ categoria, total }) => (
+          <option value={categoria}>{categoria} ({total})</option>
+        ))}
+      </select>
     </div>
   </div>
 
-  <button
-    class="btn-destaque placeholder busca__botao"
-    type="button"
-    disabled
-    title="Buscar eventos (disponível em breve)"
-  >
-    <span aria-hidden="true">🔍</span> Buscar eventos
-  </button>
+  <div class="busca__acoes">
+    <button class="btn-destaque busca__botao" type="button" data-buscar>
+      <span aria-hidden="true">🔍</span> Buscar eventos
+    </button>
+    <button class="busca__limpar" type="button" data-limpar>
+      Limpar filtros
+    </button>
+  </div>
 </form>
 
 <style>
@@ -77,11 +109,17 @@
     border-bottom: 1px solid var(--cor-borda);
   }
 
+  /* O campo de período alinha o ícone ao topo (os chips quebram em linhas). */
+  .busca__campo--periodo {
+    align-items: flex-start;
+  }
+
   .busca__texto {
     display: flex;
     flex-direction: column;
     min-width: 0;
     flex: 1;
+    gap: 0.35rem;
   }
 
   .busca__rotulo {
@@ -90,33 +128,107 @@
     color: var(--cor-texto);
   }
 
+  /*
+   * Controles <select>: sem borda/fundo próprios, herdam a tipografia da barra.
+   * `appearance: none` remove o estilo nativo; a seta é desenhada via SVG.
+   * font-size 16px evita o zoom automático do iOS ao focar o controle.
+   */
   .busca__input {
     border: none;
     background: none;
-    padding: 0.1rem 0;
-    font-size: 0.85rem;
+    padding: 0.35rem 0;
+    font-size: 1rem;
+    font-family: inherit;
     color: var(--cor-texto-suave);
     width: 100%;
   }
 
-  .busca__input::placeholder {
+  select.busca__input {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 1.3rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%234a5b6b' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.25rem center;
+    cursor: pointer;
+    text-overflow: ellipsis;
+  }
+
+  /* ---- Chips de período (presets de data) ---- */
+  .busca__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .busca__chip-periodo {
+    min-height: 2rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 999px;
+    background: none;
     color: var(--cor-texto-suave);
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: inherit;
+    line-height: 1;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .busca__chip-periodo:hover {
+    border-color: var(--cor-texto-suave);
+    color: var(--cor-texto);
+  }
+
+  /* Chip de período selecionado (aria-pressed=true). */
+  .busca__chip-periodo[aria-pressed="true"] {
+    background: var(--cor-destaque);
+    border-color: var(--cor-destaque);
+    color: var(--cor-destaque-contraste);
   }
 
   .busca__botao {
     white-space: nowrap;
-    margin-top: 0.5rem;
     width: 100%;
   }
 
-  /* ---- A partir de 768px: barra horizontal arredondada ---- */
+  /* Wrapper dos botões de ação (Buscar + Limpar). */
+  .busca__acoes {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+  }
+
+  /* Botão "Limpar filtros": secundário, discreto. */
+  .busca__limpar {
+    white-space: nowrap;
+    width: 100%;
+    border: 1px solid var(--cor-borda);
+    background: none;
+    color: var(--cor-texto-suave);
+    border-radius: 999px;
+    padding: 0.6rem 1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  .busca__limpar:hover {
+    color: var(--cor-texto);
+    border-color: var(--cor-texto-suave);
+  }
+
+  /* ---- A partir de 768px: barra arredondada, campos lado a lado ---- */
   @media (min-width: 768px) {
     .busca {
       grid-template-columns: repeat(3, 1fr) auto;
       align-items: center;
       gap: 0.5rem;
-      border-radius: 999px;
-      padding: 0.5rem 0.5rem 0.5rem 1rem;
+      border-radius: var(--raio-card);
+      padding: 0.75rem;
     }
 
     .busca__campo {
@@ -125,8 +237,19 @@
       border-right: 1px solid var(--cor-borda);
     }
 
-    .busca__botao {
+    .busca__campo--periodo {
+      align-items: center;
+    }
+
+    .busca__acoes {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.4rem;
       margin-top: 0;
+    }
+
+    .busca__botao,
+    .busca__limpar {
       width: auto;
     }
   }

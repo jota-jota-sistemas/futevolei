@@ -22,6 +22,7 @@
   },
   "devDependencies": {
     "fast-check": "^3.23.2",
+    "happy-dom": "^15.11.7",
     "vitest": "^3.2.7"
   }
 }

@@ -9,9 +9,21 @@ interface Props {
    * o texto legível. Basta colocar um arquivo em public/ e passar o caminho.
    */
   imagem?: string;
+  /**
+   * Opções dos filtros da SearchBar, derivadas dos dados no build e repassadas
+   * sem transformação. O Hero apenas encaminha para a SearchBar.
+   */
+  cidades?: { cidade: string; total: number }[];
+  categorias?: { categoria: string; total: number }[];
+  presetsMes?: { valor: string; rotulo: string; total: number }[];
 }
 
-const { imagem } = Astro.props;
+const {
+  imagem,
+  cidades = [],
+  categorias = [],
+  presetsMes = [],
+} = Astro.props;
 const bg = imagem ? comBase(imagem) : null;
 ---
 
@@ -30,7 +42,7 @@ const bg = imagem ? comBase(imagem) : null;
         Campeonatos, partidas e experiências de futevôlei em um só lugar.
       </p>
     </div>
-    <SearchBar />
+    <SearchBar cidades={cidades} categorias={categorias} presetsMes={presetsMes} />
   </div>
 </section>
 

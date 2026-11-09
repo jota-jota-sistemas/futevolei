@@ -2,6 +2,27 @@
 import Layout from "../layouts/Layout.astro";
 import Hero from "../components/Hero.astro";
 import EventsSection from "../components/EventsSection.astro";
+import type { Campeonato } from "../types";
+import campeonatosData from "../data/campeonatos.json";
+import {
+  opcoesCidades,
+  contagemCategorias,
+  opcoesPresetsMes,
+} from "../utils/eventos";
+
+/*
+  Dono dos dados: como a SearchBar é renderizada dentro do Hero (e não no
+  EventsSection), a página deriva aqui no build as opções dos filtros a partir
+  do JSON e as repassa ao Hero → SearchBar:
+   - cidades: lista normalizada (via cidadeDoLocal) com contagem por cidade;
+   - presets: meses com eventos (chips de período), relativos resolvidos no cliente;
+   - categorias: lista com contagem por categoria.
+  A ordem dos cards continua sob responsabilidade do EventsSection.
+*/
+const campeonatos = campeonatosData as Campeonato[];
+const cidades = opcoesCidades(campeonatos);
+const categorias = contagemCategorias(campeonatos);
+const presetsMes = opcoesPresetsMes(campeonatos);
 ---
 
 <Layout>
@@ -11,6 +32,11 @@ import EventsSection from "../components/EventsSection.astro";
     Para trocar a foto, substitua public/hero-futevolei.jpg (mantém-se o
     fallback azul-marinho caso a prop `imagem` seja removida).
   */}
-  <Hero imagem="/hero-futevolei.jpg" />
+  <Hero
+    imagem="/hero-futevolei.jpg"
+    cidades={cidades}
+    categorias={categorias}
+    presetsMes={presetsMes}
+  />
   <EventsSection />
 </Layout>
