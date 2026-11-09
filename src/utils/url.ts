@@ -1,14 +1,16 @@
 /**
- * Monta uma URL respeitando o `base` configurado em astro.config.mjs.
+ * Monta uma URL respeitando o `base` do Astro (import.meta.env.BASE_URL).
  *
- * Em produção o site é servido em uma subpasta (ex.: /futevolei/), então
- * caminhos absolutos como "/favicon.svg" precisam virar "/futevolei/favicon.svg".
- * Use esta função para qualquer caminho de asset ou link interno.
+ * Na Vercel o site é servido na raiz, então BASE_URL = "/" e esta função
+ * apenas normaliza o caminho (praticamente um no-op). É mantida para continuar
+ * funcionando caso um `base` volte a ser configurado no futuro e para não
+ * precisar alterar os componentes que já a utilizam.
  *
- * Ex.: comBase("/campeonatos/foo.svg") -> "/futevolei/campeonatos/foo.svg"
+ * Ex. (base "/"):   comBase("/campeonatos/foo.svg") -> "/campeonatos/foo.svg"
+ * Ex. (base "/x/"): comBase("/campeonatos/foo.svg") -> "/x/campeonatos/foo.svg"
  */
 export function comBase(caminho: string): string {
-  const base = import.meta.env.BASE_URL; // ex.: "/futevolei/" (sempre com barra final)
+  const base = import.meta.env.BASE_URL || "/"; // "/" quando não há base configurado
   const limpo = caminho.replace(/^\//, ""); // remove a barra inicial do caminho
   return base.endsWith("/") ? base + limpo : base + "/" + limpo;
 }
