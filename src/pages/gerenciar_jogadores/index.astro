@@ -2,15 +2,15 @@
 import Layout from "../../layouts/Layout.astro";
 import PaginaTopo from "../../components/PaginaTopo.astro";
 import JogadoresLista from "../../components/JogadoresLista.astro";
+import GuardaAcesso from "../../components/GuardaAcesso.astro";
 import { comBase } from "../../utils/url";
 
-// ÁREA DE GERENCIAMENTO (MVP): criar, alterar e excluir jogadores.
+// ÁREA DE GERENCIAMENTO: criar, alterar e excluir jogadores.
 //
-// Não há link para esta página em nenhum lugar do site (nem menu, nem rodapé):
-// só se chega digitando o endereço. Atenção: isso é discrição, NÃO controle de
-// acesso. Enquanto não houver login, a escrita no banco segue liberada ao papel
-// anônimo (RLS), então quem souber a URL, ou chamar a API do Supabase direto,
-// ainda consegue alterar dados. Fase 2a: proteger com autenticação.
+// Só administradores logados usam esta área. O conteúdo fica atrás de
+// GuardaAcesso (revelado por scripts/guarda.ts) e a escrita no banco exige
+// eh_admin() no RLS. A guarda da tela é só de interface: o HTML estático
+// continua baixável; quem protege os dados é o RLS.
 ---
 
 <Layout
@@ -18,6 +18,7 @@ import { comBase } from "../../utils/url";
   descricao="Área de gerenciamento de jogadores."
   noindex
 >
+  <GuardaAcesso>
   <PaginaTopo
     titulo="Gerenciar jogadores"
     subtitulo="Cadastro, edição e exclusão de perfis."
@@ -30,16 +31,23 @@ import { comBase } from "../../utils/url";
   </PaginaTopo>
 
   <JogadoresLista gerenciar />
+  </GuardaAcesso>
 </Layout>
 
 <script>
   import { iniciarLista } from "../../scripts/jogadores-lista";
   import { criarJogadorStoreBrowser } from "../../store/jogadorStore";
   import { hrefGerenciarJogador } from "../../scripts/rotas-gerenciar";
+  import { guardarAcesso } from "../../scripts/guarda";
+  import { criarAuthStoreBrowser } from "../../store/authStore";
 
-  void iniciarLista({
-    store: criarJogadorStoreBrowser(),
-    gerenciar: true,
-    hrefPerfil: hrefGerenciarJogador,
+  // A lista só inicia depois que a guarda libera o acesso (administrador).
+  void guardarAcesso({ store: criarAuthStoreBrowser() }).then((liberado) => {
+    if (!liberado) return;
+    void iniciarLista({
+      store: criarJogadorStoreBrowser(),
+      gerenciar: true,
+      hrefPerfil: hrefGerenciarJogador,
+    });
   });
 </script>

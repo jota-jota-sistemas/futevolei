@@ -1,0 +1,183 @@
+---
+import Layout from "../layouts/Layout.astro";
+import PaginaTopo from "../components/PaginaTopo.astro";
+import Cartao from "../components/Cartao.astro";
+import { comBase } from "../utils/url";
+---
+
+<Layout
+  titulo="Minha conta — Pingo Futevôlei"
+  descricao="Dados da sua conta e vínculo com um jogador."
+  noindex
+>
+  <PaginaTopo
+    titulo="Minha conta"
+    voltarHref={comBase("/")}
+    voltarTexto="Voltar aos eventos"
+  />
+
+  <div class="conta">
+    <p class="conta__estado" data-conta-estado role="status">Carregando sua conta…</p>
+
+    <div class="conta__conteudo" data-conta-conteudo hidden>
+      <Cartao titulo="Dados da conta" id="dados-conta">
+        <div class="conta__perfil">
+          <img class="conta__avatar" data-conta-avatar alt="" width="56" height="56" referrerpolicy="no-referrer" hidden />
+          <div class="conta__texto">
+            <p class="conta__nome" data-conta-nome></p>
+            <p class="conta__email" data-conta-email></p>
+            <p class="conta__papel" data-conta-papel></p>
+          </div>
+        </div>
+        <p class="conta__acoes">
+          <a class="btn-destaque" data-conta-gerenciar hidden>Gerenciar jogadores</a>
+          <button type="button" class="conta__sair" data-sair>Sair</button>
+        </p>
+      </Cartao>
+
+      <Cartao titulo="Vínculo com jogador" id="vinculo-jogador">
+        <p class="conta__vinculo" data-vinculo-atual></p>
+        <div class="conta__form" data-vinculo-form>
+          <label for="vinculo-select">Jogador cadastrado</label>
+          <select id="vinculo-select" class="conta__select" data-vinculo-select></select>
+          <button type="button" class="btn-destaque conta__botao" data-vincular>Vincular</button>
+        </div>
+        <button type="button" class="conta__sair" data-desvincular hidden>Remover vínculo</button>
+        <p class="conta__msg" data-vinculo-msg role="status" aria-live="polite"></p>
+      </Cartao>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  import { iniciarConta } from "../scripts/conta";
+  import { criarAuthStoreBrowser } from "../store/authStore";
+  import { criarJogadorStoreBrowser } from "../store/jogadorStore";
+
+  void iniciarConta({
+    store: criarAuthStoreBrowser(),
+    jogadorStore: criarJogadorStoreBrowser(),
+  });
+</script>
+
+<style>
+  .conta {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 1rem;
+  }
+
+  .conta__conteudo {
+    display: grid;
+    gap: 1.25rem;
+  }
+
+  .conta__estado {
+    margin: 0;
+    color: var(--cor-texto-suave);
+  }
+
+  .conta__perfil {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    min-width: 0;
+  }
+
+  .conta__avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex: none;
+  }
+
+  .conta__texto {
+    min-width: 0;
+  }
+
+  .conta__texto p {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .conta__nome {
+    font-weight: 800;
+    font-size: 1.05rem;
+  }
+
+  .conta__email,
+  .conta__papel {
+    color: var(--cor-texto-suave);
+    font-size: 0.9rem;
+  }
+
+  .conta__acoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 1rem 0 0;
+  }
+
+  .conta__sair {
+    min-height: 44px;
+    padding: 0.5rem 1.1rem;
+    font: inherit;
+    font-weight: 700;
+    color: var(--cor-texto);
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-texto-suave);
+    border-radius: 999px;
+    cursor: pointer;
+  }
+
+  .conta__vinculo {
+    margin: 0 0 1rem;
+    overflow-wrap: anywhere;
+  }
+
+  .conta__vinculo :global(a) {
+    color: var(--cor-destaque-texto);
+    font-weight: 700;
+  }
+
+  .conta__form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .conta__form label {
+    font-size: 0.85rem;
+    font-weight: 700;
+  }
+
+  .conta__select {
+    width: 100%;
+    min-height: 44px;
+    padding: 0.5rem 0.75rem;
+    font: inherit;
+    font-size: 1rem;
+    border: 1px solid var(--cor-texto-suave);
+    border-radius: 12px;
+    background: var(--cor-superficie);
+  }
+
+  .conta__botao {
+    min-height: 44px;
+  }
+
+  .conta__msg {
+    margin: 0.75rem 0 0;
+    color: var(--cor-texto-suave);
+    font-weight: 600;
+  }
+
+  .conta__msg:empty {
+    display: none;
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+</style>

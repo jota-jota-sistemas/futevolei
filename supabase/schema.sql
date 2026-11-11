@@ -214,20 +214,18 @@ create index if not exists duplas_jogador_a_idx on duplas (jogador_a_id);
 create index if not exists duplas_jogador_b_idx on duplas (jogador_b_id);
 
 -- =============================================================================
--- Row Level Security (RLS) — VERSÃO ATUAL (sem autenticação)
+-- Row Level Security (RLS) — com autenticação (Supabase Auth)
 -- -----------------------------------------------------------------------------
--- Política desta fase:
---   * Leitura pública (select) liberada em TODAS as tabelas.
---   * Escrita (insert/update/delete) permitida ao papel anônimo (anon) APENAS
---     nas tabelas de organização: categorias, duplas, chaveamentos, grupos,
---     grupo_duplas, jogos e jogadores. É a barreira mínima enquanto não há auth (R9.3).
---   * `campeonatos` NÃO recebe escrita anon: é populada pelo script de
+-- Política atual:
+--   * Leitura pública (select) liberada nas tabelas de eventos e jogadores.
+--   * Escrita (insert/update/delete) só para administradores (eh_admin(), pelo
+--     e-mail do JWT) nas tabelas de organização e em jogadores. Não existe mais
+--     escrita anônima.
+--   * Um usuário vinculado a um jogador edita só o próprio registro.
+--   * `perfis` e `administradores` não têm leitura pública.
+--   * `campeonatos` NÃO recebe escrita pela API: é populada pelo script de
 --     migração idempotente usando o cliente admin (service role), que
 --     contorna RLS.
---
--- FASE 2a (futuro): as políticas de escrita abaixo passarão a exigir papel
--- AUTENTICADO (ex.: `to authenticated`) e as escritas migrarão para rotas de
--- servidor usando o cliente admin. NÃO habilite escrita autenticada aqui ainda.
 -- =============================================================================
 
 -- Habilita RLS por tabela.
@@ -276,36 +274,137 @@ create policy jogadores_select_publico on jogadores
   for select using (true);
 
 -- -----------------------------------------------------------------------------
--- Escrita anônima (anon) nas tabelas de ORGANIZAÇÃO apenas.
--- FASE 2a: trocar `to anon` por `to authenticated` em cada policy abaixo.
+-- AUTENTICAÇÃO (Supabase Auth) e ESCRITA
 -- -----------------------------------------------------------------------------
-drop policy if exists categorias_escrita_anon on categorias;
-create policy categorias_escrita_anon on categorias
-  for all to anon using (true) with check (true);
+-- Quem pode escrever: apenas administradores (e-mail listado em `administradores`).
+-- Qualquer pessoa pode ENTRAR (Google ou link mágico), mas entrar não dá acesso
+-- de escrita: o RLS confere o e-mail do JWT contra a tabela abaixo.
+--
+-- Como adicionar um administrador (no SQL Editor do Supabase):
+--   insert into administradores (email) values ('pessoa@exemplo.com')
+--     on conflict do nothing;
+-- O e-mail é guardado em minúsculas.
 
-drop policy if exists duplas_escrita_anon on duplas;
-create policy duplas_escrita_anon on duplas
-  for all to anon using (true) with check (true);
+create table if not exists administradores (
+  email text primary key check (email = lower(btrim(email)))
+);
+alter table administradores enable row level security;
+-- Sem nenhuma policy: a tabela NÃO é legível pela API (nem por anon, nem por
+-- authenticated). Só a função eh_admin() (security definer) a consulta.
+revoke all on administradores from anon, authenticated;
 
+-- O usuário do JWT é administrador? Usada pelas policies e pelo site (rpc).
+create or replace function public.eh_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.administradores a
+    where a.email = lower(btrim(coalesce(auth.jwt() ->> 'email', '')))
+  );
+$$;
+revoke all on function public.eh_admin() from public;
+grant execute on function public.eh_admin() to authenticated;
+
+-- Perfil da conta (um por usuário de auth.users). Dados privados do usuário:
+-- só ele mesmo lê e edita. `jogador_id` liga a conta a um jogador cadastrado;
+-- `unique` impede dois donos para o mesmo jogador.
+create table if not exists perfis (
+  id             uuid primary key references auth.users(id) on delete cascade,
+  nome           text check (nome is null or char_length(btrim(nome)) between 1 and 80),
+  avatar_url     text check (avatar_url is null or char_length(avatar_url) <= 500),
+  jogador_id     uuid unique references jogadores(id) on delete set null,
+  criado_em      timestamptz not null default now(),
+  atualizado_em  timestamptz not null default now()
+);
+alter table perfis enable row level security;
+
+drop policy if exists perfis_select_proprio on perfis;
+create policy perfis_select_proprio on perfis
+  for select to authenticated using (id = auth.uid());
+
+drop policy if exists perfis_insert_proprio on perfis;
+create policy perfis_insert_proprio on perfis
+  for insert to authenticated with check (id = auth.uid());
+
+drop policy if exists perfis_update_proprio on perfis;
+create policy perfis_update_proprio on perfis
+  for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
+
+-- Cria o perfil no primeiro login (nome e foto vêm do Google, quando houver).
+create or replace function public.criar_perfil_no_primeiro_login()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.perfis (id, nome, avatar_url)
+  values (
+    new.id,
+    nullif(left(btrim(coalesce(new.raw_user_meta_data ->> 'full_name', new.raw_user_meta_data ->> 'name', '')), 80), ''),
+    nullif(left(coalesce(new.raw_user_meta_data ->> 'avatar_url', new.raw_user_meta_data ->> 'picture', ''), 500), '')
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists criar_perfil_no_primeiro_login on auth.users;
+create trigger criar_perfil_no_primeiro_login
+  after insert on auth.users
+  for each row execute function public.criar_perfil_no_primeiro_login();
+
+-- -----------------------------------------------------------------------------
+-- Escrita nas tabelas de ORGANIZAÇÃO e em jogadores: só administradores.
+-- As policies antigas `*_escrita_anon` (escrita anônima) são REMOVIDAS aqui, o
+-- que também protege bancos que aplicaram a versão anterior deste arquivo.
+-- -----------------------------------------------------------------------------
+drop policy if exists categorias_escrita_anon   on categorias;
+drop policy if exists duplas_escrita_anon       on duplas;
 drop policy if exists chaveamentos_escrita_anon on chaveamentos;
-create policy chaveamentos_escrita_anon on chaveamentos
-  for all to anon using (true) with check (true);
-
-drop policy if exists grupos_escrita_anon on grupos;
-create policy grupos_escrita_anon on grupos
-  for all to anon using (true) with check (true);
-
+drop policy if exists grupos_escrita_anon       on grupos;
 drop policy if exists grupo_duplas_escrita_anon on grupo_duplas;
-create policy grupo_duplas_escrita_anon on grupo_duplas
-  for all to anon using (true) with check (true);
+drop policy if exists jogos_escrita_anon        on jogos;
+drop policy if exists jogadores_escrita_anon    on jogadores;
 
-drop policy if exists jogos_escrita_anon on jogos;
-create policy jogos_escrita_anon on jogos
-  for all to anon using (true) with check (true);
+drop policy if exists categorias_escrita_admin on categorias;
+create policy categorias_escrita_admin on categorias
+  for all to authenticated using (public.eh_admin()) with check (public.eh_admin());
 
--- Jogadores: mesma barreira mínima das demais tabelas de organização. Atenção:
--- enquanto não há login, qualquer visitante pode criar/editar/apagar perfis.
--- FASE 2a: trocar `to anon` por `to authenticated` (e restringir por dono).
-drop policy if exists jogadores_escrita_anon on jogadores;
-create policy jogadores_escrita_anon on jogadores
-  for all to anon using (true) with check (true);
+drop policy if exists duplas_escrita_admin on duplas;
+create policy duplas_escrita_admin on duplas
+  for all to authenticated using (public.eh_admin()) with check (public.eh_admin());
+
+drop policy if exists chaveamentos_escrita_admin on chaveamentos;
+create policy chaveamentos_escrita_admin on chaveamentos
+  for all to authenticated using (public.eh_admin()) with check (public.eh_admin());
+
+drop policy if exists grupos_escrita_admin on grupos;
+create policy grupos_escrita_admin on grupos
+  for all to authenticated using (public.eh_admin()) with check (public.eh_admin());
+
+drop policy if exists grupo_duplas_escrita_admin on grupo_duplas;
+create policy grupo_duplas_escrita_admin on grupo_duplas
+  for all to authenticated using (public.eh_admin()) with check (public.eh_admin());
+
+drop policy if exists jogos_escrita_admin on jogos;
+create policy jogos_escrita_admin on jogos
+  for all to authenticated using (public.eh_admin()) with check (public.eh_admin());
+
+drop policy if exists jogadores_escrita_admin on jogadores;
+create policy jogadores_escrita_admin on jogadores
+  for all to authenticated using (public.eh_admin()) with check (public.eh_admin());
+
+-- Um usuário vinculado a um jogador (perfis.jogador_id) pode EDITAR só o próprio
+-- registro em `jogadores`. Não cria nem apaga. Atenção: o vínculo é escolhido
+-- pelo próprio usuário em /conta; se isso virar problema, passe a exigir
+-- confirmação de um administrador antes de gravar `jogador_id`.
+drop policy if exists jogadores_update_proprio on jogadores;
+create policy jogadores_update_proprio on jogadores
+  for update to authenticated
+  using (exists (select 1 from perfis p where p.id = auth.uid() and p.jogador_id = jogadores.id))
+  with check (exists (select 1 from perfis p where p.id = auth.uid() and p.jogador_id = jogadores.id));

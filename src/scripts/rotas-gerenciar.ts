@@ -6,11 +6,10 @@
 // separado de utils/url.ts de propósito: assim o caminho não entra nos arquivos
 // JavaScript carregados pelas páginas públicas.
 //
-// A área não aparece no menu nem em nenhum link das páginas públicas: só se
-// chega nela digitando o endereço (decisão do MVP). Atenção: isso é discrição,
-// NÃO controle de acesso. Enquanto não houver login, a escrita no banco segue
-// liberada ao papel anônimo (RLS), então quem souber a URL, ou chamar a API do
-// Supabase direto, ainda consegue alterar dados.
+// A área é restrita a administradores logados (scripts/guarda.ts + RLS com
+// eh_admin()). O link só aparece no menu para quem é administrador (script do
+// cabeçalho), nunca no HTML estático. Atenção: a guarda da tela é só de
+// interface; a proteção real dos dados é o RLS do Supabase.
 
 import { comBase } from "../utils/url";
 
