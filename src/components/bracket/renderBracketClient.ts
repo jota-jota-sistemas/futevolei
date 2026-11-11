@@ -49,22 +49,27 @@ type DuplasPorId = Record<string, Pair>;
 /**
  * Opções de interação da renderização. São OPCIONAIS: a página pública chama
  * `renderBracketClient` sem elas (visualização inerte, somente leitura — R9.2),
- * enquanto a página de organização passa `aoSalvarPlacar` para habilitar os
- * campos de placar em cada jogo.
+ * enquanto a página de organização passa `aoAbrirPlacar` para habilitar, em
+ * cada jogo, o botão que abre a tela de placar.
  *
  * IMPORTANTE (fronteira R9.1/R9.2): este módulo permanece PURO em relação a I/O.
- * Ele apenas chama o callback recebido ao confirmar o placar; não conhece store,
+ * Ele apenas chama o callback recebido ao abrir o placar; não conhece store,
  * Supabase nem qualquer operação de escrita. Quem valida e persiste é a página
  * de organização, dona do callback.
  */
 export interface RenderOpcoes {
   /**
    * Quando fornecido, cada jogo PRONTO (ambas as duplas definidas, sem bye)
-   * ganha dois campos de placar e um botão de salvar. Ao salvar, chama este
-   * callback com o id do jogo e os placares digitados (`NaN` se o campo estiver
-   * vazio). A validação (inteiro ≥ 0, sem empate) é do domínio.
+   * ganha um botão ("Marcar placar" / "Placar ao vivo" / "Editar placar") que
+   * chama este callback com o id do jogo. A tela de placar, a validação e a
+   * persistência são da página de organização.
    */
-  aoSalvarPlacar?: (matchId: string, placarA: number, placarB: number) => void;
+  aoAbrirPlacar?: (matchId: string) => void;
+  /**
+   * Quando fornecido (página pública), cada jogo PRONTO ganha o botão
+   * "Acompanhar jogo", que chama este callback para abrir a tela cheia do jogo.
+   */
+  aoAbrirJogo?: (matchId: string) => void;
 }
 
 /**
@@ -170,13 +175,15 @@ function renderMatchCard(
 
   const ambasDefinidas = slotA.pairId !== null && slotB.pairId !== null;
   const temVencedor = match.vencedorId !== null;
-  const pendente = !temVencedor && ambasDefinidas;
+  // Ao vivo: já tem placar mas ainda não foi encerrado (sem vencedor).
+  const aoVivo = !temVencedor && ambasDefinidas && match.placarA !== null;
+  const pendente = !temVencedor && ambasDefinidas && !aoVivo;
 
   // Editável apenas quando há callback E ambas as duplas estão definidas (jogo
   // pronto). Vale também para jogos já decididos: editar o placar corrige o
   // resultado (a cascata é tratada pela progressão).
   const editavel =
-    typeof opcoes?.aoSalvarPlacar === "function" && ambasDefinidas;
+    typeof opcoes?.aoAbrirPlacar === "function" && ambasDefinidas;
 
   const ariaConfronto = (() => {
     const base = `Confronto: ${slotA.rotulo} contra ${slotB.rotulo}`;
@@ -188,19 +195,10 @@ function renderMatchCard(
           : "";
       return `${base}. Vencedora: ${vencedora}${placar}`;
     }
+    if (aoVivo) return `${base}. Ao vivo: ${match.placarA} a ${match.placarB}`;
     if (pendente) return `${base}. Resultado pendente`;
     return base;
   })();
-
-  const inputs: { a?: HTMLInputElement; b?: HTMLInputElement } = {};
-
-  const salvar = (): void => {
-    const ler = (input?: HTMLInputElement): number => {
-      const bruto = (input?.value ?? "").trim();
-      return bruto === "" ? Number.NaN : Number(bruto);
-    };
-    opcoes!.aoSalvarPlacar!(match.id, ler(inputs.a), ler(inputs.b));
-  };
 
   const slotLi = (slot: SlotInfo, lado: "a" | "b"): HTMLElement => {
     const filhos: Node[] = [
@@ -216,29 +214,9 @@ function renderMatchCard(
       );
     }
 
+    // Placar (ao vivo ou final), somente leitura no card.
     const placar = lado === "a" ? match.placarA : match.placarB;
-    if (editavel && slot.estado === "definido") {
-      // Campo de placar (só na organização).
-      const input = el("input", {
-        classes: ["match-card__placar-input"],
-        attrs: {
-          type: "number",
-          min: "0",
-          step: "1",
-          inputmode: "numeric",
-          "aria-label": `Placar de ${slot.rotulo}`,
-          "data-match-id": match.id,
-          "data-lado": lado,
-          ...(placar !== null ? { value: String(placar) } : {}),
-        },
-      }) as HTMLInputElement;
-      input.addEventListener("keydown", (e) => {
-        if ((e as KeyboardEvent).key === "Enter") salvar();
-      });
-      inputs[lado] = input;
-      filhos.push(input);
-    } else if (placar !== null) {
-      // Placar somente leitura (visualização pública).
+    if (placar !== null) {
       filhos.push(
         el("span", {
           classes: ["match-card__placar"],
@@ -279,16 +257,41 @@ function renderMatchCard(
   );
 
   if (editavel) {
+    const rotulo = temVencedor
+      ? "Editar placar"
+      : aoVivo
+        ? "Placar ao vivo"
+        : "Marcar placar";
     const botao = el("button", {
       classes: ["match-card__salvar"],
       attrs: { type: "button" },
-      texto: temVencedor ? "Atualizar placar" : "Salvar placar",
+      texto: rotulo,
     });
-    botao.addEventListener("click", salvar);
+    botao.addEventListener("click", () => opcoes!.aoAbrirPlacar!(match.id));
     filhos.push(botao);
   }
 
-  if (pendente) {
+  if (typeof opcoes?.aoAbrirJogo === "function" && ambasDefinidas) {
+    const acompanhar = el("button", {
+      classes: ["match-card__acompanhar"],
+      attrs: {
+        type: "button",
+        "aria-label": `Acompanhar jogo: ${slotA.rotulo} contra ${slotB.rotulo}`,
+      },
+      texto: aoVivo ? "Acompanhar ao vivo" : "Ver jogo",
+    });
+    acompanhar.addEventListener("click", () => opcoes!.aoAbrirJogo!(match.id));
+    filhos.push(acompanhar);
+  }
+
+  if (aoVivo) {
+    filhos.push(
+      el("p", {
+        classes: ["match-card__estado", "match-card__estado--aovivo"],
+        texto: "Ao vivo",
+      }),
+    );
+  } else if (pendente) {
     filhos.push(
       el("p", {
         classes: ["match-card__estado", "match-card__estado--pendente"],

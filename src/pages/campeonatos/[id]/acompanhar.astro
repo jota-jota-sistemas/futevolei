@@ -97,6 +97,7 @@ const categorias = (campeonato.categorias ?? [])
   // indisponibilidade já presente no HTML (R8.4).
   import { criarBracketStoreBrowser } from "../../../store/bracketStore";
   import { renderBracketClient } from "../../../components/bracket/renderBracketClient";
+  import { abrirTelaJogo, type TelaJogo } from "../../../components/bracket/telaJogo";
   import type { SupabaseClient } from "@supabase/supabase-js";
 
   const INDISPONIVEL = "Chaveamento ainda não disponível";
@@ -192,8 +193,26 @@ const categorias = (campeonato.categorias ?? [])
       if (!resultado.ok || resultado.valor === null) return;
 
       // 3) Renderiza o chaveamento desta categoria e substitui o placeholder.
-      const view = renderBracketClient(resultado.valor);
-      slot.replaceChildren(view);
+      // Estado desta categoria: chaveamento atual e a tela de jogo aberta (se
+      // houver), que acompanha as atualizações em tempo real.
+      let atual = resultado.valor;
+      let tela: TelaJogo | null = null;
+      const desenhar = (): HTMLElement =>
+        renderBracketClient(atual, {
+          aoAbrirJogo: (matchId) => {
+            tela?.fechar();
+            tela = abrirTelaJogo({
+              bracket: atual,
+              matchId,
+              categoria: nome,
+              aoFechar: () => {
+                tela = null;
+              },
+            });
+          },
+        });
+
+      slot.replaceChildren(desenhar());
       slot.removeAttribute("aria-busy");
       renderizou = true;
 
@@ -206,7 +225,9 @@ const categorias = (campeonato.categorias ?? [])
         timer = setTimeout(async () => {
           const novo = await store.carregarChaveamento(ref);
           if (!novo.ok || novo.valor === null) return;
-          slot.replaceChildren(renderBracketClient(novo.valor));
+          atual = novo.valor;
+          slot.replaceChildren(desenhar());
+          tela?.atualizar(atual);
         }, 300);
       });
     } catch {
@@ -702,6 +723,195 @@ const categorias = (campeonato.categorias ?? [])
     letter-spacing: 0.04em;
     text-transform: uppercase;
     align-self: flex-start;
+  }
+
+  /* Botão que abre a tela cheia do jogo (cards do chaveamento) */
+  .match-card__acompanhar {
+    margin-top: 0.4rem;
+    width: 100%;
+    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 10px;
+    background: var(--cor-superficie);
+    color: var(--cor-texto);
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .match-card__acompanhar:hover {
+    border-color: var(--cor-destaque);
+    color: var(--cor-destaque-texto);
+  }
+
+  .match-card__acompanhar:focus-visible {
+    outline: 2px solid var(--cor-destaque);
+    outline-offset: 2px;
+  }
+
+  /* ---- Tela cheia de um jogo ---- */
+  body.tela-jogo-aberta {
+    overflow: hidden;
+  }
+
+  .tela-jogo {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(0.8rem, 3vh, 2rem);
+    padding: clamp(1rem, 3vw, 2.5rem);
+    background: #0a1a30;
+    color: #fff;
+    overflow: auto;
+  }
+
+  .tela-jogo__topo {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .tela-jogo__titulos p {
+    margin: 0;
+  }
+
+  .tela-jogo__categoria {
+    font-size: clamp(1.1rem, 2.4vw, 1.8rem);
+    font-weight: 800;
+  }
+
+  .tela-jogo__contexto,
+  .tela-jogo__numero {
+    font-size: clamp(0.9rem, 1.8vw, 1.3rem);
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  .tela-jogo__fechar {
+    flex: 0 0 auto;
+    padding: 0.5rem 1.1rem;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 999px;
+    background: transparent;
+    color: #fff;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .tela-jogo__fechar:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .tela-jogo__fechar:focus-visible {
+    outline: 3px solid var(--cor-destaque);
+    outline-offset: 2px;
+  }
+
+  .tela-jogo__situacao {
+    align-self: center;
+    margin: 0;
+    padding: 0.35rem 1.2rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+    font-size: clamp(1rem, 2.2vw, 1.6rem);
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .tela-jogo[data-situacao="aovivo"] .tela-jogo__situacao {
+    background: #c0392b;
+  }
+
+  .tela-jogo[data-situacao="encerrado"] .tela-jogo__situacao {
+    background: var(--cor-destaque);
+    color: #06213a;
+  }
+
+  .tela-jogo__placar {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: clamp(0.5rem, 2vw, 2rem);
+    min-height: 0;
+  }
+
+  .tela-jogo__lado {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(0.4rem, 1.5vh, 1rem);
+    text-align: center;
+    padding: clamp(0.8rem, 2vw, 2rem);
+    border-radius: 24px;
+    border: 3px solid transparent;
+  }
+
+  .tela-jogo__lado--vencedora {
+    border-color: var(--cor-destaque);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .tela-jogo__nome {
+    margin: 0;
+    font-size: clamp(1.4rem, 4vw, 3.2rem);
+    font-weight: 800;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+
+  .tela-jogo__pontos {
+    margin: 0;
+    font-size: clamp(6rem, 24vw, 20rem);
+    font-weight: 900;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tela-jogo__selo {
+    margin: 0;
+    min-height: 1.4em;
+    font-size: clamp(1rem, 2.4vw, 1.8rem);
+    font-weight: 800;
+    color: var(--cor-destaque);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .tela-jogo__x {
+    margin: 0;
+    font-size: clamp(2rem, 6vw, 5rem);
+    color: rgba(255, 255, 255, 0.45);
+  }
+
+  .tela-jogo__rodape {
+    margin: 0;
+    text-align: center;
+    min-height: 1.4em;
+    font-size: clamp(0.9rem, 1.8vw, 1.3rem);
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  /* Celular em pé: as duas duplas empilhadas. */
+  @media (max-aspect-ratio: 1 / 1) {
+    .tela-jogo__placar {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr auto 1fr;
+    }
+
+    .tela-jogo__pontos {
+      font-size: clamp(5rem, 30vw, 14rem);
+    }
+  }
+
+  .match-card__estado--aovivo {
+    color: #c0392b;
+    font-weight: 800;
   }
 
   .match-card__estado--pendente {

@@ -110,5 +110,6 @@ export type DomainError =
   | { code: "JOGO_NAO_PRONTO" } // R6.3
   | { code: "PLACAR_INVALIDO" } // placar não inteiro ou negativo
   | { code: "PLACAR_EMPATE" } // placares iguais (não há empate)
+  | { code: "JOGO_ENCERRADO" } // placar ao vivo em jogo já encerrado
   | { code: "FALHA_PERSISTENCIA" } // R7.2
   | { code: "FALHA_LEITURA" }; // R7.6
