@@ -5,7 +5,8 @@ import EventsSection from "../components/EventsSection.astro";
 import { carregarCampeonatos } from "../utils/torneios";
 import {
   opcoesCidades,
-  contagemCategorias,
+  contagemNiveis,
+  contagemGeneros,
   opcoesPresetsMes,
 } from "../utils/eventos";
 
@@ -16,12 +17,14 @@ import {
   Hero → SearchBar:
    - cidades: lista normalizada (via cidadeDoLocal) com contagem por cidade;
    - presets: meses com eventos (chips de período), relativos resolvidos no cliente;
-   - categorias: lista com contagem por categoria.
+   - niveis / generos: as categorias (texto livre) reduzidas a Nível e Gênero,
+     com contagem de eventos (ver utils/categorias.ts).
   A ordem dos cards continua sob responsabilidade do EventsSection.
 */
 const campeonatos = carregarCampeonatos();
 const cidades = opcoesCidades(campeonatos);
-const categorias = contagemCategorias(campeonatos);
+const niveis = contagemNiveis(campeonatos);
+const generos = contagemGeneros(campeonatos);
 const presetsMes = opcoesPresetsMes(campeonatos);
 ---
 
@@ -35,7 +38,8 @@ const presetsMes = opcoesPresetsMes(campeonatos);
   <Hero
     imagem="/hero-futevolei.jpg"
     cidades={cidades}
-    categorias={categorias}
+    niveis={niveis}
+    generos={generos}
     presetsMes={presetsMes}
   />
   <EventsSection />

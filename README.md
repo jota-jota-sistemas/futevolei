@@ -267,6 +267,7 @@ npm run coletar:torneios   # reabre o calendário com Playwright e sobrescreve s
 - A origem não traz foto nem descrição: nos eventos coletados o card mostra só data, local e nome, e o detalhe não exibe imagem.
 - **Eventos manuais:** um registro com `"fonte": "manual"` pode ter também `foto` (caminho em `public/`) e `descricao`. O coletor **preserva** esses registros ao regravar o arquivo; os demais são substituídos a cada coleta.
 - O link do Instagram aponta para o **post** de origem (um carrossel pode listar vários torneios); `?img_index=N` indica o slide do torneio.
+- **Filtro de categorias:** as categorias são texto livre (114 grafias distintas), então o filtro usa **Nível** (select) e **Gênero** (chips), derivados do texto por `src/utils/categorias.ts`. Cada variante de nível é uma opção própria (Estreante, Principiante, Aprendiz, Iniciante, "Iniciante + C", Intermediário, Amador, Bronze, Master, Open, Outros). Categoria sem gênero escrito é **Masculino** por padrão, exceto as de "Outros". Nível e gênero casam na **mesma categoria** do evento. O texto original continua no detalhe.
 - A seção "Chaveamentos" do detalhe está desligada (`EXIBIR_CHAVEAMENTOS` em `src/pages/campeonatos/[id].astro`), porque esses eventos não têm chaveamento associado.
 
 ## Como adicionar/editar um campeonato (Fase 1)

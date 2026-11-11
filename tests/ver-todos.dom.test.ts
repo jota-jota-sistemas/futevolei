@@ -27,7 +27,8 @@ function montarDOM(total: number) {
       <option value="Santos">Santos</option>
     </select>
     <input type="hidden" data-filtro="preset" value="" />
-    <select data-filtro="categoria"><option value="">Todas</option></select>
+    <select data-filtro="nivel"><option value="">Todos</option></select>
+    <input type="hidden" data-filtro="genero" value="" />
     <button type="button" data-buscar>Buscar</button>
     <button type="button" data-limpar>Limpar</button>
     <button type="button" data-ver-todos hidden>Ver todos</button>

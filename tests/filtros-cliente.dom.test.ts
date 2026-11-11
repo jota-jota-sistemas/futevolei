@@ -2,7 +2,7 @@
 //
 // Feature: filtros-eventos-usabilidade — integração no DOM.
 // Cobre o comportamento observável do grid: filtro por Cidade, Período (presets)
-// e Categoria no clique de Buscar; contador; chips de filtros ativos; remoção
+// e Nível no clique de Buscar (Nível + Gênero têm suíte própria); contador; chips de filtros ativos; remoção
 // individual; limpar tudo. A mesma regra pura (corresponde/cidadeDoLocal/
 // intervaloDoPreset) decide testes e navegador.
 import { it, expect, beforeEach, vi } from "vitest";
@@ -19,10 +19,16 @@ function montarDOM() {
       <button type="button" data-preset="2026-12" aria-pressed="false">Dezembro 2026</button>
     </div>
     <input type="hidden" data-filtro="preset" value="" />
-    <select data-filtro="categoria">
-      <option value="">Todas as categorias</option>
+    <select data-filtro="nivel">
+      <option value="">Todos os níveis</option>
       <option value="Open">Open (1)</option>
+      <option value="Amador">Amador (1)</option>
     </select>
+    <div data-generos role="group">
+      <button type="button" data-genero="Masculino" aria-pressed="false">Masculino</button>
+      <button type="button" data-genero="Feminino" aria-pressed="false">Feminino</button>
+    </div>
+    <input type="hidden" data-filtro="genero" value="" />
     <button type="button" data-buscar><span>🔍</span> Buscar</button>
     <button type="button" data-limpar>Limpar</button>
     <p data-contador aria-live="polite">4 eventos</p>
@@ -85,12 +91,12 @@ it("reclicar o preset ativo desmarca", () => {
   expect(vis()).toHaveLength(4);
 });
 
-it("cidade + categoria combinados (AND)", () => {
+it("cidade + nível combinados (AND)", () => {
   ctrl('[data-filtro="cidade"]').value = "São Paulo";
-  ctrl('[data-filtro="categoria"]').value = "Open";
+  ctrl('[data-filtro="nivel"]').value = "Open";
   clicarBuscar();
   expect(vis()).toEqual(["2026-11-22"]); // SP + Open
-  expect(chipsRemover()).toEqual(["cidade", "categoria"]);
+  expect(chipsRemover()).toEqual(["cidade", "nivel"]);
 });
 
 it("remover chip de cidade mantém os outros filtros", () => {
@@ -106,7 +112,7 @@ it("remover chip de cidade mantém os outros filtros", () => {
 
 it("sem correspondência mostra estado vazio", () => {
   ctrl('[data-filtro="cidade"]').value = "Santos";
-  ctrl('[data-filtro="categoria"]').value = "Open"; // Santos não tem Open
+  ctrl('[data-filtro="nivel"]').value = "Open"; // Santos não tem Open
   clicarBuscar();
   expect(vis()).toEqual([]);
   expect((document.querySelector("[data-vazio-filtro]") as HTMLElement).hidden).toBe(false);
