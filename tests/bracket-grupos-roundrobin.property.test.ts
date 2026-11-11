@@ -155,7 +155,7 @@ describe("Feature: criar-chaveamento-campeonato, Property 18: Round-robin por gr
 // Properties 19 e 20 — Group_Standings (classificação de grupo)
 // ===========================================================================
 //
-// As propriedades abaixo exercitam `classificarGrupo`, `indiceDeSeed` e
+// As propriedades abaixo exercitam `classificarGrupo` e
 // `selecionarClassificados` de ../src/domain/bracket/standings.ts. A estratégia
 // comum é: gerar um grupo REAL via `gerarChaveamento` ("fase de grupos"),
 // extrair UM grupo e os seus jogos de round-robin (side "grupo") e ATRIBUIR
@@ -165,9 +165,7 @@ describe("Feature: criar-chaveamento-campeonato, Property 18: Round-robin por gr
 
 import {
   classificarGrupo,
-  indiceDeSeed,
   selecionarClassificados,
-  type SeedIndex,
 } from "../src/domain/bracket/standings";
 import type { Group, Match, PairId, Standing } from "../src/domain/bracket/types";
 
@@ -175,16 +173,31 @@ import type { Group, Match, PairId, Standing } from "../src/domain/bracket/types
 // Utilitários compartilhados pelas Properties 19 e 20
 // ---------------------------------------------------------------------------
 
+/** Resultado sorteado de um jogo: quem vence, placar do perdedor e margem (>= 1). */
+interface Escolha {
+  bit: number; // 0 → vence A; 1 → vence B
+  perdedor: number; // pontos do perdedor
+  margem: number; // vencedor = perdedor + margem (nunca há empate)
+}
+
+const arbEscolha: fc.Arbitrary<Escolha> = fc.record({
+  bit: fc.integer({ min: 0, max: 1 }),
+  perdedor: fc.integer({ min: 0, max: 20 }),
+  margem: fc.integer({ min: 1, max: 10 }),
+});
+
+/** Gerador de resultados, um por jogo possível (até 40*39/2). */
+const arbEscolhas = fc.array(arbEscolha, { minLength: 1, maxLength: 60 });
+
 /**
  * Gera um bracket de fase de grupos a partir de (n, g) e devolve os grupos e os
- * jogos de grupo. Retorna `null` quando o gerador rejeita a entrada (não
- * deveria ocorrer dentro de `arbEntradaGrupos`, que já restringe o domínio).
+ * jogos de grupo. Retorna `null` quando o gerador rejeita a entrada.
  */
 function gerarGruposReais(
   n: number,
   g: number,
   classificadosPorGrupo: number,
-): { grupos: Group[]; jogos: Match[]; seedIndex: SeedIndex } | null {
+): { grupos: Group[]; jogos: Match[] } | null {
   const duplas = construirDuplas(n);
   const resultado = gerarChaveamento({
     duplas,
@@ -199,22 +212,22 @@ function gerarGruposReais(
   return {
     grupos: bracket.grupos,
     jogos: bracket.matches.filter((m) => m.side === "grupo"),
-    seedIndex: indiceDeSeed(bracket.duplas),
   };
 }
 
 /**
- * Atribui um vencedor a CADA jogo do grupo de forma determinística, a partir de
- * uma lista de bits `escolhas` (0 → vence o participante A; 1 → vence o B).
- * Devolve novos `Match` (não muta os de entrada). A lista de bits é consumida
- * na ordem de `grupo.jogos`; se acabar, reinicia (comportamento determinístico).
+ * Atribui placar/vencedor aos jogos do grupo, na ordem de `grupo.jogos`, a
+ * partir de `escolhas` (reinicia se acabar). Se `limite` for informado, só os
+ * primeiros `limite` jogos são decididos; os demais ficam como estão.
+ * Devolve novos `Match` (não muta os de entrada).
  */
-function atribuirVencedores(
+function atribuirResultados(
   grupo: Group,
   jogos: ReadonlyArray<Match>,
-  escolhas: ReadonlyArray<number>,
+  escolhas: ReadonlyArray<Escolha>,
+  limite: number = Number.POSITIVE_INFINITY,
 ): Match[] {
-  const porId = new Map<PairId, Match>();
+  const porId = new Map<string, Match>();
   for (const j of jogos) porId.set(j.id, j);
 
   const resultado: Match[] = [];
@@ -222,151 +235,157 @@ function atribuirVencedores(
   for (const matchId of grupo.jogos) {
     const jogo = porId.get(matchId);
     if (!jogo) continue;
-    const bit = escolhas.length > 0 ? escolhas[k % escolhas.length] : 0;
+    if (k >= limite) {
+      resultado.push(jogo);
+      k++;
+      continue;
+    }
+    const e = escolhas[k % escolhas.length];
     k++;
-    const vencedorId = bit === 0 ? jogo.a.pairId : jogo.b.pairId;
-    resultado.push({ ...jogo, vencedorId, registradoEm: "2026-02-01T00:00:00.000Z" });
+    const vencedor = e.perdedor + e.margem;
+    const placarA = e.bit === 0 ? vencedor : e.perdedor;
+    const placarB = e.bit === 0 ? e.perdedor : vencedor;
+    resultado.push({
+      ...jogo,
+      placarA,
+      placarB,
+      vencedorId: e.bit === 0 ? jogo.a.pairId : jogo.b.pairId,
+      registradoEm: "2026-02-01T00:00:00.000Z",
+    });
   }
   return resultado;
 }
 
 /**
- * ORÁCULO INDEPENDENTE de classificação (R5.3), reescrito do zero sem reusar a
- * implementação de produção. Ordena por:
- *   1) vitórias totais no grupo (desc);
- *   2) confronto direto entre as duplas EMPATADAS em vitórias totais (mini-tabela
- *      restrita aos jogos entre elas, vitórias desc);
- *   3) menor seed (asc) — critério final que sempre desempata (seeds únicos).
- *
- * Caveat documentado (empates triplos cíclicos): quando três (ou mais) duplas
- * empatam em vitórias totais E também empatam no confronto direto entre si
- * (ex.: ciclo A>B>C>A, cada uma com 1 vitória na mini-tabela), o critério (2)
- * não separa ninguém e a decisão recai inteiramente sobre o critério (3), o
- * seed. Este oráculo aplica EXATAMENTE a mesma regra (seed como desempate final),
- * de modo que a comparação com a produção permanece válida mesmo nesses casos —
- * ambos convergem para a ordem por seed entre os cíclicos.
+ * ORÁCULO INDEPENDENTE de classificação, reescrito sem reusar a produção.
+ * Considera só jogos decididos e ordena por:
+ *   1) pontos (3 por vitória) desc;
+ *   2) saldo (pontos feitos − sofridos) desc;
+ *   3) confronto direto (vitórias nos jogos entre as duplas empatadas em 1 e 2);
+ *   4) pontos feitos desc;
+ *   5) pairId (ordem estável; seeding NÃO influencia).
  */
 function oraculoClassificacao(
   grupo: Group,
-  jogosComVencedor: ReadonlyArray<Match>,
-  seedIndex: SeedIndex,
+  jogos: ReadonlyArray<Match>,
 ): PairId[] {
-  const jogos = jogosComVencedor;
-
-  const vitorias = new Map<PairId, number>();
-  for (const id of grupo.duplas) vitorias.set(id, 0);
-  for (const j of jogos) {
-    if (j.vencedorId !== null && vitorias.has(j.vencedorId)) {
-      vitorias.set(j.vencedorId, (vitorias.get(j.vencedorId) as number) + 1);
-    }
+  const decididos = jogos.filter(
+    (j) => j.vencedorId !== null && j.a.pairId !== null && j.b.pairId !== null,
+  );
+  const vit = new Map<PairId, number>();
+  const pro = new Map<PairId, number>();
+  const contra = new Map<PairId, number>();
+  for (const id of grupo.duplas) {
+    vit.set(id, 0);
+    pro.set(id, 0);
+    contra.set(id, 0);
   }
+  for (const j of decididos) {
+    const a = j.a.pairId as PairId;
+    const b = j.b.pairId as PairId;
+    pro.set(a, (pro.get(a) as number) + (j.placarA ?? 0));
+    contra.set(a, (contra.get(a) as number) + (j.placarB ?? 0));
+    pro.set(b, (pro.get(b) as number) + (j.placarB ?? 0));
+    contra.set(b, (contra.get(b) as number) + (j.placarA ?? 0));
+    const v = j.vencedorId as PairId;
+    vit.set(v, (vit.get(v) as number) + 1);
+  }
+  const pts = (id: PairId): number => 3 * (vit.get(id) as number);
+  const saldo = (id: PairId): number => (pro.get(id) as number) - (contra.get(id) as number);
 
-  const seedDe = (id: PairId): number =>
-    seedIndex.get(id) ?? Number.POSITIVE_INFINITY;
-
-  // Vitórias diretas de `id`, contando só jogos entre duplas do conjunto `entre`.
   const diretas = (id: PairId, entre: ReadonlySet<PairId>): number => {
     let total = 0;
-    for (const j of jogos) {
+    for (const j of decididos) {
       if (j.vencedorId !== id) continue;
-      const a = j.a.pairId;
-      const b = j.b.pairId;
-      if (a === null || b === null) continue;
-      if (entre.has(a) && entre.has(b)) total += 1;
+      if (entre.has(j.a.pairId as PairId) && entre.has(j.b.pairId as PairId)) total += 1;
     }
     return total;
   };
 
   return [...grupo.duplas].sort((x, y) => {
-    const vx = vitorias.get(x) ?? 0;
-    const vy = vitorias.get(y) ?? 0;
-    if (vx !== vy) return vy - vx;
-
-    const empatadas = new Set<PairId>();
-    for (const id of grupo.duplas) {
-      if ((vitorias.get(id) ?? 0) === vx) empatadas.add(id);
-    }
+    if (pts(x) !== pts(y)) return pts(y) - pts(x);
+    if (saldo(x) !== saldo(y)) return saldo(y) - saldo(x);
+    const empatadas = new Set(
+      grupo.duplas.filter((id) => pts(id) === pts(x) && saldo(id) === saldo(x)),
+    );
     const dx = diretas(x, empatadas);
     const dy = diretas(y, empatadas);
     if (dx !== dy) return dy - dx;
-
-    return seedDe(x) - seedDe(y);
+    if (pro.get(x) !== pro.get(y)) return (pro.get(y) as number) - (pro.get(x) as number);
+    return x.localeCompare(y);
   });
 }
 
-/** Gerador de bits de escolha de vencedor, um por jogo possível (até 40*39/2). */
-const arbEscolhas = fc.array(fc.integer({ min: 0, max: 1 }), {
-  minLength: 1,
-  maxLength: 60,
-});
-
 // ---------------------------------------------------------------------------
-// Feature: criar-chaveamento-campeonato, Property 19: Classificação do grupo é determinística e ordenada por (vitórias, confronto direto, seed)
+// Property 19: Classificação por pontos (3/vitória), saldo, confronto direto
 // ---------------------------------------------------------------------------
 
-// Feature: criar-chaveamento-campeonato, Property 19: Classificação do grupo é determinística e ordenada por (vitórias, confronto direto, seed)
+// Feature: criar-chaveamento-campeonato, Property 19: Classificação do grupo é determinística e ordenada por (pontos, saldo, confronto direto, pontos feitos)
 //
-// Para todo grupo completo (todos os jogos com vencedor), `classificarGrupo`:
-//   (a) só retorna classificação (não-null) quando todos os jogos têm vencedor;
-//   (b) a ordem respeita vitórias (desc), depois confronto direto entre
-//       empatados, depois seed menor — comparado contra um oráculo independente;
-//   (c) é determinística (mesma entrada → mesma saída);
-//   (d) atribui posicao 1..g sem repetição.
+// `classificarGrupo` considera apenas jogos decididos (classificação parcial):
+//   (a) nunca é null; sem jogos decididos todos têm zeros; parcial cobre o grupo;
+//   (b) a ordem casa com o oráculo independente (grupo completo e parcial);
+//   (c) é determinística;
+//   (d) posicao é 1..g sem repetição e cobre todas as duplas;
+//   (e) pontos = 3 × vitórias e saldo bate com a soma dos placares.
 //
 // Validates: Requirements 5.3
-describe("Feature: criar-chaveamento-campeonato, Property 19: Classificação do grupo é determinística e ordenada por (vitórias, confronto direto, seed)", () => {
-  it("(a) retorna null enquanto houver jogo sem vencedor e não-null quando completo", () => {
+describe("Feature: criar-chaveamento-campeonato, Property 19: Classificação do grupo é determinística e ordenada por (pontos, saldo, confronto direto, pontos feitos)", () => {
+  it("(a) classificação parcial: nunca é null; sem jogos decididos todos têm zeros", () => {
     fc.assert(
       fc.property(arbEntradaGrupos, arbEscolhas, ({ n, g, classificadosPorGrupo }, escolhas) => {
         const reais = gerarGruposReais(n, g, classificadosPorGrupo);
         fc.pre(reais !== null);
         if (reais === null) return;
-        const { grupos, seedIndex } = reais;
 
-        for (const grupo of grupos) {
+        for (const grupo of reais.grupos) {
           const jogosDoGrupo = reais.jogos.filter((m) => m.grupoId === grupo.id);
 
-          // Grupos degenerados (0 ou 1 dupla) não têm jogos: já são "completos".
-          if (grupo.jogos.length > 0) {
-            // Sem nenhum vencedor atribuído, a classificação é indefinida.
-            expect(classificarGrupo(grupo, jogosDoGrupo, seedIndex)).toBeNull();
+          const vazia = classificarGrupo(grupo, jogosDoGrupo);
+          expect(vazia).toHaveLength(grupo.duplas.length);
+          for (const s of vazia) {
+            expect(s.jogos).toBe(0);
+            expect(s.pontos).toBe(0);
+            expect(s.saldo).toBe(0);
           }
 
-          // Com todos os vencedores atribuídos, a classificação existe.
-          const completos = atribuirVencedores(grupo, jogosDoGrupo, escolhas);
-          const classificacao = classificarGrupo(grupo, completos, seedIndex);
-          expect(classificacao).not.toBeNull();
+          const parcial = atribuirResultados(grupo, jogosDoGrupo, escolhas, 1);
+          expect(classificarGrupo(grupo, parcial)).toHaveLength(grupo.duplas.length);
         }
       }),
       { numRuns: 200 },
     );
   });
 
-  it("(b) a ordem casa com o oráculo independente (vitórias → confronto direto → seed)", () => {
+  it("(b) a ordem casa com o oráculo independente (completo e parcial)", () => {
     fc.assert(
-      fc.property(arbEntradaGrupos, arbEscolhas, ({ n, g, classificadosPorGrupo }, escolhas) => {
-        const reais = gerarGruposReais(n, g, classificadosPorGrupo);
-        fc.pre(reais !== null);
-        if (reais === null) return;
-        const { grupos, seedIndex } = reais;
+      fc.property(
+        arbEntradaGrupos,
+        arbEscolhas,
+        fc.integer({ min: 0, max: 40 }),
+        ({ n, g, classificadosPorGrupo }, escolhas, limite) => {
+          const reais = gerarGruposReais(n, g, classificadosPorGrupo);
+          fc.pre(reais !== null);
+          if (reais === null) return;
 
-        for (const grupo of grupos) {
-          const jogosDoGrupo = reais.jogos.filter((m) => m.grupoId === grupo.id);
-          const completos = atribuirVencedores(grupo, jogosDoGrupo, escolhas);
-
-          const classificacao = classificarGrupo(grupo, completos, seedIndex) as Standing[];
-          const esperado = oraculoClassificacao(grupo, completos, seedIndex);
-
-          expect(classificacao.map((s) => s.pairId)).toEqual(esperado);
-
-          // Vitórias desc ao longo da classificação (consequência da regra).
-          for (let i = 1; i < classificacao.length; i++) {
-            expect(classificacao[i - 1].vitorias).toBeGreaterThanOrEqual(
-              classificacao[i].vitorias,
-            );
+          for (const grupo of reais.grupos) {
+            const jogosDoGrupo = reais.jogos.filter((m) => m.grupoId === grupo.id);
+            for (const lim of [Number.POSITIVE_INFINITY, limite]) {
+              const jogos = atribuirResultados(grupo, jogosDoGrupo, escolhas, lim);
+              const classificacao = classificarGrupo(grupo, jogos);
+              expect(classificacao.map((s) => s.pairId)).toEqual(
+                oraculoClassificacao(grupo, jogos),
+              );
+              // Pontos desc ao longo da tabela.
+              for (let i = 1; i < classificacao.length; i++) {
+                expect(classificacao[i - 1].pontos).toBeGreaterThanOrEqual(
+                  classificacao[i].pontos,
+                );
+              }
+            }
           }
-        }
-      }),
+        },
+      ),
       { numRuns: 200 },
     );
   });
@@ -377,15 +396,13 @@ describe("Feature: criar-chaveamento-campeonato, Property 19: Classificação do
         const reais = gerarGruposReais(n, g, classificadosPorGrupo);
         fc.pre(reais !== null);
         if (reais === null) return;
-        const { grupos, seedIndex } = reais;
 
-        for (const grupo of grupos) {
+        for (const grupo of reais.grupos) {
           const jogosDoGrupo = reais.jogos.filter((m) => m.grupoId === grupo.id);
-          const completos = atribuirVencedores(grupo, jogosDoGrupo, escolhas);
-
-          const primeira = classificarGrupo(grupo, completos, seedIndex);
-          const segunda = classificarGrupo(grupo, completos, seedIndex);
-          expect(segunda).toEqual(primeira);
+          const completos = atribuirResultados(grupo, jogosDoGrupo, escolhas);
+          expect(classificarGrupo(grupo, completos)).toEqual(
+            classificarGrupo(grupo, completos),
+          );
         }
       }),
       { numRuns: 200 },
@@ -398,23 +415,37 @@ describe("Feature: criar-chaveamento-campeonato, Property 19: Classificação do
         const reais = gerarGruposReais(n, g, classificadosPorGrupo);
         fc.pre(reais !== null);
         if (reais === null) return;
-        const { grupos, seedIndex } = reais;
 
-        for (const grupo of grupos) {
+        for (const grupo of reais.grupos) {
           const jogosDoGrupo = reais.jogos.filter((m) => m.grupoId === grupo.id);
-          const completos = atribuirVencedores(grupo, jogosDoGrupo, escolhas);
-          const classificacao = classificarGrupo(grupo, completos, seedIndex) as Standing[];
+          const completos = atribuirResultados(grupo, jogosDoGrupo, escolhas);
+          const classificacao = classificarGrupo(grupo, completos);
 
           const gg = grupo.duplas.length;
           expect(classificacao).toHaveLength(gg);
-
-          // Posições são exatamente {1..gg}, sem repetição.
           const posicoes = classificacao.map((s) => s.posicao).sort((a, b) => a - b);
           expect(posicoes).toEqual(Array.from({ length: gg }, (_, i) => i + 1));
+          expect(new Set(classificacao.map((s) => s.pairId))).toEqual(new Set(grupo.duplas));
+        }
+      }),
+      { numRuns: 200 },
+    );
+  });
 
-          // Cobre exatamente as duplas do grupo (sem faltar nem sobrar).
-          const idsClassificados = new Set(classificacao.map((s) => s.pairId));
-          expect(idsClassificados).toEqual(new Set(grupo.duplas));
+  it("(e) pontos = 3 × vitórias; soma dos saldos do grupo é zero", () => {
+    fc.assert(
+      fc.property(arbEntradaGrupos, arbEscolhas, ({ n, g, classificadosPorGrupo }, escolhas) => {
+        const reais = gerarGruposReais(n, g, classificadosPorGrupo);
+        fc.pre(reais !== null);
+        if (reais === null) return;
+
+        for (const grupo of reais.grupos) {
+          const jogosDoGrupo = reais.jogos.filter((m) => m.grupoId === grupo.id);
+          const completos = atribuirResultados(grupo, jogosDoGrupo, escolhas);
+          const classificacao = classificarGrupo(grupo, completos);
+          for (const s of classificacao) expect(s.pontos).toBe(3 * s.vitorias);
+          expect(classificacao.reduce((acc, s) => acc + s.saldo, 0)).toBe(0);
+          expect(classificacao.reduce((acc, s) => acc + s.vitorias, 0)).toBe(grupo.jogos.length);
         }
       }),
       { numRuns: 200 },
@@ -423,15 +454,15 @@ describe("Feature: criar-chaveamento-campeonato, Property 19: Classificação do
 });
 
 // ---------------------------------------------------------------------------
-// Feature: criar-chaveamento-campeonato, Property 20: Classificação transfere exatamente X duplas por grupo
+// Property 20: Classificação transfere exatamente X duplas por grupo
 // ---------------------------------------------------------------------------
 
 // Feature: criar-chaveamento-campeonato, Property 20: Classificação transfere exatamente X duplas por grupo
 //
 // Para um grupo completo e X = classificadosPorGrupo (1..g-1):
-//   - `selecionarClassificados` retorna exatamente X standings, que são os X
-//     primeiros da classificação de `classificarGrupo`;
-//   - retorna null se o grupo não está completo;
+//   - `selecionarClassificados` retorna exatamente X standings, o prefixo de
+//     `classificarGrupo`;
+//   - retorna null se o grupo não está completo (mesmo havendo tabela parcial);
 //   - retorna [] se quantidade <= 0.
 //
 // Validates: Requirements 5.4
@@ -442,24 +473,16 @@ describe("Feature: criar-chaveamento-campeonato, Property 20: Classificação tr
         const reais = gerarGruposReais(n, g, classificadosPorGrupo);
         fc.pre(reais !== null);
         if (reais === null) return;
-        const { grupos, seedIndex } = reais;
         const x = classificadosPorGrupo;
 
-        for (const grupo of grupos) {
+        for (const grupo of reais.grupos) {
           const jogosDoGrupo = reais.jogos.filter((m) => m.grupoId === grupo.id);
-          const completos = atribuirVencedores(grupo, jogosDoGrupo, escolhas);
+          const completos = atribuirResultados(grupo, jogosDoGrupo, escolhas);
 
-          const classificacao = classificarGrupo(grupo, completos, seedIndex) as Standing[];
-          const selecionados = selecionarClassificados(
-            grupo,
-            completos,
-            seedIndex,
-            x,
-          ) as Standing[];
+          const classificacao = classificarGrupo(grupo, completos) as Standing[];
+          const selecionados = selecionarClassificados(grupo, completos, x) as Standing[];
 
-          // X está no intervalo válido 1..(g-1) <= g, então há exatamente X.
           expect(selecionados).toHaveLength(x);
-          // São exatamente o prefixo da classificação completa.
           expect(selecionados).toEqual(classificacao.slice(0, x));
         }
       }),
@@ -473,15 +496,12 @@ describe("Feature: criar-chaveamento-campeonato, Property 20: Classificação tr
         const reais = gerarGruposReais(n, g, classificadosPorGrupo);
         fc.pre(reais !== null);
         if (reais === null) return;
-        const { grupos, seedIndex } = reais;
         const x = classificadosPorGrupo;
 
-        for (const grupo of grupos) {
-          // Só grupos com pelo menos um jogo podem estar incompletos.
+        for (const grupo of reais.grupos) {
           if (grupo.jogos.length === 0) continue;
           const jogosDoGrupo = reais.jogos.filter((m) => m.grupoId === grupo.id);
-          // Nenhum vencedor atribuído ⇒ incompleto ⇒ null.
-          expect(selecionarClassificados(grupo, jogosDoGrupo, seedIndex, x)).toBeNull();
+          expect(selecionarClassificados(grupo, jogosDoGrupo, x)).toBeNull();
         }
       }),
       { numRuns: 200 },
@@ -498,14 +518,11 @@ describe("Feature: criar-chaveamento-campeonato, Property 20: Classificação tr
           const reais = gerarGruposReais(n, g, classificadosPorGrupo);
           fc.pre(reais !== null);
           if (reais === null) return;
-          const { grupos, seedIndex } = reais;
 
-          for (const grupo of grupos) {
+          for (const grupo of reais.grupos) {
             const jogosDoGrupo = reais.jogos.filter((m) => m.grupoId === grupo.id);
-            const completos = atribuirVencedores(grupo, jogosDoGrupo, escolhas);
-            expect(
-              selecionarClassificados(grupo, completos, seedIndex, quantidade),
-            ).toEqual([]);
+            const completos = atribuirResultados(grupo, jogosDoGrupo, escolhas);
+            expect(selecionarClassificados(grupo, completos, quantidade)).toEqual([]);
           }
         },
       ),

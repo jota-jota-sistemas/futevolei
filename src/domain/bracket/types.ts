@@ -50,6 +50,13 @@ export interface Match {
    * número é ESTÁVEL — não muda com recálculos posteriores.
    */
   ordemDisputa: number | null;
+  /**
+   * Placar da partida: pontos de `a` e de `b`. `null` enquanto o jogo não foi
+   * disputado/registrado. Sem empate: o vencedor é quem tem o maior placar, e
+   * `vencedorId` é sempre derivado dele (ver `registrarPlacar`).
+   */
+  placarA: number | null;
+  placarB: number | null;
   grupoId?: GroupId; // quando side === "grupo"
   // Ligações de avanço (quem herda os slots deste jogo):
   avancaVencedorPara?: { matchId: MatchId; slot: "a" | "b" };
@@ -65,7 +72,11 @@ export interface Group {
 
 export interface Standing {
   pairId: PairId;
+  jogos: number; // partidas já decididas
   vitorias: number;
+  pontos: number; // 3 por vitória, 0 por derrota
+  pontosPro: number; // soma dos pontos feitos nas partidas
+  saldo: number; // pontos feitos − pontos sofridos
   posicao: number; // 1 = primeiro colocado
 }
 
@@ -97,5 +108,7 @@ export type DomainError =
   | { code: "REMOCAO_BLOQUEADA" } // R1.6
   | { code: "VENCEDOR_INVALIDO" } // R6.2
   | { code: "JOGO_NAO_PRONTO" } // R6.3
+  | { code: "PLACAR_INVALIDO" } // placar não inteiro ou negativo
+  | { code: "PLACAR_EMPATE" } // placares iguais (não há empate)
   | { code: "FALHA_PERSISTENCIA" } // R7.2
   | { code: "FALHA_LEITURA" }; // R7.6

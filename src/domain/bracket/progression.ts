@@ -133,6 +133,13 @@ export function registrarVencedor(
     }
   }
 
+  // Se o vencedor mudou, o placar anterior deixa de valer (registrarPlacar grava
+  // o novo logo em seguida; registrarVencedor puro deixa o placar em branco).
+  if (jogo.vencedorId !== vencedorId) {
+    jogo.placarA = null;
+    jogo.placarB = null;
+  }
+
   // R6.1 — marca o vencedor e a data/hora injetada.
   jogo.vencedorId = vencedorId;
   jogo.registradoEm = agora;
@@ -169,6 +176,55 @@ export function registrarVencedor(
   }
 
   return { ok: true, bracket: proximo };
+}
+
+/**
+ * Registra o PLACAR de um jogo e devolve um NOVO bracket (imutável).
+ *
+ * O vencedor é DERIVADO do placar — quem tem o maior número vence; não há
+ * empate. A partir daí o avanço, o encaminhamento, a campeã e a correção com
+ * cascata seguem exatamente a lógica de `registrarVencedor`.
+ *
+ * - `PLACAR_INVALIDO`: algum dos placares não é inteiro ou é negativo.
+ * - `PLACAR_EMPATE`: os dois placares são iguais.
+ * - `JOGO_NAO_PRONTO`: alguma das duas duplas do jogo ainda não está definida.
+ *
+ * Editar o placar de um jogo já registrado também é suportado: se o vencedor
+ * muda, os jogos posteriores que dependiam dele são invalidados em cascata; se
+ * o vencedor continua o mesmo, apenas o placar é atualizado.
+ */
+export function registrarPlacar(
+  bracket: Bracket,
+  matchId: MatchId,
+  placarA: number,
+  placarB: number,
+  agora: string,
+): ProgressionResult {
+  const alvo = bracket.matches.find((m) => m.id === matchId);
+  if (!alvo) {
+    return { ok: false, erro: { code: "VENCEDOR_INVALIDO" } };
+  }
+  if (!slotDefinido(alvo.a) || !slotDefinido(alvo.b)) {
+    return { ok: false, erro: { code: "JOGO_NAO_PRONTO" } };
+  }
+
+  const valido = (n: number): boolean => Number.isInteger(n) && n >= 0;
+  if (!valido(placarA) || !valido(placarB)) {
+    return { ok: false, erro: { code: "PLACAR_INVALIDO" } };
+  }
+  if (placarA === placarB) {
+    return { ok: false, erro: { code: "PLACAR_EMPATE" } };
+  }
+
+  const vencedorId = (placarA > placarB ? alvo.a.pairId : alvo.b.pairId) as PairId;
+  const res = registrarVencedor(bracket, matchId, vencedorId, agora);
+  if (!res.ok) return res;
+
+  // `res.bracket` é uma cópia nova: gravar o placar nela não afeta a entrada.
+  const jogo = res.bracket.matches.find((m) => m.id === matchId) as Match;
+  jogo.placarA = placarA;
+  jogo.placarB = placarB;
+  return res;
 }
 
 // ---------------------------------------------------------------------------
@@ -266,6 +322,8 @@ function invalidarCascata(
 
   destino.vencedorId = null;
   destino.registradoEm = null;
+  destino.placarA = null;
+  destino.placarB = null;
   if (destino.side === "grande-final") {
     bracket.campeaId = null;
   }

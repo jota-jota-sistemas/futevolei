@@ -209,6 +209,8 @@ function gerarDuplaEliminacao(input: GeneratorInput): GeneratorResult {
       vencedorId: null,
       registradoEm: null,
       ordemDisputa: null,
+      placarA: null,
+      placarB: null,
     });
   }
   upperPorRodada.push(upperR1);
@@ -228,6 +230,8 @@ function gerarDuplaEliminacao(input: GeneratorInput): GeneratorResult {
         vencedorId: null,
         registradoEm: null,
         ordemDisputa: null,
+        placarA: null,
+        placarB: null,
       });
     }
     upperPorRodada.push(rodada);
@@ -293,6 +297,8 @@ function gerarDuplaEliminacao(input: GeneratorInput): GeneratorResult {
           vencedorId: null,
           registradoEm: null,
           ordemDisputa: null,
+          placarA: null,
+          placarB: null,
         });
       }
       lowerPorRodada.push(rodada);
@@ -336,6 +342,8 @@ function gerarDuplaEliminacao(input: GeneratorInput): GeneratorResult {
     vencedorId: null,
     registradoEm: null,
     ordemDisputa: null,
+    placarA: null,
+    placarB: null,
   };
 
   // Campeão da upper → slot "a" da grande final.
@@ -461,6 +469,8 @@ function gerarEliminacaoSimples(input: GeneratorInput): GeneratorResult {
       vencedorId: null,
       registradoEm: null,
       ordemDisputa: null,
+      placarA: null,
+      placarB: null,
     });
   }
   porRodada.push(r1);
@@ -480,6 +490,8 @@ function gerarEliminacaoSimples(input: GeneratorInput): GeneratorResult {
         vencedorId: null,
         registradoEm: null,
         ordemDisputa: null,
+        placarA: null,
+        placarB: null,
       });
     }
     porRodada.push(rodada);
@@ -780,6 +792,8 @@ function gerarFaseDeGrupos(input: GeneratorInput): GeneratorResult {
           vencedorId: null,
           registradoEm: null,
           ordemDisputa: null,
+          placarA: null,
+          placarB: null,
           grupoId: id,
         };
         matches.push(jogo);

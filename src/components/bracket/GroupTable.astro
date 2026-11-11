@@ -1,6 +1,6 @@
 ---
 import type { Group, Match, Pair } from "../../domain/bracket/types";
-import { classificarGrupo, indiceDeSeed } from "../../domain/bracket/standings";
+import { classificarGrupo, grupoCompleto as grupoEstaCompleto } from "../../domain/bracket/standings";
 import MatchCard from "./MatchCard.astro";
 
 /**
@@ -20,7 +20,7 @@ import MatchCard from "./MatchCard.astro";
  *                      pendente", sem inventar posições nem vitórias.
  *
  * Componente puramente visual: a única lógica de domínio usada é
- * `classificarGrupo`/`indiceDeSeed`, ambas puras e determinísticas.
+ * `classificarGrupo`, pura e determinística.
  */
 interface Props {
   /** O grupo a exibir (usa `duplas` e `jogos`). */
@@ -45,45 +45,12 @@ for (const matchId of grupo.jogos) {
   if (jogo) jogosDoGrupo.push(jogo);
 }
 
-// Classificação (null quando o grupo ainda não está completo).
-const seedIndex = indiceDeSeed(
-  grupo.duplas
-    .map((pairId) => duplasPorId[pairId])
-    .filter((d): d is Pair => Boolean(d)),
-);
-const classificacao = classificarGrupo(grupo, jogosDoGrupo, seedIndex);
-
-const grupoCompleto = classificacao !== null;
-
-// Linhas da tabela. Quando completo, usa a classificação (já ordenada); caso
-// contrário, lista as duplas em ordem de seed (determinística) sem posições.
-type Linha = {
-  pairId: string;
-  nome: string;
-  posicao: number | null;
-  vitorias: number | null;
-};
-
-const linhas: Linha[] = grupoCompleto
-  ? classificacao!.map((s) => ({
-      pairId: s.pairId,
-      nome: nomeDupla(s.pairId),
-      posicao: s.posicao,
-      vitorias: s.vitorias,
-    }))
-  : [...grupo.duplas]
-      .sort(
-        (x, y) =>
-          (seedIndex.get(x) ?? Number.POSITIVE_INFINITY) -
-          (seedIndex.get(y) ?? Number.POSITIVE_INFINITY),
-      )
-      .map((pairId) => ({
-        pairId,
-        nome: nomeDupla(pairId),
-        posicao: null,
-        vitorias: null,
-      }));
-
+// Classificação parcial: considera só os jogos já decididos (3 pts/vitória,
+// desempate por saldo de pontos).
+const classificacao = classificarGrupo(grupo, jogosDoGrupo);
+const grupoCompleto = grupoEstaCompleto(grupo, jogosDoGrupo);
+const algumDecidido = classificacao.some((s) => s.jogos > 0);
+const fmtSaldo = (n: number): string => (n > 0 ? `+${n}` : String(n));
 const tituloGrupo = `Grupo ${grupo.indice + 1}`;
 ---
 
@@ -95,7 +62,7 @@ const tituloGrupo = `Grupo ${grupo.indice + 1}`;
       Classificação do {tituloGrupo}
       {
         !grupoCompleto && (
-          <span class="group-table__pendente"> — classificação pendente</span>
+          <span class="group-table__pendente"> — parcial</span>
         )
       }
     </caption>
@@ -103,25 +70,25 @@ const tituloGrupo = `Grupo ${grupo.indice + 1}`;
       <tr>
         <th scope="col" class="group-table__col-pos">#</th>
         <th scope="col" class="group-table__col-dupla">Dupla</th>
-        <th scope="col" class="group-table__col-vit">Vitórias</th>
+        <th scope="col" class="group-table__col-num">Pts</th>
+        <th scope="col" class="group-table__col-num">V</th>
+        <th scope="col" class="group-table__col-num">Saldo</th>
       </tr>
     </thead>
     <tbody>
       {
-        linhas.map((linha) => (
+        classificacao.map((s) => (
           <tr
             class:list={[
               "group-table__linha",
-              linha.posicao === 1 && "group-table__linha--lider",
+              algumDecidido && s.posicao === 1 && "group-table__linha--lider",
             ]}
           >
-            <td class="group-table__col-pos">
-              {linha.posicao ?? "—"}
-            </td>
-            <td class="group-table__col-dupla">{linha.nome}</td>
-            <td class="group-table__col-vit">
-              {linha.vitorias ?? "—"}
-            </td>
+            <td class="group-table__col-pos">{algumDecidido ? s.posicao : "—"}</td>
+            <td class="group-table__col-dupla">{nomeDupla(s.pairId)}</td>
+            <td class="group-table__col-num">{s.pontos}</td>
+            <td class="group-table__col-num">{s.vitorias}</td>
+            <td class="group-table__col-num">{fmtSaldo(s.saldo)}</td>
           </tr>
         ))
       }
