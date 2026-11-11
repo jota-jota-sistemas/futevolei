@@ -20,7 +20,7 @@ import { dirname, resolve } from "node:path";
  *
  * O caminho de visualização pública é:
  *   1. o helper client-side de render `src/components/bracket/renderBracketClient.ts`;
- *   2. a página pública `src/pages/campeonatos/[id].astro`.
+ *   2. a página pública `src/pages/campeonatos/[id]/acompanhar.astro`.
  *
  * R9.2 exige que o Visitante só execute leitura. Então garantimos, por ANÁLISE
  * ESTÁTICA DE FONTE (sem depender de rodar o navegador), que:
@@ -115,8 +115,8 @@ describe("Feature: criar-chaveamento-campeonato — fronteira organização × v
     });
   });
 
-  describe("página pública do campeonato (campeonatos/[id].astro)", () => {
-    const fontePagina = lerFonte("src/pages/campeonatos/[id].astro");
+  describe("página pública do campeonato (campeonatos/[id]/acompanhar.astro)", () => {
+    const fontePagina = lerFonte("src/pages/campeonatos/[id]/acompanhar.astro");
 
     it("usa a operação de leitura carregarChaveamento (R9.2)", () => {
       expect(fontePagina.includes(OPERACAO_DE_LEITURA)).toBe(true);

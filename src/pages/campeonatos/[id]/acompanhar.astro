@@ -1,0 +1,710 @@
+---
+import type { Campeonato } from "../../../types";
+import campeonatosData from "../../../data/campeonatos.json";
+import Layout from "../../../layouts/Layout.astro";
+import { comBase } from "../../../utils/url";
+import { carregarCampeonatos } from "../../../utils/torneios";
+
+/**
+ * "Acompanhar partidas": visualização PÚBLICA (somente leitura) dos grupos e
+ * chaveamentos que o organizador montou, por categoria. Atualiza sozinha
+ * quando alguém registra um placar (Supabase Realtime).
+ *
+ * Só existe para eventos organizáveis (src/data/campeonatos.json), que são
+ * os que têm chaveamento no Supabase. O botão no detalhe aponta para cá.
+ */
+export function getStaticPaths() {
+  // Só eventos que também têm página de detalhe (de onde vem o botão).
+  const comDetalhe = new Set(carregarCampeonatos().map((c) => c.id));
+  return (campeonatosData as Campeonato[])
+    .filter((c) => comDetalhe.has(c.id))
+    .map((campeonato) => ({
+    params: { id: campeonato.id },
+    props: { campeonato },
+  }));
+}
+
+interface Props {
+  campeonato: Campeonato;
+}
+
+const { campeonato } = Astro.props;
+
+// Apenas NOMES; o uuid de cada categoria é resolvido no cliente por
+// (campeonato_id, nome). Ver o <script> abaixo.
+const categorias = (campeonato.categorias ?? [])
+  .map((c) => c?.trim())
+  .filter((c): c is string => Boolean(c));
+
+---
+<Layout
+  titulo={`Acompanhar partidas — ${campeonato.nome} — Pingo Futevôlei`}
+  descricao={`Grupos e chaveamentos de ${campeonato.nome}, atualizados em tempo real.`}
+>
+  <div class="acompanhar__topo">
+    <a class="acompanhar__voltar" href={comBase(`/campeonatos/${campeonato.id}`)}>
+      <span aria-hidden="true">←</span> Voltar ao evento
+    </a>
+    <h1 class="acompanhar__titulo">Acompanhar partidas</h1>
+    <p class="acompanhar__evento">{campeonato.nome}</p>
+  </div>
+
+  {
+    categorias.length > 0 && (
+      <section
+        class="chaveamentos"
+        aria-label="Chaveamentos por categoria"
+        data-campeonato-id={campeonato.id}
+      >
+        <h2 class="chaveamentos__titulo">Chaveamentos</h2>
+
+        <div class="chaveamentos__lista">
+          {categorias.map((nome) => (
+            <article
+              class="categoria"
+              data-categoria
+              data-categoria-nome={nome}
+            >
+              <h3 class="categoria__nome">{nome}</h3>
+              {/* Container do chaveamento. Começa com o indicador de carregamento;
+                  o script client-side troca pelo chaveamento, ou pela indicação
+                  de indisponibilidade (R8.4/R8.7) se não houver bracket. */}
+              <div class="categoria__bracket" data-bracket-slot aria-busy="true">
+                <p class="categoria__carregando" role="status">
+                  <span class="categoria__spinner" aria-hidden="true"></span>
+                  Carregando chaveamento…
+                </p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    )
+  }
+</Layout>
+
+<script>
+  // Carregamento CLIENT-SIDE dos chaveamentos por categoria.
+  //
+  // Arquitetura estática: esta página é pré-renderada em build a partir do
+  // JSON; o chaveamento vive no Supabase e só pode ser lido em runtime, no
+  // navegador. Para cada categoria do campeonato, resolvemos o id da categoria
+  // por (campeonato_id, nome) e carregamos o seu chaveamento via Bracket_Store
+  // (leitura, cliente público com RLS). Cada categoria é tratada de forma
+  // ISOLADA (try/catch por categoria): a falha de uma — leitura, id ausente ou
+  // erro de render — NUNCA derruba as demais categorias nem o resto da página
+  // (R8.7). Categoria sem chaveamento mantém a MESMA indicação genérica de
+  // indisponibilidade já presente no HTML (R8.4).
+  import { criarBracketStoreBrowser } from "../../../store/bracketStore";
+  import { renderBracketClient } from "../../../components/bracket/renderBracketClient";
+  import type { SupabaseClient } from "@supabase/supabase-js";
+
+  const INDISPONIVEL = "Chaveamento ainda não disponível";
+
+  /** Troca o indicador de carregamento pela mensagem de indisponibilidade. */
+  function mostrarIndisponivel(slot: HTMLElement): void {
+    const p = document.createElement("p");
+    p.className = "categoria__indisponivel";
+    p.textContent = INDISPONIVEL;
+    slot.replaceChildren(p);
+    slot.removeAttribute("aria-busy");
+  }
+
+  async function iniciar() {
+    const secao = document.querySelector<HTMLElement>(
+      ".chaveamentos[data-campeonato-id]",
+    );
+    if (!secao) return; // campeonato sem categorias: nada a carregar.
+
+    const campeonatoId = secao.dataset.campeonatoId;
+    if (!campeonatoId) return;
+
+    // Import DINÂMICO do cliente público. `src/lib/supabase.ts` lança se as
+    // variáveis de ambiente do Supabase estiverem ausentes; importando sob
+    // demanda (e capturando) evitamos abortar a página inteira nesse caso —
+    // os placeholders genéricos simplesmente permanecem (R8.4/R8.7).
+    let supabase: SupabaseClient;
+    try {
+      const mod = await import("../../../lib/supabase");
+      supabase = mod.supabase;
+    } catch {
+      secao
+        .querySelectorAll<HTMLElement>("[data-bracket-slot]")
+        .forEach(mostrarIndisponivel);
+      return;
+    }
+
+    const store = criarBracketStoreBrowser(supabase);
+
+    const nodes = Array.from(
+      secao.querySelectorAll<HTMLElement>("[data-categoria]"),
+    );
+
+    // Carrega cada categoria de forma independente e em paralelo; o isolamento
+    // de falhas é por categoria (cada uma tem o seu try/catch).
+    await Promise.all(
+      nodes.map((artigo) =>
+        carregarCategoria(artigo, campeonatoId, store, supabase),
+      ),
+    );
+  }
+
+  async function carregarCategoria(
+    artigo: HTMLElement,
+    campeonatoId: string,
+    store: ReturnType<typeof criarBracketStoreBrowser>,
+    supabase: SupabaseClient,
+  ): Promise<void> {
+    const nome = artigo.dataset.categoriaNome;
+    const slot = artigo.querySelector<HTMLElement>("[data-bracket-slot]");
+    if (!nome || !slot) return;
+
+    // Só deixa o indicador de carregamento enquanto a leitura está em curso: se
+    // terminar sem chaveamento (ou com erro), mostra a indisponibilidade.
+    let renderizou = false;
+
+    try {
+      // 1) Resolve o id (uuid) da categoria por (campeonato_id, nome). As
+      //    categorias do JSON são só nomes; o nome é único por campeonato
+      //    (unique (campeonato_id, nome) no schema). Sem auth e sem navegação
+      //    por uuid, esta é a convenção de resolução adotada nesta fase.
+      const { data, error } = await supabase
+        .from("categorias")
+        .select("id")
+        .eq("campeonato_id", campeonatoId)
+        .eq("nome", nome)
+        .maybeSingle();
+
+      // Falha de leitura OU categoria ainda não migrada: mantém a indicação
+      // genérica de indisponibilidade já renderizada (R8.4/R8.7).
+      if (error || !data) return;
+
+      const categoriaId = data.id as string;
+
+      // 2) Carrega o chaveamento da categoria (leitura isolada).
+      const resultado = await store.carregarChaveamento({
+        campeonatoId,
+        categoriaId,
+      });
+
+      // Erro de leitura (R7.6/R8.7) ou estado vazio/sem chaveamento (R7.4/R8.4):
+      // em ambos os casos mantém a MESMA indicação genérica já presente.
+      if (!resultado.ok || resultado.valor === null) return;
+
+      // 3) Renderiza o chaveamento desta categoria e substitui o placeholder.
+      const view = renderBracketClient(resultado.valor);
+      slot.replaceChildren(view);
+      slot.removeAttribute("aria-busy");
+      renderizou = true;
+
+      // 4) Tempo real: quando alguém registra um placar, relê e redesenha.
+      //    Os eventos vêm em rajada (vários jogos de uma vez), então agrupa.
+      const ref = { campeonatoId, categoriaId };
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      void store.assinarMudancas(ref, () => {
+        clearTimeout(timer);
+        timer = setTimeout(async () => {
+          const novo = await store.carregarChaveamento(ref);
+          if (!novo.ok || novo.valor === null) return;
+          slot.replaceChildren(renderBracketClient(novo.valor));
+        }, 300);
+      });
+    } catch {
+      // Qualquer exceção inesperada nesta categoria é contida aqui: o
+      // indicação genérica aparece e as outras categorias seguem (R8.7).
+    } finally {
+      if (!renderizou) mostrarIndisponivel(slot);
+    }
+  }
+
+  iniciar();
+</script>
+
+<style>
+  .acompanhar__topo {
+    width: 100%;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 1rem;
+  }
+
+  .acompanhar__voltar {
+    display: inline-block;
+    margin-bottom: 0.8rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--cor-texto-suave);
+    text-decoration: none;
+  }
+
+  .acompanhar__voltar:hover {
+    color: var(--cor-destaque-texto);
+  }
+
+  .acompanhar__titulo {
+    margin: 0;
+    font-size: 1.7rem;
+    line-height: 1.2;
+    color: var(--cor-texto);
+  }
+
+  .acompanhar__evento {
+    margin: 0.3rem 0 0;
+    color: var(--cor-texto-suave);
+  }
+
+  /* ---- Seção de chaveamentos por categoria (markup server-rendered) ---- */
+
+  .chaveamentos {
+    width: 100%;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 1rem 3rem;
+  }
+
+  .chaveamentos__titulo {
+    font-size: 1.5rem;
+    line-height: 1.25;
+    margin: 0 0 1.25rem;
+    color: var(--cor-texto);
+  }
+
+  .chaveamentos__lista {
+    display: flex;
+    flex-direction: column;
+    gap: 1.6rem;
+  }
+
+  .categoria {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-card);
+    padding: 1.2rem 1.3rem 1.4rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+
+  .categoria__nome {
+    margin: 0;
+    font-size: 1.2rem;
+    line-height: 1.3;
+    color: var(--cor-texto);
+  }
+
+  .categoria__carregando {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0;
+    font-size: 0.95rem;
+    color: var(--cor-texto-suave);
+  }
+
+  .categoria__spinner {
+    width: 1.1rem;
+    height: 1.1rem;
+    border: 2px solid var(--cor-borda);
+    border-top-color: var(--cor-destaque);
+    border-radius: 50%;
+    animation: categoria-giro 0.8s linear infinite;
+  }
+
+  @keyframes categoria-giro {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .categoria__spinner {
+      animation-duration: 2.4s;
+    }
+  }
+
+  .categoria__indisponivel {
+    margin: 0;
+    font-size: 0.95rem;
+    color: var(--cor-texto-suave);
+    font-style: italic;
+  }
+</style>
+
+<!--
+  Estilos GLOBAIS do chaveamento renderizado no cliente.
+
+  O DOM do chaveamento é criado em runtime por `renderBracketClient`, então não
+  recebe o hash de escopo que o Astro aplica aos componentes `.astro`. Por isso
+  as classes `.bracket-view`/`.group-table`/`.elim-tree`/`.match-card` precisam
+  de CSS GLOBAL aqui. As regras abaixo espelham, uma a uma, os `<style>` de
+  BracketView.astro, GroupTable.astro, EliminationTree.astro e MatchCard.astro,
+  usando os mesmos tokens do tema, para que a visualização client-side fique
+  visualmente coerente com os componentes de build.
+-->
+<style is:global>
+  /* ---- BracketView ---- */
+  .bracket-view {
+    display: flex;
+    flex-direction: column;
+    gap: 1.4rem;
+  }
+
+  .bracket-view__campea {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    background: var(--cor-destaque);
+    color: var(--cor-destaque-contraste);
+    border-radius: var(--raio-card);
+    padding: 0.9rem 1.2rem;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  }
+
+  .bracket-view__campea-rotulo {
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    background: var(--cor-destaque-contraste);
+    color: var(--cor-texto-claro);
+  }
+
+  .bracket-view__campea-nome {
+    font-size: 1.15rem;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+
+  .bracket-view__conteudo {
+    display: flex;
+    flex-direction: column;
+    gap: 1.6rem;
+  }
+
+  .bracket-view__fase {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .bracket-view__fase-titulo {
+    margin: 0;
+    font-size: 1.2rem;
+    line-height: 1.3;
+    color: var(--cor-texto);
+  }
+
+  .bracket-view__grupos {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+    align-items: start;
+  }
+
+  /* ---- GroupTable ---- */
+  .group-table {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-card);
+    padding: 1rem 1.1rem 1.2rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+
+  .group-table__titulo {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.3;
+    color: var(--cor-texto);
+  }
+
+  .group-table__tabela {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+  }
+
+  .group-table__caption {
+    caption-side: top;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--cor-texto-suave);
+    padding-bottom: 0.4rem;
+  }
+
+  .group-table__pendente {
+    text-transform: none;
+    font-weight: 600;
+    letter-spacing: 0;
+    font-style: italic;
+  }
+
+  .group-table__tabela th {
+    text-align: left;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--cor-texto-suave);
+    padding: 0.35rem 0.5rem;
+    border-bottom: 1px solid var(--cor-borda);
+  }
+
+  .group-table__tabela td {
+    padding: 0.45rem 0.5rem;
+    border-bottom: 1px solid var(--cor-borda);
+    color: var(--cor-texto);
+  }
+
+  .group-table__col-pos,
+  .group-table__col-vit {
+    width: 1%;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  /* Placar somente leitura. */
+  .match-card__placar {
+    font-weight: 800;
+    min-width: 1.5rem;
+    text-align: right;
+  }
+
+  .group-table__col-num {
+    width: 1%;
+    white-space: nowrap;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .group-table__col-dupla {
+    font-weight: 600;
+  }
+
+  .group-table__linha--lider .group-table__col-dupla {
+    color: var(--cor-destaque-texto);
+    font-weight: 800;
+  }
+
+  .group-table__linha--lider .group-table__col-pos {
+    color: var(--cor-destaque-texto);
+    font-weight: 800;
+  }
+
+  .group-table__subtitulo {
+    margin: 0 0 0.5rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cor-texto-suave);
+  }
+
+  .group-table__lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.6rem;
+  }
+
+  .group-table__item {
+    display: block;
+  }
+
+  /* ---- EliminationTree ---- */
+  .elim-tree {
+    display: flex;
+    flex-direction: column;
+    gap: 1.4rem;
+  }
+
+  .elim-tree__secao {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+
+  .elim-tree__titulo {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.3;
+    color: var(--cor-texto);
+    padding-bottom: 0.4rem;
+    border-bottom: 2px solid var(--cor-destaque-suave);
+  }
+
+  .elim-tree__rodadas {
+    display: flex;
+    gap: 2rem;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+  }
+
+  .elim-tree__rodada {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    min-width: 230px;
+    flex: 0 0 auto;
+  }
+
+  .elim-tree__rodadas {
+    position: relative;
+  }
+
+  .elim-tree__linhas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    overflow: visible;
+  }
+
+  .elim-tree__linha {
+    fill: none;
+    stroke: var(--cor-borda, #cbd5e1);
+    stroke-width: 2;
+    transition: stroke 0.12s ease;
+  }
+
+  .elim-tree__linha--ramo {
+    stroke: var(--cor-destaque);
+    stroke-width: 3;
+  }
+
+  .elim-tree__item--ramo .match-card {
+    border-color: var(--cor-destaque);
+    box-shadow: 0 0 0 2px var(--cor-destaque-suave);
+  }
+
+  .elim-tree__rodada-titulo {
+    margin: 0;
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cor-texto-suave);
+  }
+
+  .elim-tree__lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    justify-content: space-around;
+    flex: 1;
+  }
+
+  .elim-tree__item {
+    display: block;
+  }
+
+  /* ---- MatchCard ---- */
+  .match-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-card);
+    padding: 0.6rem 0.75rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+
+  .match-card__numero {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cor-destaque-texto);
+  }
+
+  .match-card__slots {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .match-card__slot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.4rem 0.55rem;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    color: var(--cor-texto);
+    background: var(--cor-fundo);
+  }
+
+  .match-card__dupla {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .match-card__slot--bye .match-card__dupla,
+  .match-card__slot--indefinido .match-card__dupla {
+    font-weight: 500;
+    color: var(--cor-texto-suave);
+    font-style: italic;
+  }
+
+  .match-card__slot--vencedora {
+    background: var(--cor-destaque-suave);
+    color: var(--cor-destaque-texto);
+    border-left: 3px solid var(--cor-destaque);
+    font-weight: 800;
+  }
+
+  .match-card__slot--vencedora .match-card__dupla {
+    color: var(--cor-destaque-texto);
+    font-weight: 800;
+  }
+
+  .match-card__marca {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.3rem;
+    height: 1.3rem;
+    border-radius: 50%;
+    background: var(--cor-destaque);
+    color: var(--cor-destaque-contraste);
+    font-size: 0.8rem;
+    font-weight: 900;
+    line-height: 1;
+  }
+
+  .match-card__estado {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    align-self: flex-start;
+  }
+
+  .match-card__estado--pendente {
+    color: var(--cor-texto-suave);
+  }
+</style>
