@@ -17,15 +17,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
+  CATEGORIAS_JOGADOR,
   GENEROS_JOGADOR,
+  type CategoriaJogador,
   type GeneroJogador,
   type Jogador,
   type JogadorId,
   type JogadorInput,
+  type ParticipacaoDupla,
   type ResultadoJogador,
 } from "../domain/jogadores/types";
 import {
   ordenarJogadores,
+  ordenarParticipacoes,
   validarJogador,
 } from "../domain/jogadores/validation";
 
@@ -39,6 +43,7 @@ export interface JogadorRow {
   nome: string;
   apelido: string | null;
   genero: string | null;
+  categoria: string | null;
   cidade: string | null;
   uf: string | null;
   instagram: string | null;
@@ -48,7 +53,7 @@ export interface JogadorRow {
 }
 
 const COLUNAS =
-  "id, nome, apelido, genero, cidade, uf, instagram, ativo, criado_em, atualizado_em";
+  "id, nome, apelido, genero, categoria, cidade, uf, instagram, ativo, criado_em, atualizado_em";
 
 /** Teto de linhas por listagem (limite padrão do PostgREST). */
 export const LIMITE_LISTAGEM = 1000;
@@ -60,11 +65,16 @@ export function jogadorRowParaJogador(row: JogadorRow): Jogador {
   const genero = (GENEROS_JOGADOR as readonly string[]).includes(row.genero ?? "")
     ? (row.genero as GeneroJogador)
     : null;
+  // Valor fora do vocabulário (ex.: gravado por outra fonte) vira null.
+  const categoria = (CATEGORIAS_JOGADOR as readonly string[]).includes(row.categoria ?? "")
+    ? (row.categoria as CategoriaJogador)
+    : null;
   return {
     id: row.id,
     nome: row.nome,
     apelido: row.apelido,
     genero,
+    categoria,
     cidade: row.cidade,
     uf: row.uf,
     instagram: row.instagram,
@@ -78,6 +88,60 @@ export function jogadorRowParaJogador(row: JogadorRow): Jogador {
 // Contrato
 // ---------------------------------------------------------------------------
 
+/** Evento/categoria embutidos na consulta de participações. */
+interface CampeonatoEmbutido { id: string; nome: string; data: string }
+interface CategoriaEmbutida {
+  nome: string;
+  campeonato_id: string;
+  campeonatos: CampeonatoEmbutido | CampeonatoEmbutido[] | null;
+}
+
+/** Linha de `duplas` com a categoria (e o evento) embutidos pelo PostgREST. */
+export interface DuplaParticipacaoRow {
+  id: string;
+  atleta_a: string;
+  atleta_b: string;
+  jogador_a_id: string | null;
+  jogador_b_id: string | null;
+  criado_em: string;
+  categorias: CategoriaEmbutida | CategoriaEmbutida[] | null;
+}
+
+/** Colunas lidas na consulta de participações (relações N:1 via chave estrangeira). */
+const COLUNAS_PARTICIPACAO =
+  "id, atleta_a, atleta_b, jogador_a_id, jogador_b_id, criado_em, categorias(nome, campeonato_id, campeonatos(id, nome, data))";
+
+/** O PostgREST devolve relações N:1 como objeto; aceita array por segurança. */
+function primeiro<T>(valor: T | T[] | null | undefined): T | null {
+  return Array.isArray(valor) ? (valor[0] ?? null) : (valor ?? null);
+}
+
+/**
+ * Converte uma linha de `duplas` na participação do jogador `jogadorId`.
+ * Devolve null se a dupla não referencia o jogador (defensivo). Pura.
+ */
+export function participacaoDeRow(
+  row: DuplaParticipacaoRow,
+  jogadorId: JogadorId
+): ParticipacaoDupla | null {
+  const ehA = row.jogador_a_id === jogadorId;
+  const ehB = row.jogador_b_id === jogadorId;
+  if (!ehA && !ehB) return null;
+
+  const categoria = primeiro(row.categorias);
+  const evento = primeiro(categoria?.campeonatos);
+  return {
+    duplaId: row.id,
+    atletaA: row.atleta_a,
+    atletaB: row.atleta_b,
+    posicao: ehA ? "A" : "B",
+    parceiroJogadorId: ehA ? row.jogador_b_id : row.jogador_a_id,
+    categoria: categoria?.nome ?? null,
+    campeonato: evento ? { id: evento.id, nome: evento.nome, data: evento.data } : null,
+    inscritaEm: row.criado_em,
+  };
+}
+
 export type DestinoExclusao = "excluido" | "arquivado";
 
 export interface JogadorStore {
@@ -88,6 +152,8 @@ export interface JogadorStore {
   atualizar(id: JogadorId, entrada: JogadorInput): Promise<ResultadoJogador<Jogador>>;
   /** Arquiva (ativo = false) ou reativa um jogador. */
   definirAtivo(id: JogadorId, ativo: boolean): Promise<ResultadoJogador<Jogador>>;
+  /** Duplas (inscrições) em que o jogador participou, da mais recente para a mais antiga. */
+  listarParticipacoes(id: JogadorId): Promise<ResultadoJogador<ParticipacaoDupla[]>>;
   /** Quantas duplas (inscrições) referenciam o jogador. */
   contarVinculos(id: JogadorId): Promise<ResultadoJogador<number>>;
   /**
@@ -233,6 +299,25 @@ export function criarJogadorStoreBrowser(client?: SupabaseClient): JogadorStore 
     async definirAtivo(id, ativo) {
       if (!UUID.test(id)) return naoEncontrado();
       return atualizarColunas(id, { ativo });
+    },
+
+    async listarParticipacoes(id) {
+      if (!UUID.test(id)) return naoEncontrado();
+      try {
+        const client = await obterClient();
+        // `id` já foi validado como UUID: seguro para compor o filtro `or`.
+        const { data, error } = await client
+          .from("duplas")
+          .select(COLUNAS_PARTICIPACAO)
+          .or(`jogador_a_id.eq.${id},jogador_b_id.eq.${id}`);
+        if (error) return erroLeitura();
+        const participacoes = ((data ?? []) as unknown as DuplaParticipacaoRow[])
+          .map((linha) => participacaoDeRow(linha, id))
+          .filter((p): p is ParticipacaoDupla => p !== null);
+        return { ok: true, valor: ordenarParticipacoes(participacoes) };
+      } catch {
+        return erroLeitura();
+      }
     },
 
     async contarVinculos(id) {

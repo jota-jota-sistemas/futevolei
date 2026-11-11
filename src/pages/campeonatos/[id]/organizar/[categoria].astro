@@ -118,6 +118,12 @@ const { campeonato, categoriaNome } = Astro.props;
                 maxlength="80"
                 required
               />
+              <div class="org__vinculo" data-vinculo hidden>
+                <label for="dupla-jogador-a">Jogador cadastrado (opcional)</label>
+                <select id="dupla-jogador-a" data-jogador-a>
+                  <option value="">Não vincular</option>
+                </select>
+              </div>
             </div>
             <div class="org__campo">
               <label for="dupla-atleta-b">Atleta B</label>
@@ -129,6 +135,15 @@ const { campeonato, categoriaNome } = Astro.props;
                 maxlength="80"
                 required
               />
+              <div class="org__vinculo" data-vinculo hidden>
+                <label for="dupla-jogador-b">Jogador cadastrado (opcional)</label>
+                <select id="dupla-jogador-b" data-jogador-b>
+                  <option value="">Não vincular</option>
+                </select>
+                <p class="org__vinculo-ajuda">
+                  Vincular registra a dupla no histórico do jogador.
+                </p>
+              </div>
             </div>
           </div>
           <button class="org__botao" type="submit" data-add-dupla>
@@ -293,6 +308,11 @@ const { campeonato, categoriaNome } = Astro.props;
   // ========================================================================
   import type { SupabaseClient } from "@supabase/supabase-js";
   import { criarBracketStoreBrowser } from "../../../../store/bracketStore";
+  import { criarJogadorStoreBrowser } from "../../../../store/jogadorStore";
+  import {
+    ligarSeletoresDeJogador,
+    type SeletorJogadores,
+  } from "../../../../scripts/seletor-jogador";
   import type {
     BracketStore,
     CategoryRef,
@@ -410,6 +430,9 @@ const { campeonato, categoriaNome } = Astro.props;
     // (evita sobrescrever a tela com dados ainda não gravados).
     salvando: number;
     recarregarDepois: boolean;
+    // Seletores opcionais de jogador cadastrado (null = indisponível; o
+    // formulário segue só com texto).
+    seletor: SeletorJogadores | null;
   }
 
   // --------------------------------------------------------------------
@@ -477,6 +500,7 @@ const { campeonato, categoriaNome } = Astro.props;
       bracket: null,
       salvando: 0,
       recarregarDepois: false,
+      seletor: null,
     };
 
     // Carrega o estado inicial (duplas + chaveamento) antes de exibir a UI.
@@ -491,6 +515,8 @@ const { campeonato, categoriaNome } = Astro.props;
 
     // Liga os handlers e revela o conteúdo.
     ligarHandlers(ctx);
+    // Opcional e isolado: se falhar, o formulário continua só com texto.
+    void ligarJogadores(ctx, supabase);
     if (init) init.hidden = true;
     if (conteudo) conteudo.hidden = false;
   }
@@ -608,10 +634,20 @@ const { campeonato, categoriaNome } = Astro.props;
     const atletaB = q<HTMLInputElement>(form, "#dupla-atleta-b")?.value ?? "";
     // Dupla não tem nome próprio: o nome interno (único) é "A & B <horário do
     // cadastro>". Nas telas aparece só "A & B".
+    // Vínculos opcionais com jogadores cadastrados (nulos quando não escolhidos).
+    if (ctx.seletor?.mesmoJogador()) {
+      setTexto(erro, "Escolha jogadores diferentes para os dois atletas.");
+      return;
+    }
+    const vinculos = ctx.seletor?.lerVinculos() ?? {
+      jogadorAId: null,
+      jogadorBId: null,
+    };
     const dados = {
       nomeDupla: gerarNomeDupla(atletaA, atletaB, new Date().toISOString()),
       atletaA,
       atletaB,
+      ...vinculos,
     };
 
     // Validação de domínio ANTES de qualquer I/O (R1.2–R1.4). A store também
@@ -1166,6 +1202,24 @@ const { campeonato, categoriaNome } = Astro.props;
   }
 
   // --------------------------------------------------------------------
+  // Jogadores cadastrados (vínculo opcional da dupla com o perfil)
+  // --------------------------------------------------------------------
+  async function ligarJogadores(
+    ctx: Ctx,
+    supabase: SupabaseClient,
+  ): Promise<void> {
+    const form = q<HTMLFormElement>(ctx.secao, "[data-form-dupla]");
+    if (!form) return;
+    try {
+      const r = await criarJogadorStoreBrowser(supabase).listar();
+      if (!r.ok || r.valor.length === 0) return; // nada para escolher
+      ctx.seletor = ligarSeletoresDeJogador(form, r.valor);
+    } catch {
+      // Segue sem os seletores: o cadastro por texto não depende deles.
+    }
+  }
+
+  // --------------------------------------------------------------------
   // Ligação de handlers
   // --------------------------------------------------------------------
   function ligarHandlers(ctx: Ctx): void {
@@ -1349,6 +1403,20 @@ const { campeonato, categoriaNome } = Astro.props;
     gap: 0.3rem;
   }
 
+  .org__vinculo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin-top: 0.4rem;
+  }
+  .org__vinculo[hidden] {
+    display: none;
+  }
+  .org__vinculo-ajuda {
+    margin: 0;
+    font-size: 0.78rem;
+    color: var(--cor-texto-suave);
+  }
   .org__campo label {
     font-size: 0.82rem;
     font-weight: 600;
@@ -1356,6 +1424,7 @@ const { campeonato, categoriaNome } = Astro.props;
   }
 
   .org__campo input,
+  .org__campo select,
   .org__seeding-input {
     padding: 0.55rem 0.7rem;
     border: 1px solid var(--cor-borda);
@@ -1366,6 +1435,7 @@ const { campeonato, categoriaNome } = Astro.props;
   }
 
   .org__campo input:focus,
+  .org__campo select:focus,
   .org__seeding-input:focus {
     outline: 2px solid var(--cor-destaque);
     outline-offset: 1px;

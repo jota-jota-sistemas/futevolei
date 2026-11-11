@@ -10,6 +10,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   criarJogadorStoreBrowser,
   jogadorRowParaJogador,
+  participacaoDeRow,
+  type DuplaParticipacaoRow,
   type JogadorRow,
 } from "../src/store/jogadorStore";
 
@@ -87,7 +89,7 @@ class MockSupabase {
 
 const ID = "11111111-1111-4111-8111-111111111111";
 const row = (p: Partial<JogadorRow> = {}): JogadorRow => ({
-  id: ID, nome: "Ana Lima", apelido: null, genero: null, cidade: null, uf: null, instagram: null,
+  id: ID, nome: "Ana Lima", apelido: null, genero: null, categoria: null, cidade: null, uf: null, instagram: null,
   ativo: true, criado_em: "2026-01-01T00:00:00.000Z", atualizado_em: "2026-01-01T00:00:00.000Z", ...p,
 });
 
@@ -103,11 +105,11 @@ describe("criar", () => {
   it("insere a linha normalizada com id e carimbos gerados na borda", async () => {
     const m = new MockSupabase().responder("jogadores", "insert", ok());
     const store = criarJogadorStoreBrowser(m.cliente());
-    const r = await store.criar({ nome: "  Ana Lima ", apelido: "", genero: "FEMININO", uf: "sp", instagram: "@Ana.Lima" });
+    const r = await store.criar({ nome: "  Ana Lima ", apelido: "", genero: "FEMININO", categoria: "iniciante", uf: "sp", instagram: "@Ana.Lima" });
     expect(r.ok).toBe(true);
     const inserida = m.de("jogadores", "insert")[0].args[0] as JogadorRow;
     expect(inserida).toMatchObject({
-      nome: "Ana Lima", apelido: null, genero: "feminino", cidade: null, uf: "SP",
+      nome: "Ana Lima", apelido: null, genero: "feminino", categoria: "Iniciante", cidade: null, uf: "SP",
       instagram: "ana.lima", ativo: true,
     });
     expect(inserida.id).toMatch(/^[0-9a-f-]{36}$/);
@@ -283,11 +285,108 @@ describe("excluir", () => {
   });
 });
 
+describe("categoria no banco", () => {
+  it("a listagem e a leitura pedem a coluna 'categoria'", async () => {
+    const m = new MockSupabase().responder("jogadores", "select", ok([row()]));
+    const store = criarJogadorStoreBrowser(m.cliente());
+    await store.listar();
+    await store.obter(ID);
+    for (const c of m.de("jogadores", "select")) expect(String(c.args[0])).toContain("categoria");
+  });
+
+  it("valor fora do vocabulário (ex.: gravado por outra fonte) vira null em vez de quebrar a tela", () => {
+    expect(jogadorRowParaJogador(row({ categoria: "Gold" })).categoria).toBeNull();
+    expect(jogadorRowParaJogador(row({ categoria: "Outros" })).categoria).toBeNull();
+    expect(jogadorRowParaJogador(row({ categoria: "Master" })).categoria).toBe("Master");
+  });
+
+  it("categoria inválida na criação não escreve", async () => {
+    const m = new MockSupabase();
+    const r = await criarJogadorStoreBrowser(m.cliente()).criar({ nome: "Ana", categoria: "Gold" });
+    expect(r).toEqual({ ok: false, erro: { code: "CATEGORIA_INVALIDA" } });
+    expect(m.de("jogadores", "insert")).toHaveLength(0);
+  });
+});
+
 describe("jogadorRowParaJogador", () => {
   it("converte snake_case para o domínio e preserva os nulos", () => {
-    expect(jogadorRowParaJogador(row({ apelido: "Pingo", genero: "feminino", uf: "SP" }))).toEqual({
-      id: ID, nome: "Ana Lima", apelido: "Pingo", genero: "feminino", cidade: null, uf: "SP", instagram: null,
+    expect(jogadorRowParaJogador(row({ apelido: "Pingo", genero: "feminino", categoria: "Amador", uf: "SP" }))).toEqual({
+      id: ID, nome: "Ana Lima", apelido: "Pingo", genero: "feminino", categoria: "Amador", cidade: null, uf: "SP", instagram: null,
       ativo: true, criadoEm: "2026-01-01T00:00:00.000Z", atualizadoEm: "2026-01-01T00:00:00.000Z",
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Histórico de duplas do jogador
+// ---------------------------------------------------------------------------
+
+const OUTRO = "22222222-2222-4222-8222-222222222222";
+const dupla = (p: Partial<DuplaParticipacaoRow> = {}): DuplaParticipacaoRow => ({
+  id: "d1", atleta_a: "Ana Lima", atleta_b: "Bia Souza", jogador_a_id: ID, jogador_b_id: OUTRO,
+  criado_em: "2026-01-01T10:00:00.000Z",
+  categorias: { nome: "Open", campeonato_id: "copa", campeonatos: { id: "copa", nome: "Copa Cabeça", data: "2026-11-22" } },
+  ...p,
+});
+
+describe("participacaoDeRow", () => {
+  it("jogador no lugar A: o parceiro é o B (e o id do perfil dele)", () => {
+    expect(participacaoDeRow(dupla(), ID)).toEqual({
+      duplaId: "d1", atletaA: "Ana Lima", atletaB: "Bia Souza", posicao: "A", parceiroJogadorId: OUTRO,
+      categoria: "Open", campeonato: { id: "copa", nome: "Copa Cabeça", data: "2026-11-22" },
+      inscritaEm: "2026-01-01T10:00:00.000Z",
+    });
+  });
+
+  it("jogador no lugar B: o parceiro é o A; parceiro sem cadastro fica sem id", () => {
+    const p = participacaoDeRow(dupla({ jogador_a_id: null, jogador_b_id: ID }), ID);
+    expect(p).toMatchObject({ posicao: "B", parceiroJogadorId: null });
+    const q = participacaoDeRow(dupla({ jogador_a_id: OUTRO, jogador_b_id: ID }), ID);
+    expect(q).toMatchObject({ posicao: "B", parceiroJogadorId: OUTRO });
+  });
+
+  it("dupla que não referencia o jogador é descartada (defensivo)", () => {
+    expect(participacaoDeRow(dupla({ jogador_a_id: OUTRO, jogador_b_id: null }), ID)).toBeNull();
+  });
+
+  it("aceita a relação embutida como array e tolera categoria/evento ausentes", () => {
+    const comArray = dupla({
+      categorias: [{ nome: "Master", campeonato_id: "x", campeonatos: [{ id: "x", nome: "Evento X", data: "2026-01-01" }] }] as never,
+    });
+    expect(participacaoDeRow(comArray, ID)).toMatchObject({ categoria: "Master", campeonato: { id: "x", nome: "Evento X" } });
+    expect(participacaoDeRow(dupla({ categorias: null }), ID)).toMatchObject({ categoria: null, campeonato: null });
+  });
+});
+
+describe("listarParticipacoes", () => {
+  it("consulta duplas pelos DOIS lugares, trazendo categoria e evento numa só requisição", async () => {
+    const m = new MockSupabase().responder("duplas", "select", ok([]));
+    await criarJogadorStoreBrowser(m.cliente()).listarParticipacoes(ID);
+    const c = m.de("duplas", "select")[0];
+    expect(c.or).toEqual([`jogador_a_id.eq.${ID},jogador_b_id.eq.${ID}`]);
+    expect(String(c.args[0])).toContain("categorias(nome, campeonato_id, campeonatos(id, nome, data))");
+  });
+
+  it("devolve da mais recente para a mais antiga", async () => {
+    const m = new MockSupabase().responder("duplas", "select", ok([
+      dupla({ id: "velha", categorias: { nome: "Open", campeonato_id: "a", campeonatos: { id: "a", nome: "A", data: "2026-01-10" } } }),
+      dupla({ id: "nova", categorias: { nome: "Open", campeonato_id: "b", campeonatos: { id: "b", nome: "B", data: "2026-11-22" } } }),
+    ]));
+    const r = await criarJogadorStoreBrowser(m.cliente()).listarParticipacoes(ID);
+    expect(r.ok && r.valor.map((p) => p.duplaId)).toEqual(["nova", "velha"]);
+  });
+
+  it("sem participações -> lista vazia (não é erro)", async () => {
+    const m = new MockSupabase().responder("duplas", "select", ok([]));
+    expect(await criarJogadorStoreBrowser(m.cliente()).listarParticipacoes(ID)).toEqual({ ok: true, valor: [] });
+  });
+
+  it("erro -> FALHA_LEITURA; id inválido não chega ao filtro", async () => {
+    const erro = new MockSupabase().responder("duplas", "select", falha());
+    expect(await criarJogadorStoreBrowser(erro.cliente()).listarParticipacoes(ID)).toEqual({ ok: false, erro: { code: "FALHA_LEITURA" } });
+    const m = new MockSupabase();
+    const r = await criarJogadorStoreBrowser(m.cliente()).listarParticipacoes("x),id.neq.0");
+    expect(r).toEqual({ ok: false, erro: { code: "JOGADOR_NAO_ENCONTRADO" } });
+    expect(m.chamadas).toHaveLength(0);
   });
 });

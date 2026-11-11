@@ -7,7 +7,7 @@
 import type { Jogador, JogadorErro, JogadorInput } from "../domain/jogadores/types";
 import { campoDoErro, mensagemDoErro, type CampoJogador } from "../domain/jogadores/mensagens";
 
-const CAMPOS: CampoJogador[] = ["nome", "apelido", "genero", "cidade", "uf", "instagram"];
+const CAMPOS: CampoJogador[] = ["nome", "apelido", "genero", "categoria", "cidade", "uf", "instagram"];
 
 type Campo = HTMLInputElement | HTMLSelectElement;
 
@@ -22,6 +22,7 @@ export function lerFormulario(form: HTMLFormElement): JogadorInput {
     nome: valor("nome"),
     apelido: valor("apelido"),
     genero: valor("genero"),
+    categoria: valor("categoria"),
     cidade: valor("cidade"),
     uf: valor("uf"),
     instagram: valor("instagram"),
@@ -37,6 +38,7 @@ export function preencherFormulario(form: HTMLFormElement, jogador: Jogador): vo
   definir("nome", jogador.nome);
   definir("apelido", jogador.apelido);
   definir("genero", jogador.genero);
+  definir("categoria", jogador.categoria);
   definir("cidade", jogador.cidade);
   definir("uf", jogador.uf);
   definir("instagram", jogador.instagram ? `@${jogador.instagram}` : "");

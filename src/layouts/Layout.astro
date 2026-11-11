@@ -6,12 +6,15 @@ import { comBase } from "../utils/url";
 interface Props {
   titulo?: string;
   descricao?: string;
+  /** Pede aos buscadores para não indexar a página (ex.: áreas sem link no menu). */
+  noindex?: boolean;
 }
 
 const {
   titulo = "Pingo — futevôlei",
   descricao =
     "Campeonatos, partidas e experiências de futevôlei em um só lugar.",
+  noindex = false,
 } = Astro.props;
 ---
 
@@ -21,6 +24,7 @@ const {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={descricao} />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
     <link rel="icon" type="image/png" href={comBase("/icone.png")} />
     <title>{titulo}</title>
   </head>
@@ -136,15 +140,4 @@ const {
     background: var(--cor-destaque-forte);
   }
 
-  /* Controle placeholder: visual presente, porém inerte ("disponível em breve") */
-  .placeholder {
-    cursor: not-allowed;
-    opacity: 0.6;
-    pointer-events: none;
-  }
-
-  .btn-destaque.placeholder:hover {
-    background: var(--cor-destaque);
-    transform: none;
-  }
 </style>

@@ -7,6 +7,7 @@
 //   - nome: 1..80 caracteres após trim                      -> NOME_JOGADOR_INVALIDO
 //   - apelido (opcional): 1..40 após trim                   -> APELIDO_INVALIDO
 //   - gênero (opcional): "masculino" | "feminino"            -> GENERO_INVALIDO
+//   - categoria (opcional): um nível de CATEGORIAS_JOGADOR      -> CATEGORIA_INVALIDA
 //   - cidade (opcional): 1..80 após trim                    -> CIDADE_INVALIDA
 //   - UF (opcional): sigla brasileira, aceita minúscula      -> UF_INVALIDA
 //   - instagram (opcional): @usuario, usuario ou URL de perfil -> INSTAGRAM_INVALIDO
@@ -16,11 +17,14 @@
 // O primeiro erro encontrado é devolvido, na ordem dos campos acima.
 
 import {
+  CATEGORIAS_JOGADOR,
   GENEROS_JOGADOR,
+  type CategoriaJogador,
   type GeneroJogador,
   type Jogador,
   type JogadorDados,
   type JogadorInput,
+  type ParticipacaoDupla,
   type ResultadoJogador,
 } from "./types";
 
@@ -113,6 +117,18 @@ export function validarJogador(
     return { ok: false, erro: { code: "GENERO_INVALIDO" } };
   }
 
+  // Categoria: aceita sem diferenciar caixa e devolve a grafia canônica.
+  const categoriaBruta = aparar(entrada.categoria);
+  const categoria =
+    categoriaBruta === ""
+      ? null
+      : CATEGORIAS_JOGADOR.find(
+          (c) => c.toLowerCase() === categoriaBruta.toLowerCase()
+        );
+  if (categoria === undefined) {
+    return { ok: false, erro: { code: "CATEGORIA_INVALIDA" } };
+  }
+
   const cidade = aparar(entrada.cidade);
   if (cidade !== "" && !tamanhoValido(cidade, CIDADE_MAX)) {
     return { ok: false, erro: { code: "CIDADE_INVALIDA" } };
@@ -132,6 +148,7 @@ export function validarJogador(
       nome,
       apelido: apelido === "" ? null : apelido,
       genero: generoBruto === "" ? null : (generoBruto as GeneroJogador),
+      categoria: categoria as CategoriaJogador | null,
       cidade: cidade === "" ? null : cidade,
       uf: uf === "" ? null : uf,
       instagram: instagram.valor,
@@ -170,7 +187,7 @@ export function encontrarHomonimos(
 }
 
 /**
- * Filtra por texto livre: casa com nome, apelido, cidade ou UF, sem diferenciar
+ * Filtra por texto livre: casa com nome, apelido, categoria, cidade ou UF, sem diferenciar
  * caixa nem acentos. Texto vazio devolve todos. Preserva a ordem de entrada.
  */
 export function filtrarJogadores(
@@ -180,7 +197,7 @@ export function filtrarJogadores(
   const termo = chaveTexto(texto);
   if (termo === "") return [...jogadores];
   return jogadores.filter((j) =>
-    [j.nome, j.apelido ?? "", j.cidade ?? "", j.uf ?? ""].some((campo) =>
+    [j.nome, j.apelido ?? "", j.categoria ?? "", j.cidade ?? "", j.uf ?? ""].some((campo) =>
       chaveTexto(campo).includes(termo)
     )
   );
@@ -200,6 +217,24 @@ export function compararJogadores(a: Jogador, b: Jogador): number {
 
 export function ordenarJogadores(jogadores: readonly Jogador[]): Jogador[] {
   return [...jogadores].sort(compararJogadores);
+}
+
+/**
+ * Participações mais recentes primeiro: por data do evento (desc), depois pela
+ * inscrição (desc) e por id, para uma ordem total e estável. Sem data do evento
+ * (embutido ausente) vai para o fim. Não muta a entrada.
+ */
+export function ordenarParticipacoes(
+  participacoes: readonly ParticipacaoDupla[]
+): ParticipacaoDupla[] {
+  return [...participacoes].sort((a, b) => {
+    const da = a.campeonato?.data ?? "";
+    const db = b.campeonato?.data ?? "";
+    if (da !== db) return da < db ? 1 : -1;
+    if (a.inscritaEm !== b.inscritaEm) return a.inscritaEm < b.inscritaEm ? 1 : -1;
+    if (a.duplaId !== b.duplaId) return a.duplaId < b.duplaId ? -1 : 1;
+    return 0;
+  });
 }
 
 /**

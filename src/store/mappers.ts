@@ -60,6 +60,12 @@ export interface DuplaRow {
   seed: number | null;
   /** ISO timestamp. */
   criado_em: string;
+  /**
+   * Vínculos OPCIONAIS com `jogadores`. Ausentes em duplas só com texto; o
+   * domínio (`Pair`) não os conhece, só a store e o histórico do perfil.
+   */
+  jogador_a_id?: string | null;
+  jogador_b_id?: string | null;
 }
 
 /** Linha da tabela `chaveamentos`. */
