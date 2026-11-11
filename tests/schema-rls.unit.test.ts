@@ -64,3 +64,15 @@ describe("schema.sql: RLS com autenticação", () => {
     expect(codigo).toMatch(/after insert on auth\.users/);
   });
 });
+
+describe("supabase/migracao-auth.sql", () => {
+  const marca = "-- AUTENTICAÇÃO (Supabase Auth) e ESCRITA";
+  const bloco = (texto: string) => texto.slice(texto.indexOf(marca)).trim();
+  const migracao = readFileSync(join(__dirname, "..", "supabase", "migracao-auth.sql"), "utf8");
+
+  it("repete exatamente o bloco de autenticação do schema.sql", () => {
+    expect(bloco(migracao).startsWith(marca)).toBe(true);
+    // A migração termina com o exemplo de primeiro administrador (comentado).
+    expect(bloco(migracao).startsWith(bloco(sql))).toBe(true);
+  });
+});

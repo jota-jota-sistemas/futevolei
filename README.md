@@ -312,7 +312,7 @@ O site continua **estático**. O login usa o Supabase Auth direto no navegador, 
 
 ### Configuração (manual, no painel do Supabase)
 
-1. **Aplicar o SQL:** rode `supabase/schema.sql` no SQL Editor (é idempotente). Ele cria `administradores`, `eh_admin()`, `perfis` (com trigger de primeiro login) e troca as policies de escrita anônima pelas de administrador.
+1. **Aplicar o SQL:** em um banco que já tinha o schema anterior, rode só `supabase/migracao-auth.sql` (é a parte nova, idempotente); em um banco novo, rode `supabase/schema.sql` inteiro. Se mudar o bloco de autenticação do `schema.sql`, atualize a migração (um teste confere). Ele cria `administradores`, `eh_admin()`, `perfis` (com trigger de primeiro login) e troca as policies de escrita anônima pelas de administrador.
 2. **Provedores:** em *Authentication → Providers*, ative **Email** (com "Confirm email"/OTP por link) e **Google** (Client ID e Secret criados no Google Cloud Console; a URL de callback é a que o painel mostra).
 3. **URLs de redirecionamento:** em *Authentication → URL Configuration*, defina o **Site URL** (`https://futevolei.vercel.app`) e inclua em *Redirect URLs* `https://futevolei.vercel.app/entrar` e `http://localhost:4321/entrar`.
 4. **Primeiro administrador:** depois de entrar uma vez, rode no SQL Editor:
