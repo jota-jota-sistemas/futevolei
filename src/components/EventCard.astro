@@ -1,6 +1,6 @@
 ---
 import type { Campeonato } from "../types";
-import { comBase, formatarData } from "../utils/url";
+import { comBase, formatarPeriodo } from "../utils/url";
 import { badge } from "../utils/eventos";
 
 interface Props {
@@ -48,7 +48,9 @@ const dataCategorias = (campeonato.categorias ?? []).join("|");
     <h3 class="event-card__nome">
       <a class="event-card__nome-link" href={href}>{campeonato.nome}</a>
     </h3>
-    <p class="event-card__meta">📅 {formatarData(campeonato.data)}</p>
+    <p class="event-card__meta">
+      📅 {formatarPeriodo(campeonato.data, campeonato.dataFim)}
+    </p>
     {
       temLocal && (
         <p class="event-card__meta">📍 {campeonato.local}</p>

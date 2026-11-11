@@ -2,26 +2,29 @@
 import Layout from "../layouts/Layout.astro";
 import Hero from "../components/Hero.astro";
 import EventsSection from "../components/EventsSection.astro";
-import type { Campeonato } from "../types";
-import campeonatosData from "../data/campeonatos.json";
+import { carregarCampeonatos } from "../utils/torneios";
 import {
   opcoesCidades,
-  contagemCategorias,
+  contagemNiveis,
+  contagemGeneros,
   opcoesPresetsMes,
 } from "../utils/eventos";
 
 /*
   Dono dos dados: como a SearchBar é renderizada dentro do Hero (e não no
   EventsSection), a página deriva aqui no build as opções dos filtros a partir
-  do JSON e as repassa ao Hero → SearchBar:
+  do JSON (src/data/torneios.json, via carregarCampeonatos) e as repassa ao
+  Hero → SearchBar:
    - cidades: lista normalizada (via cidadeDoLocal) com contagem por cidade;
    - presets: meses com eventos (chips de período), relativos resolvidos no cliente;
-   - categorias: lista com contagem por categoria.
+   - niveis / generos: as categorias (texto livre) reduzidas a Nível e Gênero,
+     com contagem de eventos (ver utils/categorias.ts).
   A ordem dos cards continua sob responsabilidade do EventsSection.
 */
-const campeonatos = campeonatosData as Campeonato[];
+const campeonatos = carregarCampeonatos();
 const cidades = opcoesCidades(campeonatos);
-const categorias = contagemCategorias(campeonatos);
+const niveis = contagemNiveis(campeonatos);
+const generos = contagemGeneros(campeonatos);
 const presetsMes = opcoesPresetsMes(campeonatos);
 ---
 
@@ -35,7 +38,8 @@ const presetsMes = opcoesPresetsMes(campeonatos);
   <Hero
     imagem="/hero-futevolei.jpg"
     cidades={cidades}
-    categorias={categorias}
+    niveis={niveis}
+    generos={generos}
     presetsMes={presetsMes}
   />
   <EventsSection />

@@ -108,7 +108,7 @@ Registro das decisões discutidas, com a data e o porquê.
 >
 > O campo `inscricao` é **opcional**. Deve ser uma URL completa (`http://` ou `https://`) da página de inscrição. Quando presente e válida, a página de detalhe exibe um botão "Inscreva-se"; valores vazios ou sem o esquema http(s) são ignorados e o botão não aparece.
 >
-> O campo `foto` pode ficar vazio (`""`). Nesse caso, tanto o card quanto a página de detalhe exibem um **placeholder** padrão (símbolo da marca sobre fundo turquesa suave) — nunca uma imagem quebrada.
+> O campo `foto` pode ficar vazio (`""`). Nesse caso o card da home já não exibe imagem e a página de detalhe **omite o bloco de imagem** e mostra só os demais dados — nunca uma imagem quebrada nem um espaço vazio.
 
 ### Fase 2 e 3 (planejadas) — backend, autenticação e tempo real
 
@@ -254,6 +254,22 @@ campeonatos.json  →  Feed.astro  →  CampeonatoCard.astro  →  HTML na tela
 
 > Esses padrões (componente, props, template, fonte da verdade única) são reconhecidos no mercado e aparecem em praticamente todo framework moderno (React, Vue, Svelte).
 
+## Fonte atual dos eventos: `torneios.json`
+
+A **lista da home e a página de detalhe** passaram a ler `src/data/torneios.json`, coletado do calendário público [torneios-ftv.com](https://torneios-ftv.com) (estado SP, de hoje em diante). As seções abaixo que falam de `campeonatos.json` descrevem o formato antigo, que agora só alimenta a área de organização (`/campeonatos/[id]/organizar`) e o script `migrar:campeonatos`.
+
+```bash
+npm run coletar:torneios   # reabre o calendário com Playwright e sobrescreve src/data/torneios.json
+```
+
+- O coletor só lê páginas públicas, sem login. O link de inscrição **não é coletado** (o site exige conta para liberar o contato do organizador), então o botão "Inscreva-se" não aparece nesses eventos.
+- `src/utils/torneios.ts` converte cada torneio no modelo `Campeonato` usado pelo site e padroniza a caixa de cidades e categorias. O JSON coletado fica intacto.
+- A origem não traz foto nem descrição: nos eventos coletados o card mostra só data, local e nome, e o detalhe não exibe imagem.
+- **Eventos manuais:** um registro com `"fonte": "manual"` pode ter também `foto` (caminho em `public/`) e `descricao`. O coletor **preserva** esses registros ao regravar o arquivo; os demais são substituídos a cada coleta.
+- O link do Instagram aponta para o **post** de origem (um carrossel pode listar vários torneios); `?img_index=N` indica o slide do torneio.
+- **Filtro de categorias:** as categorias são texto livre (114 grafias distintas), então o filtro usa **Nível** (select) e **Gênero** (chips), derivados do texto por `src/utils/categorias.ts`. Cada variante de nível é uma opção própria (Estreante, Principiante, Aprendiz, Iniciante, "Iniciante + C", Intermediário, Amador, Bronze, Master, Open, Outros). Categoria sem gênero escrito é **Masculino** por padrão, exceto as de "Outros". Nível e gênero casam na **mesma categoria** do evento. O texto original continua no detalhe.
+- A seção "Chaveamentos" do detalhe está desligada (`EXIBIR_CHAVEAMENTOS` em `src/pages/campeonatos/[id].astro`), porque esses eventos não têm chaveamento associado.
+
 ## Como adicionar/editar um campeonato (Fase 1)
 
 1. Coloque a foto em `public/campeonatos/` (ex.: `public/campeonatos/meu-torneio.jpg`). Proporção recomendada: retrato (4:5), estilo Instagram.
@@ -271,7 +287,7 @@ campeonatos.json  →  Feed.astro  →  CampeonatoCard.astro  →  HTML na tela
      "inscricao": "https://pagina-de-inscricao.com/"
    }
    ```
-   Os campos `instagram`, `categorias` e `inscricao` são opcionais — pode omitir quando o evento não tiver. Se não houver foto, deixe `"foto": ""` e o site mostra o placeholder padrão.
+   Os campos `instagram`, `categorias` e `inscricao` são opcionais — pode omitir quando o evento não tiver. Se não houver foto, deixe `"foto": ""` e o detalhe simplesmente não exibe imagem.
 3. Pronto — o feed ordena automaticamente por data (os próximos aparecem primeiro).
 
 > A home exibe **8 eventos** inicialmente (para carregar leve); o botão "Ver todos os eventos" revela o restante na própria página. Ao filtrar, todos os eventos correspondentes aparecem, independentemente desse limite.
@@ -305,7 +321,6 @@ https://jota-jota-sistemas.github.io/futevolei/
 - [x] Configurar deploy no GitHub Pages (workflow + base)
 - [x] Buscar e filtrar eventos (cidade, período, categoria) com busca no botão
 - [x] "Ver todos os eventos": home com 8 cards + botão que revela o restante
-- [x] Página de detalhe: placeholder para foto ausente, categorias e botão "Inscreva-se"
-- [x] Placeholder de foto consistente no card e no detalhe (sem imagem quebrada)
+- [x] Página de detalhe: sem foto, o bloco de imagem é omitido; categorias e botão "Inscreva-se"
 - [ ] Ativar GitHub Pages no repositório (Settings → Pages → Source: GitHub Actions)
 - [ ] Preencher `inscricao` e fotos reais dos campeonatos (conteúdo)

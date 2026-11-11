@@ -67,6 +67,35 @@ export function formatarData(iso: string): string {
 }
 
 /**
+ * Formata o período de um evento (início e, opcionalmente, fim) em pt-BR, sem
+ * depender do fuso. Sem fim, ou fim igual ao início, cai em `formatarData`.
+ *
+ * Ex.: formatarPeriodo("2026-11-13")                 -> "13 de novembro de 2026"
+ *      formatarPeriodo("2026-11-13", "2026-11-15")   -> "13 a 15 de novembro de 2026"
+ *      formatarPeriodo("2026-11-30", "2026-12-02")   -> "30 de novembro a 02 de dezembro de 2026"
+ *      formatarPeriodo("2026-12-30", "2027-01-02")   -> "30 de dezembro de 2026 a 02 de janeiro de 2027"
+ */
+export function formatarPeriodo(inicio: string, fim?: string): string {
+  if (!fim || fim === inicio) return formatarData(inicio);
+
+  const [a1, m1, d1] = inicio.split("-").map(Number);
+  const [a2, m2, d2] = fim.split("-").map(Number);
+  if (!a1 || !m1 || !d1 || !a2 || !m2 || !d2) return formatarData(inicio);
+
+  const dd = (n: number) => String(n).padStart(2, "0");
+  const mes = (a: number, m: number) =>
+    new Date(a, m - 1, 1).toLocaleDateString("pt-BR", { month: "long" });
+
+  if (a1 === a2 && m1 === m2) {
+    return `${dd(d1)} a ${dd(d2)} de ${mes(a1, m1)} de ${a1}`;
+  }
+  if (a1 === a2) {
+    return `${dd(d1)} de ${mes(a1, m1)} a ${dd(d2)} de ${mes(a2, m2)} de ${a1}`;
+  }
+  return `${formatarData(inicio)} a ${formatarData(fim)}`;
+}
+
+/**
  * Converte o NOME de uma categoria em um slug estável para uso em URLs da área
  * de organização (`/campeonatos/[id]/organizar/[categoria]`).
  *

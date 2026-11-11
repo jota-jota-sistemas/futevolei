@@ -1,11 +1,14 @@
 ---
-// Barra de busca: filtros de Cidade, Período (presets) e Categoria.
+// Barra de busca: filtros de Cidade, Período (presets), Nível e Gênero.
 //
 // - Cidade: <select> alimentado por cidades normalizadas (cidadeDoLocal) com
 //   contagem — lista curta e compreensível, no lugar das 33 arenas/locais.
 // - Período: chips de preset ("Este mês", "Próximo mês" e um por mês com
 //   eventos). O chip ativo grava seu valor no input hidden [data-filtro="preset"].
-// - Categoria: <select> com contagem por opção ("Open (1)").
+// - Nível: <select> com contagem de eventos por opção ("Iniciante (38)").
+// - Gênero: chips de seleção única (Masculino / Feminino / Misto), gravados no
+//   input hidden [data-filtro="genero"]. Nível e Gênero vêm da classificação
+//   das categorias em utils/categorias.ts e casam na MESMA categoria do evento.
 //
 // A filtragem é disparada no clique de "Buscar eventos" (data-buscar), lido
 // pelo script client-side. "Limpar filtros" (data-limpar) zera tudo.
@@ -13,11 +16,12 @@
 
 interface Props {
   cidades: { cidade: string; total: number }[];
-  categorias: { categoria: string; total: number }[];
+  niveis: { nivel: string; total: number }[];
+  generos: { genero: string; total: number }[];
   presetsMes: { valor: string; rotulo: string; total: number }[];
 }
 
-const { cidades = [], categorias = [], presetsMes = [] } = Astro.props;
+const { cidades = [], niveis = [], generos = [], presetsMes = [] } = Astro.props;
 
 // Presets relativos fixos + presets de mês derivados dos dados.
 const presets = [
@@ -66,16 +70,36 @@ const presets = [
     </div>
   </div>
 
-  <div class="busca__campo">
+  <div class="busca__campo busca__campo--categoria">
     <span class="busca__icone" aria-hidden="true">🏷️</span>
     <div class="busca__texto">
-      <label class="busca__rotulo" for="busca-categoria">Categoria</label>
-      <select class="busca__input" id="busca-categoria" data-filtro="categoria">
-        <option value="">Todas as categorias</option>
-        {categorias.map(({ categoria, total }) => (
-          <option value={categoria}>{categoria} ({total})</option>
+      <label class="busca__rotulo" for="busca-nivel">Nível</label>
+      <select class="busca__input" id="busca-nivel" data-filtro="nivel">
+        <option value="">Todos os níveis</option>
+        {niveis.map(({ nivel, total }) => (
+          <option value={nivel}>{nivel} ({total})</option>
         ))}
       </select>
+
+      <span class="busca__rotulo" id="busca-genero-rotulo">Gênero</span>
+      {/* Chips de gênero (seleção única, como os de período). O valor ativo é
+          gravado no input hidden abaixo, lido pelo filtro. */}
+      <div
+        class="busca__chips"
+        role="group"
+        aria-labelledby="busca-genero-rotulo"
+        data-generos
+      >
+        {generos.map(({ genero }) => (
+          <button
+            type="button"
+            class="busca__chip-periodo"
+            data-genero={genero}
+            aria-pressed="false"
+          >{genero}</button>
+        ))}
+      </div>
+      <input type="hidden" data-filtro="genero" value="" />
     </div>
   </div>
 
@@ -109,8 +133,9 @@ const presets = [
     border-bottom: 1px solid var(--cor-borda);
   }
 
-  /* O campo de período alinha o ícone ao topo (os chips quebram em linhas). */
-  .busca__campo--periodo {
+  /* Campos de várias linhas (período e nível/gênero) alinham o ícone ao topo. */
+  .busca__campo--periodo,
+  .busca__campo--categoria {
     align-items: flex-start;
   }
 
@@ -237,7 +262,8 @@ const presets = [
       border-right: 1px solid var(--cor-borda);
     }
 
-    .busca__campo--periodo {
+    .busca__campo--periodo,
+    .busca__campo--categoria {
       align-items: center;
     }
 

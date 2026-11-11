@@ -14,14 +14,16 @@ interface Props {
    * sem transformação. O Hero apenas encaminha para a SearchBar.
    */
   cidades?: { cidade: string; total: number }[];
-  categorias?: { categoria: string; total: number }[];
+  niveis?: { nivel: string; total: number }[];
+  generos?: { genero: string; total: number }[];
   presetsMes?: { valor: string; rotulo: string; total: number }[];
 }
 
 const {
   imagem,
   cidades = [],
-  categorias = [],
+  niveis = [],
+  generos = [],
   presetsMes = [],
 } = Astro.props;
 const bg = imagem ? comBase(imagem) : null;
@@ -42,7 +44,12 @@ const bg = imagem ? comBase(imagem) : null;
         Campeonatos, partidas e experiências de futevôlei em um só lugar.
       </p>
     </div>
-    <SearchBar cidades={cidades} categorias={categorias} presetsMes={presetsMes} />
+    <SearchBar
+      cidades={cidades}
+      niveis={niveis}
+      generos={generos}
+      presetsMes={presetsMes}
+    />
   </div>
 </section>
 

@@ -1,4 +1,10 @@
 import type { Campeonato } from "../types";
+import {
+  GENEROS,
+  NIVEIS,
+  categoriaCombina,
+  classificarCategoria,
+} from "./categorias";
 
 /**
  * Meses abreviados em pt-BR (três letras maiúsculas), indexados por mês-1.
@@ -59,6 +65,10 @@ export interface FiltrosEventos {
   dataAte?: string;
   /** categoria exata que o evento deve conter; "" = qualquer categoria */
   categoria?: string;
+  /** nível (ver utils/categorias); "" = qualquer nível */
+  nivel?: string;
+  /** gênero (ver utils/categorias); "" = qualquer gênero */
+  genero?: string;
 }
 
 /**
@@ -69,6 +79,9 @@ export interface FiltrosEventos {
  *   (quando ativo), que coincide com a ordem cronológica para `YYYY-MM-DD`.
  * - `categoria`: `c.categorias?.includes(filtros.categoria)` (quando ativo);
  *   evento sem `categorias` NÃO corresponde quando a categoria está ativa.
+ * - `nivel` / `genero`: o evento precisa ter ao menos UMA categoria que
+ *   satisfaça os dois ao mesmo tempo (ver `categoriaCombina`); evento sem
+ *   `categorias` não corresponde quando algum dos dois está ativo.
  *
  * Cada filtro vazio (`""`/`undefined`) é tratado como inativo e não restringe
  * o resultado (identidade naquela dimensão).
@@ -79,6 +92,10 @@ export function corresponde(c: Campeonato, filtros: FiltrosEventos): boolean {
   if (filtros.data && !(c.data >= filtros.data)) return false;
   if (filtros.dataAte && !(c.data <= filtros.dataAte)) return false;
   if (filtros.categoria && !c.categorias?.includes(filtros.categoria)) return false;
+  if (filtros.nivel || filtros.genero) {
+    const alguma = (c.categorias ?? []).some((cat) => categoriaCombina(cat, filtros));
+    if (!alguma) return false;
+  }
   return true;
 }
 
@@ -191,6 +208,47 @@ export function contagemCategorias(
   return [...cont.entries()]
     .map(([categoria, total]) => ({ categoria, total }))
     .sort((a, b) => a.categoria.localeCompare(b.categoria, "pt-BR"));
+}
+
+/**
+ * Conta, por valor de uma dimensão (nível ou gênero), QUANTOS EVENTOS têm ao
+ * menos uma categoria com aquele valor. Um evento conta uma vez por valor,
+ * mesmo com várias categorias iguais. Segue a ordem canônica `ordem` e omite
+ * valores sem nenhum evento.
+ */
+function contagemPorDimensao<T extends string>(
+  campeonatos: Campeonato[],
+  ordem: readonly T[],
+  extrair: (categoria: string) => T | null
+): { valor: T; total: number }[] {
+  const cont = new Map<T, number>();
+  for (const c of campeonatos) {
+    const valores = new Set<T>();
+    for (const categoria of c.categorias ?? []) {
+      const v = extrair(categoria);
+      if (v) valores.add(v);
+    }
+    for (const v of valores) cont.set(v, (cont.get(v) ?? 0) + 1);
+  }
+  return ordem.filter((v) => cont.has(v)).map((valor) => ({ valor, total: cont.get(valor)! }));
+}
+
+/** Opções do filtro de Nível, com o nº de eventos de cada uma. */
+export function contagemNiveis(
+  campeonatos: Campeonato[]
+): { nivel: string; total: number }[] {
+  return contagemPorDimensao(campeonatos, NIVEIS, (cat) => classificarCategoria(cat).nivel).map(
+    ({ valor, total }) => ({ nivel: valor, total })
+  );
+}
+
+/** Opções do filtro de Gênero, com o nº de eventos de cada uma. */
+export function contagemGeneros(
+  campeonatos: Campeonato[]
+): { genero: string; total: number }[] {
+  return contagemPorDimensao(campeonatos, GENEROS, (cat) => classificarCategoria(cat).genero).map(
+    ({ valor, total }) => ({ genero: valor, total })
+  );
 }
 
 /** Primeiro dia (YYYY-MM-01) de um mês ISO "YYYY-MM". */
