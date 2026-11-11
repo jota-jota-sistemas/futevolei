@@ -1,0 +1,296 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import PaginaTopo from "../../components/PaginaTopo.astro";
+import Cartao from "../../components/Cartao.astro";
+import JogadorForm from "../../components/JogadorForm.astro";
+import { comBase } from "../../utils/url";
+---
+
+<Layout
+  titulo="Perfil do jogador — Pingo Futevôlei"
+  descricao="Perfil de jogador de futevôlei."
+>
+  <PaginaTopo
+    titulo="Perfil do jogador"
+    voltarHref={comBase("/jogadores")}
+    voltarTexto="Voltar aos jogadores"
+  />
+
+  <div class="perfil">
+    <p class="perfil__estado" data-estado-perfil role="status">Carregando perfil…</p>
+
+    <div class="perfil__conteudo" data-perfil hidden>
+      <div class="perfil__coluna">
+        <Cartao titulo="Perfil" id="resumo">
+          <div class="resumo">
+            <span class="resumo__avatar" data-perfil-avatar aria-hidden="true"></span>
+            <div class="resumo__textos">
+              <p class="resumo__nome" data-perfil-nome></p>
+              <p class="resumo__apelido" data-perfil-apelido hidden></p>
+            </div>
+          </div>
+          <div class="pf-chips" data-perfil-chips></div>
+          <a
+            class="resumo__instagram"
+            data-perfil-instagram
+            href="#"
+            target="_blank"
+            rel="noopener noreferrer"
+            hidden
+          ></a>
+        </Cartao>
+
+        <Cartao titulo="Gerenciar" id="gerenciar">
+          <div class="gerenciar__acoes">
+            <button type="button" class="gerenciar__botao" data-arquivar>
+              Arquivar jogador
+            </button>
+            <button
+              type="button"
+              class="gerenciar__botao gerenciar__botao--perigo"
+              data-excluir
+            >
+              Excluir jogador
+            </button>
+          </div>
+
+          <div class="confirmacao" data-confirmacao-exclusao role="alert" hidden>
+            <p class="confirmacao__texto" data-confirmacao-texto></p>
+            <div class="confirmacao__acoes">
+              <button
+                type="button"
+                class="gerenciar__botao gerenciar__botao--perigo"
+                data-confirmar-exclusao
+              >
+                Excluir de vez
+              </button>
+              <button type="button" class="gerenciar__botao" data-cancelar-exclusao>
+                Cancelar
+              </button>
+            </div>
+          </div>
+
+          <p class="gerenciar__status" data-acoes-status role="status" aria-live="polite" hidden></p>
+        </Cartao>
+      </div>
+
+      <Cartao titulo="Editar dados" id="editar">
+        <JogadorForm prefixo="editar" rotuloEnvio="Salvar alterações" />
+      </Cartao>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  import { iniciarPerfil } from "../../scripts/jogador-perfil";
+  import { criarJogadorStoreBrowser } from "../../store/jogadorStore";
+
+  const id = new URLSearchParams(window.location.search).get("id");
+  void iniciarPerfil({ store: criarJogadorStoreBrowser(), id });
+</script>
+
+<style>
+  .perfil {
+    max-width: var(--largura-conteudo);
+    margin: 0 auto;
+    padding: 1.25rem 1rem 3rem;
+  }
+
+  .perfil__estado {
+    margin: 0;
+    padding: 2rem 0;
+    text-align: center;
+    color: var(--cor-texto-suave);
+  }
+
+  .perfil__conteudo {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 1.25rem;
+  }
+
+  .perfil__conteudo[hidden],
+  .resumo__instagram[hidden],
+  .confirmacao[hidden],
+  .gerenciar__status[hidden] {
+    display: none;
+  }
+
+  .perfil__coluna {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    min-width: 0;
+  }
+
+  /* ---- Resumo ---- */
+  .resumo {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .resumo__avatar {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 4.5rem;
+    height: 4.5rem;
+    border-radius: 50%;
+    background: var(--cor-destaque);
+    color: var(--cor-destaque-contraste);
+    font-size: 1.6rem;
+    font-weight: 800;
+  }
+
+  .resumo__textos {
+    min-width: 0;
+  }
+
+  .resumo__nome {
+    margin: 0;
+    font-size: 1.4rem;
+    font-weight: 800;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+
+  .resumo__apelido {
+    margin: 0.2rem 0 0;
+    font-style: italic;
+    color: var(--cor-texto-suave);
+  }
+
+  .resumo__instagram {
+    display: inline-flex;
+    align-items: center;
+    margin-top: 1rem;
+    padding: 0.55rem 1.1rem;
+    border: 1.5px solid var(--cor-escuro);
+    border-radius: 999px;
+    color: var(--cor-texto);
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+  }
+
+  .resumo__instagram:hover {
+    background: var(--cor-escuro);
+    color: var(--cor-texto-claro);
+  }
+
+  /* ---- Gerenciar ---- */
+  .gerenciar__acoes,
+  .confirmacao__acoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .gerenciar__botao {
+    padding: 0.65rem 1.2rem;
+    border: 1.5px solid var(--cor-escuro);
+    border-radius: 999px;
+    background: none;
+    color: var(--cor-texto);
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .gerenciar__botao:hover {
+    background: var(--cor-escuro);
+    color: var(--cor-texto-claro);
+  }
+
+  .gerenciar__botao--perigo {
+    border-color: var(--cor-erro);
+    color: var(--cor-erro);
+  }
+
+  .gerenciar__botao--perigo:hover {
+    background: var(--cor-erro);
+    color: #ffffff;
+  }
+
+  .gerenciar__botao[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .confirmacao {
+    margin-top: 1rem;
+    padding: 0.9rem 1rem;
+    border: 1.5px solid var(--cor-erro);
+    border-radius: 12px;
+  }
+
+  .confirmacao__texto {
+    margin: 0 0 0.8rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+
+  .gerenciar__status {
+    margin: 1rem 0 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--cor-destaque-texto);
+  }
+
+  .gerenciar__status[data-tipo="erro"] {
+    color: var(--cor-erro);
+  }
+
+  @media (min-width: 900px) {
+    .perfil {
+      padding: 2rem 1.5rem 4rem;
+    }
+
+    .perfil__conteudo {
+      grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+      gap: 1.5rem;
+    }
+  }
+</style>
+
+<!-- Chips criados em runtime pelo script: CSS global com prefixo `pf-`. -->
+<style is:global>
+  .pf-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 1rem;
+  }
+
+  .pf-chip {
+    padding: 0.4rem 0.7rem;
+    border-radius: 999px;
+    background: var(--cor-destaque-suave);
+    color: var(--cor-destaque-texto);
+    font-size: 0.8rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .pf-chip--arquivado {
+    background: var(--cor-borda);
+    color: var(--cor-texto);
+  }
+
+  .pf-retentar {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--cor-destaque-texto);
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+</style>

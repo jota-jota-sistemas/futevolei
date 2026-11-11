@@ -1,5 +1,6 @@
 ---
 import BrandLogo from "./BrandLogo.astro";
+import { comBase } from "../utils/url";
 ---
 
 <header class="header">
@@ -12,6 +13,7 @@ import BrandLogo from "./BrandLogo.astro";
         aria-disabled="true"
         title="Eventos (disponível em breve)">Eventos</a
       >
+      <a class="header__link" href={comBase("/jogadores")}>Jogadores</a>
       <a
         class="header__link placeholder"
         aria-disabled="true"

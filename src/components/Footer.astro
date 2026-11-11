@@ -1,5 +1,6 @@
 ---
 import BrandLogo from "./BrandLogo.astro";
+import { comBase } from "../utils/url";
 ---
 
 <footer class="footer">
@@ -10,6 +11,7 @@ import BrandLogo from "./BrandLogo.astro";
     </div>
 
     <nav class="footer__links" aria-label="Links do rodapé">
+      <a class="footer__link" href={comBase("/jogadores")}>Jogadores</a>
       <a
         class="footer__link placeholder"
         aria-disabled="true"

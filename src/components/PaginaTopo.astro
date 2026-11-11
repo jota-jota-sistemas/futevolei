@@ -1,0 +1,102 @@
+---
+// Faixa de topo de páginas internas: mesma família visual do hero/header
+// (azul-marinho com brilho turquesa), com link de voltar, título em itálico e
+// um slot opcional "acoes" para botões.
+import { comBase } from "../utils/url";
+
+interface Props {
+  titulo: string;
+  subtitulo?: string;
+  voltarHref?: string;
+  voltarTexto?: string;
+}
+
+const {
+  titulo,
+  subtitulo,
+  voltarHref = comBase("/"),
+  voltarTexto = "Voltar aos eventos",
+} = Astro.props;
+---
+
+<header class="topo">
+  <div class="topo__conteudo">
+    <a class="topo__voltar" href={voltarHref}>
+      <span aria-hidden="true">←</span> {voltarTexto}
+    </a>
+
+    <div class="topo__linha">
+      <div class="topo__titulos">
+        <h1 class="topo__titulo">{titulo}</h1>
+        {subtitulo && <p class="topo__subtitulo">{subtitulo}</p>}
+      </div>
+      <div class="topo__acoes"><slot name="acoes" /></div>
+    </div>
+  </div>
+</header>
+
+<style>
+  .topo {
+    background:
+      radial-gradient(circle at 88% 0%, rgba(0, 184, 169, 0.22), transparent 55%),
+      linear-gradient(135deg, var(--cor-escuro) 0%, var(--cor-escuro-2) 100%);
+    border-bottom: 1px solid var(--cor-borda-escura);
+  }
+
+  .topo__conteudo {
+    max-width: var(--largura-conteudo);
+    margin: 0 auto;
+    padding: 1.25rem 1rem 1.75rem;
+  }
+
+  .topo__voltar {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--cor-texto-claro-suave);
+    text-decoration: none;
+  }
+
+  .topo__voltar:hover {
+    color: var(--cor-texto-claro);
+  }
+
+  .topo__linha {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 1.25rem;
+  }
+
+  .topo__titulos {
+    min-width: 0;
+  }
+
+  .topo__titulo {
+    margin: 0;
+    font-size: clamp(1.8rem, 5.5vw, 2.6rem);
+    line-height: 1.1;
+    font-weight: 800;
+    font-style: italic;
+    letter-spacing: -0.02em;
+    color: var(--cor-texto-claro);
+    overflow-wrap: anywhere;
+  }
+
+  .topo__subtitulo {
+    margin: 0.6rem 0 0;
+    font-size: 1rem;
+    color: var(--cor-texto-claro-suave);
+    max-width: 52ch;
+  }
+
+  @media (min-width: 900px) {
+    .topo__conteudo {
+      padding: 1.75rem 1.5rem 2.5rem;
+    }
+  }
+</style>

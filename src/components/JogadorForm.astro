@@ -1,0 +1,265 @@
+---
+// Formulário de jogador, reutilizado no cadastro (lista) e na edição (perfil).
+// Só markup e estilo: a leitura, validação e o envio são feitos pelos scripts
+// (scripts/jogador-form.ts, jogadores-lista.ts e jogador-perfil.ts) por meio
+// dos atributos data-*. `novalidate`: as mensagens vêm do domínio, em pt-BR.
+import { UFS_BRASIL } from "../domain/jogadores/validation";
+
+interface Props {
+  /** Prefixo dos ids (evita colisão se houver mais de um formulário na página). */
+  prefixo: string;
+  rotuloEnvio: string;
+}
+
+const { prefixo, rotuloEnvio } = Astro.props;
+---
+
+<form class="jf" data-jogador-form novalidate>
+  <div class="jf__grade">
+    <div class="jf__campo jf__campo--cheio">
+      <label for={`${prefixo}-nome`}>Nome <span class="jf__obrig" aria-hidden="true">*</span></label>
+      <input
+        id={`${prefixo}-nome`}
+        name="nome"
+        type="text"
+        maxlength="80"
+        autocomplete="off"
+        required
+        aria-describedby={`${prefixo}-nome-erro`}
+      />
+      <p class="jf__erro" id={`${prefixo}-nome-erro`} data-erro="nome" hidden></p>
+    </div>
+
+    <div class="jf__campo">
+      <label for={`${prefixo}-apelido`}>Apelido</label>
+      <input
+        id={`${prefixo}-apelido`}
+        name="apelido"
+        type="text"
+        maxlength="40"
+        autocomplete="off"
+        aria-describedby={`${prefixo}-apelido-erro`}
+      />
+      <p class="jf__erro" id={`${prefixo}-apelido-erro`} data-erro="apelido" hidden></p>
+    </div>
+
+    <div class="jf__campo">
+      <label for={`${prefixo}-genero`}>Gênero</label>
+      <select
+        id={`${prefixo}-genero`}
+        name="genero"
+        aria-describedby={`${prefixo}-genero-erro`}
+      >
+        <option value="">Não informar</option>
+        <option value="masculino">Masculino</option>
+        <option value="feminino">Feminino</option>
+      </select>
+      <p class="jf__erro" id={`${prefixo}-genero-erro`} data-erro="genero" hidden></p>
+    </div>
+
+    <div class="jf__campo">
+      <label for={`${prefixo}-cidade`}>Cidade</label>
+      <input
+        id={`${prefixo}-cidade`}
+        name="cidade"
+        type="text"
+        maxlength="80"
+        autocomplete="off"
+        aria-describedby={`${prefixo}-cidade-erro`}
+      />
+      <p class="jf__erro" id={`${prefixo}-cidade-erro`} data-erro="cidade" hidden></p>
+    </div>
+
+    <div class="jf__campo">
+      <label for={`${prefixo}-uf`}>UF</label>
+      <select id={`${prefixo}-uf`} name="uf" aria-describedby={`${prefixo}-uf-erro`}>
+        <option value="">—</option>
+        {UFS_BRASIL.map((uf) => <option value={uf}>{uf}</option>)}
+      </select>
+      <p class="jf__erro" id={`${prefixo}-uf-erro`} data-erro="uf" hidden></p>
+    </div>
+
+    <div class="jf__campo jf__campo--cheio">
+      <label for={`${prefixo}-instagram`}>Instagram</label>
+      <input
+        id={`${prefixo}-instagram`}
+        name="instagram"
+        type="text"
+        maxlength="120"
+        autocomplete="off"
+        placeholder="@usuario"
+        aria-describedby={`${prefixo}-instagram-ajuda ${prefixo}-instagram-erro`}
+      />
+      <p class="jf__ajuda" id={`${prefixo}-instagram-ajuda`}>
+        Aceita @usuario ou o link do perfil.
+      </p>
+      <p class="jf__erro" id={`${prefixo}-instagram-erro`} data-erro="instagram" hidden></p>
+    </div>
+  </div>
+
+  {/* Aviso de homônimo: não é erro. O script preenche a lista e o usuário
+      decide entre continuar ou revisar. */}
+  <div class="jf__homonimos" data-homonimos role="alert" hidden>
+    <p class="jf__homonimos-texto" data-homonimos-texto></p>
+    <ul class="jf__homonimos-lista" data-homonimos-lista></ul>
+    <div class="jf__homonimos-acoes">
+      <button type="button" class="btn-destaque" data-confirmar-homonimo>
+        Salvar mesmo assim
+      </button>
+      <button type="button" class="jf__secundario" data-cancelar-homonimo>
+        Revisar
+      </button>
+    </div>
+  </div>
+
+  <p class="jf__status" data-status role="status" aria-live="polite" hidden></p>
+
+  <div class="jf__acoes">
+    <button type="submit" class="btn-destaque" data-enviar>{rotuloEnvio}</button>
+    <slot />
+  </div>
+</form>
+
+<style>
+  .jf {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .jf__grade {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.9rem;
+  }
+
+  .jf__campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 0;
+  }
+
+  .jf__campo label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--cor-texto);
+  }
+
+  .jf__obrig {
+    color: var(--cor-erro);
+  }
+
+  /* Borda escura o bastante para o contorno do campo ter contraste de interface (>= 3:1). */
+  .jf__campo input,
+  .jf__campo select {
+    width: 100%;
+    padding: 0.65rem 0.8rem;
+    border: 1px solid var(--cor-texto-suave);
+    border-radius: 12px;
+    background: var(--cor-superficie);
+    color: var(--cor-texto);
+    font-family: inherit;
+    font-size: 1rem; /* 16px evita o zoom automático do iOS ao focar */
+  }
+
+  .jf__campo input[aria-invalid="true"],
+  .jf__campo select[aria-invalid="true"] {
+    border-color: var(--cor-erro);
+    border-width: 2px;
+  }
+
+  .jf__ajuda {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--cor-texto-suave);
+  }
+
+  .jf__erro {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--cor-erro);
+  }
+
+  .jf__homonimos {
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--cor-destaque);
+    border-radius: 12px;
+    background: var(--cor-destaque-suave);
+    color: var(--cor-texto);
+  }
+
+  .jf__homonimos-texto {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+
+  .jf__homonimos-lista {
+    margin: 0.5rem 0 0;
+    padding-left: 1.2rem;
+    font-size: 0.95rem;
+  }
+
+  /* Os links são criados em runtime pelo script, por isso :global. */
+  .jf__homonimos-lista :global(a) {
+    color: var(--cor-destaque-texto);
+    font-weight: 700;
+  }
+
+  .jf__homonimos-acoes,
+  .jf__acoes {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .jf__homonimos-acoes {
+    margin-top: 0.8rem;
+  }
+
+  .jf__status {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--cor-destaque-texto);
+  }
+
+  .jf__status[data-tipo="erro"] {
+    color: var(--cor-erro);
+  }
+
+  .jf__secundario {
+    padding: 0.7rem 1.3rem;
+    border: 1.5px solid var(--cor-escuro);
+    border-radius: 999px;
+    background: none;
+    color: var(--cor-texto);
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .jf__secundario:hover {
+    background: var(--cor-escuro);
+    color: var(--cor-texto-claro);
+  }
+
+  .jf button[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  @media (min-width: 560px) {
+    .jf__grade {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .jf__campo--cheio {
+      grid-column: 1 / -1;
+    }
+  }
+</style>
