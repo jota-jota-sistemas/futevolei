@@ -327,6 +327,7 @@ const { campeonato, categoriaNome } = Astro.props;
   import { rotuloDupla, gerarNomeDupla } from "../../../../domain/pairs/nome";
   import { registrarPlacar } from "../../../../domain/bracket/progression";
   import { numerarJogos } from "../../../../domain/bracket/ordenacao";
+  import { jogosAlterados } from "../../../../domain/bracket/diff";
   import { selecionarClassificados } from "../../../../domain/bracket/standings";
 
   // --------------------------------------------------------------------
@@ -405,6 +406,10 @@ const { campeonato, categoriaNome } = Astro.props;
     // Estado em memória
     duplas: Pair[];
     bracket: Bracket | null;
+    // Gravações de placar em andamento; enquanto houver, não relê o chaveamento
+    // (evita sobrescrever a tela com dados ainda não gravados).
+    salvando: number;
+    recarregarDepois: boolean;
   }
 
   // --------------------------------------------------------------------
@@ -470,10 +475,19 @@ const { campeonato, categoriaNome } = Astro.props;
       status: q<HTMLElement>(secao, "[data-status]"),
       duplas: [],
       bracket: null,
+      salvando: 0,
+      recarregarDepois: false,
     };
 
     // Carrega o estado inicial (duplas + chaveamento) antes de exibir a UI.
     await carregarEstado(ctx);
+
+    // Tempo real: placares lançados por outras pessoas aparecem sem recarregar.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    void store.assinarMudancas(ctx.ref, () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => void recarregarChaveamento(ctx), 300);
+    });
 
     // Liga os handlers e revela o conteúdo.
     ligarHandlers(ctx);
@@ -487,7 +501,11 @@ const { campeonato, categoriaNome } = Astro.props;
   async function carregarEstado(ctx: Ctx): Promise<void> {
     limparErro(ctx.status);
 
-    const duplasRes = await ctx.store.listarDuplas(ctx.ref);
+    // Duplas e chaveamento são independentes: lê os dois em paralelo.
+    const [duplasRes, brRes] = await Promise.all([
+      ctx.store.listarDuplas(ctx.ref),
+      ctx.store.carregarChaveamento(ctx.ref),
+    ]);
     if (duplasRes.ok) {
       ctx.duplas = duplasRes.valor;
     } else {
@@ -495,7 +513,6 @@ const { campeonato, categoriaNome } = Astro.props;
       setTexto(ctx.status, mensagemErro(duplasRes.erro));
     }
 
-    const brRes = await ctx.store.carregarChaveamento(ctx.ref);
     if (brRes.ok) {
       ctx.bracket = brRes.valor;
     } else {
@@ -504,6 +521,25 @@ const { campeonato, categoriaNome } = Astro.props;
     }
 
     renderTudo(ctx);
+  }
+
+  /**
+   * Relê só o chaveamento (sem mexer em duplas/nivelador, que podem ter edição
+   * em andamento) e redesenha, preservando placares digitados e ainda não salvos.
+   */
+  async function recarregarChaveamento(ctx: Ctx): Promise<void> {
+    if (ctx.salvando > 0) {
+      ctx.recarregarDepois = true;
+      return;
+    }
+    const res = await ctx.store.carregarChaveamento(ctx.ref);
+    if (!res.ok || ctx.salvando > 0) {
+      if (ctx.salvando > 0) ctx.recarregarDepois = true;
+      return;
+    }
+    ctx.bracket = res.valor;
+    renderBracket(ctx);
+    renderBotaoMataMata(ctx);
   }
 
   function renderTudo(ctx: Ctx): void {
@@ -1051,13 +1087,33 @@ const { campeonato, categoriaNome } = Astro.props;
     // próxima rodada do mata-mata cujas duplas acabaram de ser definidas). Os
     // já numerados permanecem estáveis.
     const numerado = numerarJogos(res.bracket);
-    const salvo = await ctx.store.salvarChaveamento(ctx.ref, numerado);
+    const alterados = jogosAlterados(bracket, numerado);
+    if (alterados.length === 0) return;
+
+    // Atualização otimista: mostra o placar na hora e grava só os jogos que
+    // mudaram (uma ida ao banco), sem reler o chaveamento inteiro.
+    ctx.bracket = numerado;
+    renderBracket(ctx);
+    renderBotaoMataMata(ctx);
+    setTexto(ctx.status, "Salvando placar…");
+
+    ctx.salvando += 1;
+    const salvo = await ctx.store.salvarJogos(ctx.ref, alterados, numerado.campeaId);
+    ctx.salvando -= 1;
+    const reler = ctx.salvando === 0 && ctx.recarregarDepois;
+    if (reler) ctx.recarregarDepois = false;
     if (!salvo.ok) {
+      // Falhou: volta ao estado anterior para a tela não mostrar algo não salvo.
+      ctx.bracket = bracket;
+      renderBracket(ctx);
+      renderBotaoMataMata(ctx);
       setTexto(ctx.status, mensagemErro(salvo.erro));
+      if (reler) void recarregarChaveamento(ctx);
       return;
     }
     setTexto(ctx.status, "Placar registrado.");
-    await carregarEstado(ctx);
+    // Chegou evento de outra pessoa durante a gravação: relê agora.
+    if (reler) void recarregarChaveamento(ctx);
   }
 
   // --------------------------------------------------------------------
@@ -1075,6 +1131,19 @@ const { campeonato, categoriaNome } = Astro.props;
       return;
     }
 
+    // Rascunhos: placares digitados e ainda não salvos (valor diferente do
+    // exibido). Reaplicados após o redesenho se o placar salvo daquele campo
+    // não mudou nesse meio tempo.
+    const rascunhos = new Map<string, { base: string; valor: string }>();
+    slot.querySelectorAll<HTMLInputElement>(".match-card__placar-input").forEach((i) => {
+      if (i.value !== i.defaultValue) {
+        rascunhos.set(`${i.dataset.matchId}|${i.dataset.lado}`, {
+          base: i.defaultValue,
+          valor: i.value,
+        });
+      }
+    });
+
     try {
       // O organizador informa o placar; o vencedor é o maior número (sem
       // empate). Validação, avanço e cascata ficam em `registrarResultado`.
@@ -1084,6 +1153,10 @@ const { campeonato, categoriaNome } = Astro.props;
         },
       });
       slot.replaceChildren(view);
+      view.querySelectorAll<HTMLInputElement>(".match-card__placar-input").forEach((i) => {
+        const r = rascunhos.get(`${i.dataset.matchId}|${i.dataset.lado}`);
+        if (r && r.base === i.defaultValue) i.value = r.valor;
+      });
     } catch {
       const err = document.createElement("p");
       err.className = "org__indisponivel";

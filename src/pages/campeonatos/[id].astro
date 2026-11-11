@@ -259,6 +259,19 @@ const INDISPONIVEL = "Chaveamento ainda não disponível";
       // 3) Renderiza o chaveamento desta categoria e substitui o placeholder.
       const view = renderBracketClient(resultado.valor);
       slot.replaceChildren(view);
+
+      // 4) Tempo real: quando alguém registra um placar, relê e redesenha.
+      //    Os eventos vêm em rajada (vários jogos de uma vez), então agrupa.
+      const ref = { campeonatoId, categoriaId };
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      void store.assinarMudancas(ref, () => {
+        clearTimeout(timer);
+        timer = setTimeout(async () => {
+          const novo = await store.carregarChaveamento(ref);
+          if (!novo.ok || novo.valor === null) return;
+          slot.replaceChildren(renderBracketClient(novo.valor));
+        }, 300);
+      });
     } catch {
       // Qualquer exceção inesperada nesta categoria é contida aqui: o
       // placeholder genérico permanece e as outras categorias seguem (R8.7).

@@ -25,6 +25,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Bracket,
   BracketConfig,
+  Match,
   Pair,
   PairId,
 } from "../domain/bracket/types";
@@ -40,6 +41,7 @@ import {
   bracketParaLinhas,
   duplaRowParaPair,
   linhasParaBracket,
+  matchParaJogoRow,
   type ChaveamentoLinhas,
   type ChaveamentoRow,
   type DuplaRow,
@@ -83,6 +85,23 @@ export interface BracketStore {
   // Chaveamento (R7)
   salvarChaveamento(ref: CategoryRef, bracket: Bracket): Promise<Result<void>>; // upsert/sobrescreve (R7.1)
   carregarChaveamento(ref: CategoryRef): Promise<Result<Bracket | null>>; // null => estado vazio (R7.4)
+  /**
+   * Grava SÓ os jogos informados (upsert em lote, sem apagar nada) e a campeã.
+   * Caminho rápido para registrar placar: uma ida ao banco para os jogos, em
+   * paralelo com a atualização do chaveamento. O chaveamento já deve existir.
+   */
+  salvarJogos(
+    ref: CategoryRef,
+    jogos: ReadonlyArray<Match>,
+    campeaId: PairId | null,
+  ): Promise<Result<void>>;
+  /**
+   * Assina, via Supabase Realtime, as mudanças do chaveamento da categoria
+   * (jogos e linha do chaveamento). `aoMudar` é chamado a cada evento; quem
+   * chama decide como recarregar. Devolve a função que cancela a assinatura.
+   * Falhas de conexão não lançam: a tela segue funcionando sem tempo real.
+   */
+  assinarMudancas(ref: CategoryRef, aoMudar: () => void): Promise<() => void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -160,6 +179,9 @@ export function criarBracketStoreBrowser(
     }
     return clienteCache;
   }
+
+  // id da linha `chaveamentos` por categoria, aprendido ao salvar/carregar.
+  const chaveamentoIdPorCategoria = new Map<string, string>();
 
   return {
     // -----------------------------------------------------------------------
@@ -369,6 +391,7 @@ export function criarBracketStoreBrowser(
         if (chavErr || !chavData) return erroPersistencia();
 
         const chaveamentoId: string = chavData.id;
+        chaveamentoIdPorCategoria.set(ref.categoriaId, chaveamentoId);
 
         // 2) Limpa o conteúdo anterior deste chaveamento (sobrescrita, R7.1).
         //    `jogos` antes de `grupos` (FK jogos.grupo_id); `grupo_duplas` cai
@@ -412,6 +435,104 @@ export function criarBracketStoreBrowser(
     },
 
     // -----------------------------------------------------------------------
+    // Caminho rápido: grava só os jogos alterados + campeã
+    // -----------------------------------------------------------------------
+    async salvarJogos(
+      ref: CategoryRef,
+      jogos: ReadonlyArray<Match>,
+      campeaId: PairId | null,
+    ): Promise<Result<void>> {
+      const client = await obterClient();
+      try {
+        let chaveamentoId = chaveamentoIdPorCategoria.get(ref.categoriaId);
+        if (chaveamentoId === undefined) {
+          const { data, error } = await client
+            .from("chaveamentos")
+            .select("id")
+            .eq("categoria_id", ref.categoriaId)
+            .maybeSingle();
+          if (error || !data) return erroPersistencia();
+          chaveamentoId = (data as { id: string }).id;
+          chaveamentoIdPorCategoria.set(ref.categoriaId, chaveamentoId);
+        }
+
+        const linhas = jogos.map((m) => matchParaJogoRow(m, chaveamentoId as string));
+        const [resJogos, resChav] = await Promise.all([
+          linhas.length > 0
+            ? client.from("jogos").upsert(linhas, { onConflict: "id" })
+            : Promise.resolve({ error: null }),
+          client
+            .from("chaveamentos")
+            .update({ campea_id: campeaId, atualizado_em: agoraISO() })
+            .eq("id", chaveamentoId),
+        ]);
+        if (resJogos.error || resChav.error) return erroPersistencia();
+      } catch {
+        return erroPersistencia();
+      }
+      return { ok: true, valor: undefined };
+    },
+
+    // -----------------------------------------------------------------------
+    // Tempo real: avisa quando jogos/chaveamento da categoria mudam
+    // -----------------------------------------------------------------------
+    async assinarMudancas(
+      ref: CategoryRef,
+      aoMudar: () => void,
+    ): Promise<() => void> {
+      try {
+        const client = await obterClient();
+
+        let chaveamentoId = chaveamentoIdPorCategoria.get(ref.categoriaId);
+        if (chaveamentoId === undefined) {
+          const { data } = await client
+            .from("chaveamentos")
+            .select("id")
+            .eq("categoria_id", ref.categoriaId)
+            .maybeSingle();
+          if (data) {
+            chaveamentoId = (data as { id: string }).id;
+            chaveamentoIdPorCategoria.set(ref.categoriaId, chaveamentoId);
+          }
+        }
+
+        let canal = client
+          .channel(`chaveamento-${ref.categoriaId}-${novoId()}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "chaveamentos",
+              filter: `categoria_id=eq.${ref.categoriaId}`,
+            },
+            () => aoMudar(),
+          );
+        // Os jogos só podem ser filtrados quando o chaveamento já existe; se
+        // ele for criado depois, o evento em `chaveamentos` avisa a tela.
+        if (chaveamentoId !== undefined) {
+          canal = canal.on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "jogos",
+              filter: `chaveamento_id=eq.${chaveamentoId}`,
+            },
+            () => aoMudar(),
+          );
+        }
+        canal.subscribe();
+
+        return () => {
+          void client.removeChannel(canal);
+        };
+      } catch {
+        return () => {};
+      }
+    },
+
+    // -----------------------------------------------------------------------
     // R7.3 / R7.4 / R7.6: carregar chaveamento (null quando não existe)
     // -----------------------------------------------------------------------
     async carregarChaveamento(
@@ -431,22 +552,20 @@ export function criarBracketStoreBrowser(
         const chaveamento = chav as ChaveamentoRow;
         const chaveamentoId: string = chaveamento.id;
 
-        // 2) Duplas da categoria (snapshot usado na reconstrução).
-        const duplasResp = await client
-          .from("duplas")
-          .select("*")
-          .eq("categoria_id", ref.categoriaId);
-        if (duplasResp.error) return erroLeitura();
+        chaveamentoIdPorCategoria.set(ref.categoriaId, chaveamentoId);
 
-        // 3) Grupos do chaveamento.
-        const gruposResp = await client
-          .from("grupos")
-          .select("*")
-          .eq("chaveamento_id", chaveamentoId);
-        if (gruposResp.error) return erroLeitura();
+        // 2) Duplas, grupos e jogos são independentes entre si: busca em paralelo.
+        const [duplasResp, gruposResp, jogosResp] = await Promise.all([
+          client.from("duplas").select("*").eq("categoria_id", ref.categoriaId),
+          client.from("grupos").select("*").eq("chaveamento_id", chaveamentoId),
+          client.from("jogos").select("*").eq("chaveamento_id", chaveamentoId),
+        ]);
+        if (duplasResp.error || gruposResp.error || jogosResp.error) {
+          return erroLeitura();
+        }
         const grupos = (gruposResp.data ?? []) as GrupoRow[];
 
-        // 4) Associações grupo ↔ dupla (filtradas pelos grupos deste chaveamento).
+        // 3) Associações grupo ↔ dupla (dependem dos grupos acima).
         let grupoDuplas: GrupoDuplaRow[] = [];
         if (grupos.length > 0) {
           const gdResp = await client
@@ -459,13 +578,6 @@ export function criarBracketStoreBrowser(
           if (gdResp.error) return erroLeitura();
           grupoDuplas = (gdResp.data ?? []) as GrupoDuplaRow[];
         }
-
-        // 5) Jogos do chaveamento.
-        const jogosResp = await client
-          .from("jogos")
-          .select("*")
-          .eq("chaveamento_id", chaveamentoId);
-        if (jogosResp.error) return erroLeitura();
 
         const linhas: ChaveamentoLinhas = {
           chaveamento,
