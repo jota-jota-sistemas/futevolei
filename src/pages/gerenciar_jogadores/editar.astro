@@ -1,0 +1,41 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import PaginaTopo from "../../components/PaginaTopo.astro";
+import JogadorPerfil from "../../components/JogadorPerfil.astro";
+import { comBase } from "../../utils/url";
+
+// Edição de UM jogador (?id=…) na área de gerenciamento: editar dados, arquivar
+// ou reativar e excluir. Mesma observação de acesso de /gerenciar_jogadores:
+// sem link no site e SEM controle de acesso real até existir login.
+---
+
+<Layout
+  titulo="Editar jogador — Pingo Futevôlei"
+  descricao="Área de gerenciamento de jogadores."
+  noindex
+>
+  <PaginaTopo
+    titulo="Editar jogador"
+    voltarHref={comBase("/gerenciar_jogadores")}
+    voltarTexto="Voltar ao gerenciamento"
+  />
+
+  <JogadorPerfil gerenciar />
+</Layout>
+
+<script>
+  import { iniciarPerfil } from "../../scripts/jogador-perfil";
+  import { lerEventosComDetalhe } from "../../scripts/eventos-detalhe";
+  import { criarJogadorStoreBrowser } from "../../store/jogadorStore";
+  import { hrefGerenciarJogador, irParaGerenciar } from "../../scripts/rotas-gerenciar";
+
+  void iniciarPerfil({
+    store: criarJogadorStoreBrowser(),
+    id: new URLSearchParams(window.location.search).get("id"),
+    gerenciar: true,
+    hrefPerfil: hrefGerenciarJogador,
+    eventosComDetalhe: lerEventosComDetalhe(),
+    // Depois de excluir de vez, volta para a lista de GERENCIAMENTO.
+    irParaLista: irParaGerenciar,
+  });
+</script>

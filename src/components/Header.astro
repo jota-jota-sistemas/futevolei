@@ -1,80 +1,32 @@
 ---
 import BrandLogo from "./BrandLogo.astro";
 import { comBase } from "../utils/url";
+import { ITENS_MENU, itemAtivo } from "../utils/menu";
+
+const base = import.meta.env.BASE_URL || "/";
+const caminho = Astro.url.pathname;
 ---
 
 <header class="header">
   <div class="header__conteudo">
     <BrandLogo variante="escuro" comLink={true} />
 
+    {/* O menu fica na própria barra do topo em qualquer largura. Com poucos
+        itens não precisa de hambúrguer (nem de JavaScript); se a lista crescer,
+        é aqui que um menu recolhível entraria. */}
     <nav class="header__nav" aria-label="Navegação principal">
-      <a
-        class="header__link placeholder"
-        aria-disabled="true"
-        title="Eventos (disponível em breve)">Eventos</a
-      >
-      <a class="header__link" href={comBase("/jogadores")}>Jogadores</a>
-      <a
-        class="header__link placeholder"
-        aria-disabled="true"
-        title="Como funciona (disponível em breve)">Como funciona</a
-      >
-      <a
-        class="header__link placeholder"
-        aria-disabled="true"
-        title="Para organizadores (disponível em breve)">Para organizadores</a
-      >
+      {
+        ITENS_MENU.map((item) => (
+          <a
+            class="header__link"
+            href={comBase(item.href)}
+            aria-current={itemAtivo(item, caminho, base) ? "page" : undefined}
+          >
+            {item.rotulo}
+          </a>
+        ))
+      }
     </nav>
-
-    <div class="header__acoes">
-      <button
-        class="header__menu placeholder"
-        type="button"
-        disabled
-        aria-label="Abrir menu (disponível em breve)"
-        title="Abrir menu (disponível em breve)"
-      >
-        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
-          <path
-            d="M4 7h16M4 12h16M4 17h16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"></path>
-        </svg>
-      </button>
-      <button
-        class="btn-destaque header__criar placeholder"
-        type="button"
-        disabled
-        title="Criar evento (disponível em breve)"
-      >
-        <span aria-hidden="true">+</span> Criar evento
-      </button>
-      <button
-        class="header__conta placeholder"
-        type="button"
-        disabled
-        aria-label="Minha conta (disponível em breve)"
-        title="Minha conta (disponível em breve)"
-      >
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-          <circle
-            cx="12"
-            cy="8"
-            r="4"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"></circle>
-          <path
-            d="M4 20c0-4 4-6 8-6s8 2 8 6"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"></path>
-        </svg>
-      </button>
-    </div>
   </div>
 </header>
 
@@ -93,63 +45,69 @@ import { comBase } from "../utils/url";
     padding: 0.75rem 1rem;
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.75rem;
   }
 
-  /* ---- Base: mobile ---- */
-  /* Nav colapsada; mostra só o logo e o botão de menu. */
+  /* ---- Base: mobile. Logo à esquerda, menu à direita, na mesma linha. ---- */
   .header__nav {
-    display: none;
-    align-items: center;
-    gap: 1.5rem;
-    flex: 1;
-  }
-
-  .header__link {
-    color: var(--cor-texto-claro);
-    text-decoration: none;
-    font-size: 0.95rem;
-    font-weight: 500;
-    position: relative;
-  }
-
-  .header__acoes {
     display: flex;
     align-items: center;
     gap: 0.75rem;
     margin-left: auto;
+    min-width: 0;
   }
 
-  /* No mobile, apenas o menu hambúrguer aparece nas ações. */
-  .header__menu {
+  .header__link {
+    position: relative;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
-    border: 1px solid var(--cor-borda-escura);
-    background: var(--cor-escuro-2);
+    min-height: 44px; /* alvo de toque confortável */
+    padding: 0 0.15rem;
+    color: var(--cor-texto-claro-suave);
+    text-decoration: none;
+    font-size: 0.95rem;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .header__link:hover {
     color: var(--cor-texto-claro);
   }
 
-  .header__criar {
-    display: none;
-  }
-
-  .header__conta {
-    display: none;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    border-radius: 999px;
-    border: 1px solid var(--cor-borda-escura);
-    background: var(--cor-escuro-2);
+  /* Página atual: texto claro, mais forte e sublinhado turquesa. */
+  .header__link[aria-current="page"] {
     color: var(--cor-texto-claro);
+    font-weight: 700;
   }
 
-  /* ---- A partir de 768px: nav e ações completas ---- */
+  .header__link[aria-current="page"]::after {
+    content: "";
+    position: absolute;
+    left: 0.15rem;
+    right: 0.15rem;
+    bottom: 0.45rem;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--cor-destaque);
+  }
+
+  /* Telas muito estreitas (ex.: 320px): aperta um pouco para tudo caber. */
+  @media (max-width: 359px) {
+    .header__conteudo {
+      padding: 0.75rem 0.75rem;
+      gap: 0.5rem;
+    }
+
+    .header__nav {
+      gap: 0.5rem;
+    }
+
+    .header__link {
+      font-size: 0.9rem;
+    }
+  }
+
+  /* ---- A partir de 768px: menu ao lado do logo ---- */
   @media (min-width: 768px) {
     .header__conteudo {
       padding: 0.85rem 1.5rem;
@@ -157,23 +115,18 @@ import { comBase } from "../utils/url";
     }
 
     .header__nav {
-      display: flex;
+      flex: 1;
+      margin-left: 0;
+      gap: 1.5rem;
     }
 
-    .header__acoes {
-      gap: 1rem;
+    .header__link {
+      padding: 0;
     }
 
-    .header__menu {
-      display: none;
-    }
-
-    .header__criar {
-      display: inline-flex;
-    }
-
-    .header__conta {
-      display: inline-flex;
+    .header__link[aria-current="page"]::after {
+      left: 0;
+      right: 0;
     }
   }
 </style>

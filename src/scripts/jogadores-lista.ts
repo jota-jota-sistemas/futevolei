@@ -7,7 +7,13 @@
 //   [data-lista] ul · [data-estado-lista] · [data-busca] · [data-mostrar-arquivados]
 //   [data-contador-jogadores] · [data-jogador-form] (ver components/JogadorForm.astro)
 //
-// Os dados são carregados UMA vez (com arquivados) e filtrados em memória;
+// Dois modos, escolhidos por quem chama:
+//   - consulta pública (padrão): só lista e abre os perfis dos jogadores ATIVOS.
+//     Nada é criado, alterado ou excluído, mesmo que o HTML tenha um formulário.
+//   - gerenciar (`gerenciar: true`): também lista arquivados e permite cadastrar.
+//     Usado apenas pela área acessível por URL direta (/gerenciar_jogadores).
+//
+// Os dados são carregados UMA vez e filtrados em memória;
 // criar um jogador atualiza a lista local sem nova leitura.
 
 import type { Jogador } from "../domain/jogadores/types";
@@ -37,30 +43,38 @@ import {
 export interface DepsLista {
   store: JogadorStore;
   raiz?: ParentNode;
+  /**
+   * Habilita a área de gerenciamento: lista também os arquivados e liga o
+   * cadastro. Padrão `false` (consulta pública, somente leitura).
+   */
+  gerenciar?: boolean;
+  /** Link do perfil de cada jogador. Padrão: o perfil público. */
+  hrefPerfil?: (id: string) => string;
 }
 
 function plural(n: number, singular: string, pluralTxt: string): string {
   return `${n} ${n === 1 ? singular : pluralTxt}`;
 }
 
-/** Subtítulo do item: “apelido” · Cidade/UF · gênero (só o que existir). */
+/** Subtítulo do item: “apelido” · Cidade/UF · gênero · categoria (só o que existir). */
 function subtituloDe(j: Jogador): string {
   const local = [j.cidade, j.uf].filter(Boolean).join("/");
   return [
     j.apelido ? `“${j.apelido}”` : "",
     local,
     j.genero ? rotuloGenero(j.genero) : "",
+    j.categoria ?? "",
   ]
     .filter(Boolean)
     .join(" · ");
 }
 
 /** Monta o item da lista com DOM seguro (textContent; nunca innerHTML). */
-function itemDe(j: Jogador): HTMLLIElement {
+function itemDe(j: Jogador, hrefPerfil: (id: string) => string): HTMLLIElement {
   const li = document.createElement("li");
   const a = document.createElement("a");
   a.className = "jl-item";
-  a.href = hrefPerfilJogador(j.id);
+  a.href = hrefPerfil(j.id);
 
   const avatar = document.createElement("span");
   avatar.className = "jl-avatar";
@@ -93,7 +107,12 @@ function itemDe(j: Jogador): HTMLLIElement {
   return li;
 }
 
-export async function iniciarLista({ store, raiz = document }: DepsLista): Promise<void> {
+export async function iniciarLista({
+  store,
+  raiz = document,
+  gerenciar = false,
+  hrefPerfil = hrefPerfilJogador,
+}: DepsLista): Promise<void> {
   const q = <T extends Element>(seletor: string) => raiz.querySelector<T>(seletor);
   const lista = q<HTMLElement>("[data-lista]");
   const estado = q<HTMLElement>("[data-estado-lista]");
@@ -119,11 +138,12 @@ export async function iniciarLista({ store, raiz = document }: DepsLista): Promi
   }
 
   function render(): void {
-    const base = arquivados?.checked ? todos : todos.filter((j) => j.ativo);
+    // Arquivados só aparecem na área de gerenciamento, e só se o filtro for marcado.
+    const base = gerenciar && arquivados?.checked ? todos : todos.filter((j) => j.ativo);
     const filtrados = filtrarJogadores(base, busca?.value ?? "");
 
     lista!.textContent = "";
-    for (const j of filtrados) lista!.append(itemDe(j));
+    for (const j of filtrados) lista!.append(itemDe(j, hrefPerfil));
 
     if (contador) {
       contador.textContent =
@@ -143,7 +163,7 @@ export async function iniciarLista({ store, raiz = document }: DepsLista): Promi
 
   async function carregar(): Promise<void> {
     mostrarEstado("Carregando jogadores…");
-    const r = await store.listar({ incluirArquivados: true });
+    const r = await store.listar({ incluirArquivados: gerenciar });
     if (!r.ok) {
       lista!.textContent = "";
       mostrarEstado(mensagemDoErro(r.erro), true);
@@ -158,7 +178,7 @@ export async function iniciarLista({ store, raiz = document }: DepsLista): Promi
   busca?.addEventListener("input", render);
   arquivados?.addEventListener("change", render);
 
-  if (form) {
+  if (gerenciar && form) {
     const formulario = form;
 
     async function submeter(confirmado: boolean): Promise<void> {
@@ -177,7 +197,7 @@ export async function iniciarLista({ store, raiz = document }: DepsLista): Promi
       if (!confirmado) {
         const homonimos = encontrarHomonimos(validado.valor.nome, todos);
         if (homonimos.length > 0) {
-          mostrarHomonimos(formulario, homonimos, hrefPerfilJogador);
+          mostrarHomonimos(formulario, homonimos, hrefPerfil);
           return;
         }
       }

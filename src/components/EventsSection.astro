@@ -16,7 +16,7 @@ const ordenados = ordenarPorDataId(campeonatos);
 const LIMITE_INICIAL = 8;
 ---
 
-<section class="eventos" aria-label="Próximos eventos">
+<section class="eventos" id="eventos" aria-label="Próximos eventos">
   <div class="eventos__conteudo">
     <div class="eventos__topo">
       <h2 class="eventos__titulo">
@@ -75,6 +75,11 @@ const LIMITE_INICIAL = 8;
 </script>
 
 <style>
+  /* Destino do link "Eventos" do menu: deixa o título livre do cabeçalho fixo. */
+  .eventos {
+    scroll-margin-top: 4.5rem;
+  }
+
   /* ---- Base: mobile ---- */
   .eventos__conteudo {
     max-width: var(--largura-conteudo);

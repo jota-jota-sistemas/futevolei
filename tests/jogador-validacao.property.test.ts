@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
-import type { Jogador, JogadorErro } from "../src/domain/jogadores/types";
+import { CATEGORIAS_JOGADOR, type Jogador, type JogadorErro, type ParticipacaoDupla } from "../src/domain/jogadores/types";
 import {
   chaveTexto,
   encontrarHomonimos,
@@ -8,6 +8,7 @@ import {
   iniciaisDoNome,
   normalizarInstagram,
   ordenarJogadores,
+  ordenarParticipacoes,
   validarJogador,
 } from "../src/domain/jogadores/validation";
 import { campoDoErro, mensagemDoErro } from "../src/domain/jogadores/mensagens";
@@ -21,7 +22,7 @@ import { campoDoErro, mensagemDoErro } from "../src/domain/jogadores/mensagens";
  */
 
 const j = (p: Partial<Jogador> & { id: string; nome: string }): Jogador => ({
-  apelido: null, genero: null, cidade: null, uf: null, instagram: null,
+  apelido: null, genero: null, categoria: null, cidade: null, uf: null, instagram: null,
   ativo: true, criadoEm: "2026-01-01T00:00:00.000Z", atualizadoEm: "2026-01-01T00:00:00.000Z",
   ...p,
 });
@@ -59,10 +60,10 @@ describe("validarJogador: nome", () => {
 
 describe("validarJogador: campos opcionais", () => {
   it("vazios ou só com espaços viram null", () => {
-    const r = validarJogador({ nome: "Ana", apelido: " ", genero: "", cidade: "  ", uf: "", instagram: "" });
+    const r = validarJogador({ nome: "Ana", apelido: " ", genero: "", categoria: " ", cidade: "  ", uf: "", instagram: "" });
     expect(r).toEqual({
       ok: true,
-      valor: { nome: "Ana", apelido: null, genero: null, cidade: null, uf: null, instagram: null },
+      valor: { nome: "Ana", apelido: null, genero: null, categoria: null, cidade: null, uf: null, instagram: null },
     });
   });
 
@@ -91,10 +92,12 @@ describe("validarJogador: campos opcionais", () => {
   });
 
   it("devolve o PRIMEIRO erro, na ordem nome, apelido, gênero, cidade, UF, Instagram", () => {
-    const tudoRuim = { nome: "", apelido: "x".repeat(41), genero: "z", cidade: "c".repeat(81), uf: "XX", instagram: "a b" };
+    const tudoRuim = { nome: "", apelido: "x".repeat(41), genero: "z", categoria: "Gold", cidade: "c".repeat(81), uf: "XX", instagram: "a b" };
     expect(codigo(validarJogador(tudoRuim))).toBe("NOME_JOGADOR_INVALIDO");
     expect(codigo(validarJogador({ ...tudoRuim, nome: "Ana" }))).toBe("APELIDO_INVALIDO");
     expect(codigo(validarJogador({ ...tudoRuim, nome: "Ana", apelido: "" }))).toBe("GENERO_INVALIDO");
+    expect(codigo(validarJogador({ ...tudoRuim, nome: "Ana", apelido: "", genero: "" }))).toBe("CATEGORIA_INVALIDA");
+    expect(codigo(validarJogador({ ...tudoRuim, nome: "Ana", apelido: "", genero: "", categoria: "" }))).toBe("CIDADE_INVALIDA");
   });
 
   it("Property: reaplicar a validação ao resultado dá o mesmo resultado (idempotente)", () => {
@@ -102,6 +105,7 @@ describe("validarJogador: campos opcionais", () => {
       nome: fc.string({ minLength: 1, maxLength: 80 }).filter((s) => s.trim().length > 0),
       apelido: fc.constantFrom("", " ", "Pingo", "  Dedé  "),
       genero: fc.constantFrom("", "masculino", "FEMININO"),
+      categoria: fc.constantFrom("", "Iniciante", "MASTER", " amador "),
       cidade: fc.constantFrom("", "Santos", "  São Paulo "),
       uf: fc.constantFrom("", "sp", "RJ"),
       instagram: fc.constantFrom("", "@Pingo.ftv", "pingo_ftv", "https://www.instagram.com/pingo.ftv/"),
@@ -113,6 +117,39 @@ describe("validarJogador: campos opcionais", () => {
         if (!a.ok) return;
         const b = validarJogador({ ...a.valor, instagram: a.valor.instagram ? `@${a.valor.instagram}` : "" } as never);
         expect(b).toEqual(a);
+      }),
+      { numRuns: 100 }
+    );
+  });
+});
+
+describe("validarJogador: categoria", () => {
+  it("aceita cada nível do vocabulário, sem diferenciar caixa, e devolve a grafia canônica", () => {
+    for (const c of CATEGORIAS_JOGADOR) {
+      expect(validarJogador({ nome: "Ana", categoria: c.toUpperCase() })).toMatchObject({ ok: true, valor: { categoria: c } });
+      expect(validarJogador({ nome: "Ana", categoria: `  ${c.toLowerCase()} ` })).toMatchObject({ ok: true, valor: { categoria: c } });
+    }
+  });
+
+  it("'Outros' NÃO é categoria de jogador, nem texto fora da lista", () => {
+    expect(CATEGORIAS_JOGADOR).not.toContain("Outros");
+    expect(codigo(validarJogador({ nome: "Ana", categoria: "Outros" }))).toBe("CATEGORIA_INVALIDA");
+    expect(codigo(validarJogador({ nome: "Ana", categoria: "Gold" }))).toBe("CATEGORIA_INVALIDA");
+    expect(codigo(validarJogador({ nome: "Ana", categoria: "Inici" }))).toBe("CATEGORIA_INVALIDA");
+  });
+
+  it("vazio ou ausente vira null", () => {
+    expect(validarJogador({ nome: "Ana" })).toMatchObject({ ok: true, valor: { categoria: null } });
+    expect(validarJogador({ nome: "Ana", categoria: "" })).toMatchObject({ ok: true, valor: { categoria: null } });
+  });
+
+  it("Property: válida sse (sem caixa/espaços) é um nível do vocabulário", () => {
+    const lista = CATEGORIAS_JOGADOR.map((c) => c.toLowerCase());
+    fc.assert(
+      fc.property(fc.string({ maxLength: 20 }), (texto) => {
+        const t = texto.trim();
+        const esperado = t === "" || lista.includes(t.toLowerCase());
+        expect(validarJogador({ nome: "Ana", categoria: texto }).ok).toBe(esperado);
       }),
       { numRuns: 100 }
     );
@@ -195,7 +232,8 @@ describe("filtrarJogadores", () => {
     j({ id: "2", nome: "Maria Souza", cidade: "Niterói", uf: "RJ" }),
   ];
 
-  it("casa com nome, apelido, cidade e UF, sem caixa nem acento", () => {
+  it("casa com nome, apelido, categoria, cidade e UF, sem caixa nem acento", () => {
+    expect(filtrarJogadores([j({ id: "9", nome: "Dedé", categoria: "Intermediário" })], "intermediario").map((x) => x.id)).toEqual(["9"]);
     expect(filtrarJogadores(lista, "joao").map((x) => x.id)).toEqual(["1"]);
     expect(filtrarJogadores(lista, "PINGO").map((x) => x.id)).toEqual(["1"]);
     expect(filtrarJogadores(lista, "niteroi").map((x) => x.id)).toEqual(["2"]);
@@ -242,6 +280,49 @@ describe("ordenarJogadores", () => {
   });
 });
 
+describe("ordenarParticipacoes", () => {
+  const p = (duplaId: string, data: string | null, inscritaEm = "2026-01-01T00:00:00.000Z"): ParticipacaoDupla => ({
+    duplaId, atletaA: "A", atletaB: "B", posicao: "A", parceiroJogadorId: null, categoria: "Open",
+    campeonato: data ? { id: "c" + duplaId, nome: "Evento " + duplaId, data } : null, inscritaEm,
+  });
+
+  it("evento mais recente primeiro; sem data do evento vai para o fim", () => {
+    const r = ordenarParticipacoes([p("a", "2026-01-10"), p("b", null), p("c", "2026-03-05"), p("d", "2026-02-01")]);
+    expect(r.map((x) => x.duplaId)).toEqual(["c", "d", "a", "b"]);
+  });
+
+  it("mesmo evento: inscrição mais recente primeiro; depois por id", () => {
+    const r = ordenarParticipacoes([
+      p("b", "2026-01-10", "2026-01-01T10:00:00.000Z"),
+      p("a", "2026-01-10", "2026-01-01T12:00:00.000Z"),
+      p("c", "2026-01-10", "2026-01-01T10:00:00.000Z"),
+    ]);
+    expect(r.map((x) => x.duplaId)).toEqual(["a", "b", "c"]);
+  });
+
+  it("Property: independe da permutação da entrada e não muta", () => {
+    const gerador = fc.array(
+      fc.record({
+        id: fc.uuid(),
+        data: fc.constantFrom("2026-01-10", "2026-02-01", "2026-03-05", null),
+        em: fc.constantFrom("2026-01-01T10:00:00.000Z", "2026-01-02T10:00:00.000Z"),
+      }),
+      { maxLength: 12 }
+    );
+    fc.assert(
+      fc.property(gerador, fc.nat(), (itens, giro) => {
+        const lista = itens.map((i) => p(i.id, i.data, i.em));
+        const copia = [...lista];
+        const k = lista.length ? giro % lista.length : 0;
+        const girada = [...lista.slice(k), ...lista.slice(0, k)];
+        expect(ordenarParticipacoes(lista).map((x) => x.duplaId)).toEqual(ordenarParticipacoes(girada).map((x) => x.duplaId));
+        expect(lista).toEqual(copia);
+      }),
+      { numRuns: 100 }
+    );
+  });
+});
+
 describe("iniciaisDoNome / chaveTexto / mensagens", () => {
   it("iniciais: primeiro e último nome", () => {
     expect(iniciaisDoNome("João da Silva")).toBe("JS");
@@ -256,13 +337,14 @@ describe("iniciaisDoNome / chaveTexto / mensagens", () => {
 
   it("todo código de erro tem mensagem; erros de campo apontam o campo certo", () => {
     const erros: JogadorErro[] = [
-      { code: "NOME_JOGADOR_INVALIDO" }, { code: "APELIDO_INVALIDO" }, { code: "GENERO_INVALIDO" },
+      { code: "NOME_JOGADOR_INVALIDO" }, { code: "APELIDO_INVALIDO" }, { code: "GENERO_INVALIDO" }, { code: "CATEGORIA_INVALIDA" },
       { code: "CIDADE_INVALIDA" }, { code: "UF_INVALIDA" }, { code: "INSTAGRAM_INVALIDO" },
       { code: "JOGADOR_NAO_ENCONTRADO" }, { code: "FALHA_PERSISTENCIA" }, { code: "FALHA_LEITURA" },
     ];
     for (const e of erros) expect(mensagemDoErro(e).length).toBeGreaterThan(5);
     expect(campoDoErro({ code: "NOME_JOGADOR_INVALIDO" })).toBe("nome");
     expect(campoDoErro({ code: "INSTAGRAM_INVALIDO" })).toBe("instagram");
+    expect(campoDoErro({ code: "CATEGORIA_INVALIDA" })).toBe("categoria");
     expect(campoDoErro({ code: "FALHA_PERSISTENCIA" })).toBeNull();
   });
 });

@@ -1,54 +1,25 @@
 ---
 import Layout from "../../layouts/Layout.astro";
 import PaginaTopo from "../../components/PaginaTopo.astro";
-import Cartao from "../../components/Cartao.astro";
-import JogadorForm from "../../components/JogadorForm.astro";
+import JogadoresLista from "../../components/JogadoresLista.astro";
 import { comBase } from "../../utils/url";
+
+// Consulta PÚBLICA: lista e perfil dos jogadores, somente leitura. Cadastro,
+// edição e exclusão ficam em /gerenciar_jogadores (sem link em nenhuma página).
 ---
 
 <Layout
   titulo="Jogadores — Pingo Futevôlei"
-  descricao="Perfis de jogadores de futevôlei: cadastre e consulte os atletas."
+  descricao="Consulte os perfis dos jogadores de futevôlei."
 >
   <PaginaTopo
     titulo="Jogadores"
-    subtitulo="Cadastre e consulte os perfis dos atletas."
+    subtitulo="Consulte os perfis dos atletas."
     voltarHref={comBase("/")}
     voltarTexto="Voltar aos eventos"
-  >
-    <a slot="acoes" class="btn-destaque" href="#novo-jogador">
-      <span aria-hidden="true">+</span> Novo jogador
-    </a>
-  </PaginaTopo>
+  />
 
-  <div class="jogadores">
-    <Cartao titulo="Todos os jogadores" id="lista-jogadores">
-      <div class="jogadores__controles">
-        <div class="jogadores__busca">
-          <label for="busca-jogador">Buscar jogador</label>
-          <input
-            id="busca-jogador"
-            type="search"
-            data-busca
-            placeholder="Nome, apelido ou cidade"
-            autocomplete="off"
-          />
-        </div>
-        <label class="jogadores__arquivados">
-          <input type="checkbox" data-mostrar-arquivados />
-          Mostrar arquivados
-        </label>
-      </div>
-
-      <p class="jogadores__contador" data-contador-jogadores aria-live="polite"></p>
-      <p class="jogadores__estado" data-estado-lista role="status">Carregando jogadores…</p>
-      <ul class="jl" data-lista aria-label="Lista de jogadores"></ul>
-    </Cartao>
-
-    <Cartao titulo="Novo jogador" id="novo-jogador">
-      <JogadorForm prefixo="novo" rotuloEnvio="Criar jogador" />
-    </Cartao>
-  </div>
+  <JogadoresLista />
 </Layout>
 
 <script>
@@ -57,174 +28,3 @@ import { comBase } from "../../utils/url";
 
   void iniciarLista({ store: criarJogadorStoreBrowser() });
 </script>
-
-<style>
-  .jogadores {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: start;
-    gap: 1.25rem;
-    max-width: var(--largura-conteudo);
-    margin: 0 auto;
-    padding: 1.25rem 1rem 3rem;
-  }
-
-  .jogadores__controles {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 0.75rem 1.25rem;
-    margin-bottom: 0.9rem;
-  }
-
-  .jogadores__busca {
-    flex: 1 1 220px;
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-  }
-
-  .jogadores__busca label {
-    font-size: 0.8rem;
-    font-weight: 700;
-  }
-
-  .jogadores__busca input {
-    width: 100%;
-    padding: 0.65rem 0.8rem;
-    border: 1px solid var(--cor-texto-suave);
-    border-radius: 12px;
-    background: var(--cor-superficie);
-    color: var(--cor-texto);
-    font-family: inherit;
-    font-size: 1rem;
-  }
-
-  .jogadores__arquivados {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-height: 2.75rem;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .jogadores__arquivados input {
-    width: 1.1rem;
-    height: 1.1rem;
-    accent-color: var(--cor-destaque-texto);
-  }
-
-  .jogadores__contador {
-    margin: 0 0 0.6rem;
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: var(--cor-texto-suave);
-  }
-
-  .jogadores__estado {
-    margin: 0;
-    padding: 1.25rem 0;
-    text-align: center;
-    color: var(--cor-texto-suave);
-  }
-
-  @media (min-width: 900px) {
-    .jogadores {
-      grid-template-columns: minmax(0, 1fr) 380px;
-      gap: 1.5rem;
-      padding: 2rem 1.5rem 4rem;
-    }
-
-    /* O cadastro acompanha a rolagem da lista (abaixo do header fixo). */
-    .jogadores > :global(#novo-jogador) {
-      position: sticky;
-      top: 5.5rem;
-    }
-  }
-</style>
-
-<!-- Itens criados em runtime pelo script: CSS global com prefixo `jl-`. -->
-<style is:global>
-  .jl {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .jl-item {
-    display: flex;
-    align-items: center;
-    gap: 0.85rem;
-    padding: 0.7rem 0.85rem;
-    border: 1px solid var(--cor-borda);
-    border-radius: 14px;
-    background: var(--cor-superficie);
-    color: var(--cor-texto);
-    text-decoration: none;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
-  }
-
-  .jl-item:hover {
-    border-color: var(--cor-destaque);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  }
-
-  .jl-avatar {
-    flex: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2.6rem;
-    height: 2.6rem;
-    border-radius: 50%;
-    background: var(--cor-destaque);
-    color: var(--cor-destaque-contraste);
-    font-size: 0.95rem;
-    font-weight: 800;
-  }
-
-  .jl-info {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-width: 0;
-  }
-
-  .jl-nome {
-    font-weight: 700;
-    overflow-wrap: anywhere;
-  }
-
-  .jl-sub {
-    font-size: 0.85rem;
-    color: var(--cor-texto-suave);
-    overflow-wrap: anywhere;
-  }
-
-  .jl-chip {
-    flex: none;
-    padding: 0.3rem 0.55rem;
-    border-radius: 999px;
-    background: var(--cor-borda);
-    color: var(--cor-texto);
-    font-size: 0.72rem;
-    font-weight: 700;
-  }
-
-  .jl-retentar {
-    padding: 0;
-    border: none;
-    background: none;
-    color: var(--cor-destaque-texto);
-    font-family: inherit;
-    font-size: inherit;
-    font-weight: 700;
-    text-decoration: underline;
-    cursor: pointer;
-  }
-</style>

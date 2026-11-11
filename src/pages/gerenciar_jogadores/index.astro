@@ -1,0 +1,45 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import PaginaTopo from "../../components/PaginaTopo.astro";
+import JogadoresLista from "../../components/JogadoresLista.astro";
+import { comBase } from "../../utils/url";
+
+// ÁREA DE GERENCIAMENTO (MVP): criar, alterar e excluir jogadores.
+//
+// Não há link para esta página em nenhum lugar do site (nem menu, nem rodapé):
+// só se chega digitando o endereço. Atenção: isso é discrição, NÃO controle de
+// acesso. Enquanto não houver login, a escrita no banco segue liberada ao papel
+// anônimo (RLS), então quem souber a URL, ou chamar a API do Supabase direto,
+// ainda consegue alterar dados. Fase 2a: proteger com autenticação.
+---
+
+<Layout
+  titulo="Gerenciar jogadores — Pingo Futevôlei"
+  descricao="Área de gerenciamento de jogadores."
+  noindex
+>
+  <PaginaTopo
+    titulo="Gerenciar jogadores"
+    subtitulo="Cadastro, edição e exclusão de perfis."
+    voltarHref={comBase("/jogadores")}
+    voltarTexto="Ver lista pública"
+  >
+    <a slot="acoes" class="btn-destaque" href="#novo-jogador">
+      <span aria-hidden="true">+</span> Novo jogador
+    </a>
+  </PaginaTopo>
+
+  <JogadoresLista gerenciar />
+</Layout>
+
+<script>
+  import { iniciarLista } from "../../scripts/jogadores-lista";
+  import { criarJogadorStoreBrowser } from "../../store/jogadorStore";
+  import { hrefGerenciarJogador } from "../../scripts/rotas-gerenciar";
+
+  void iniciarLista({
+    store: criarJogadorStoreBrowser(),
+    gerenciar: true,
+    hrefPerfil: hrefGerenciarJogador,
+  });
+</script>

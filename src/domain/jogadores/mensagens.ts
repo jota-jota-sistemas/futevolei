@@ -9,6 +9,7 @@ export type CampoJogador =
   | "nome"
   | "apelido"
   | "genero"
+  | "categoria"
   | "cidade"
   | "uf"
   | "instagram";
@@ -21,6 +22,8 @@ export function campoDoErro(erro: JogadorErro): CampoJogador | null {
       return "apelido";
     case "GENERO_INVALIDO":
       return "genero";
+    case "CATEGORIA_INVALIDA":
+      return "categoria";
     case "CIDADE_INVALIDA":
       return "cidade";
     case "UF_INVALIDA":
@@ -40,6 +43,8 @@ export function mensagemDoErro(erro: JogadorErro): string {
       return "O apelido deve ter de 1 a 40 caracteres.";
     case "GENERO_INVALIDO":
       return "Escolha um gênero válido ou deixe em branco.";
+    case "CATEGORIA_INVALIDA":
+      return "Escolha uma categoria da lista ou deixe em branco.";
     case "CIDADE_INVALIDA":
       return "A cidade deve ter de 1 a 80 caracteres.";
     case "UF_INVALIDA":

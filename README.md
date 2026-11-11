@@ -272,17 +272,30 @@ npm run coletar:torneios   # reabre o calendário com Playwright e sobrescreve s
 
 ## Jogadores (perfil e CRUD)
 
-Cadastro de atletas em `/jogadores` (lista, busca e cadastro) e `/jogadores/perfil?id=…` (perfil, edição, arquivar e excluir). É a base para um futuro ranking de jogadores.
+Cadastro de atletas, base para um futuro ranking de jogadores. Há duas áreas:
 
-- **Banco:** tabela `jogadores` (nome, apelido, gênero, cidade, UF, instagram, ativo) e duas colunas **opcionais** em `duplas`: `jogador_a_id` e `jogador_b_id`. `atleta_a` e `atleta_b` continuam como texto e guardam o nome na hora da inscrição, então renomear um jogador não altera chaveamentos já gerados. O SQL está em `supabase/schema.sql` (idempotente) e **precisa ser aplicado manualmente** no Supabase.
+| Área | Endereço | O que faz |
+|---|---|---|
+| **Consulta pública** (menu "Jogadores") | `/jogadores` e `/jogadores/perfil?id=…` | Só lista, busca e perfil com o histórico de duplas. **Somente leitura**: não há formulário nem botão de editar. Mostra apenas jogadores ativos na lista. |
+| **Gerenciamento** (MVP) | `/gerenciar_jogadores` e `/gerenciar_jogadores/editar?id=…` | Criar, editar, arquivar/reativar e excluir. **Sem link em nenhuma página** (nem menu nem rodapé): só se chega digitando o endereço. Marcada com `noindex`. |
+
+> **Atenção: isto não é controle de acesso.** Esconder o endereço é só discrição. Enquanto não houver login, as policies do banco liberam a escrita ao papel anônimo, então quem souber a URL (ou chamar a API do Supabase direto com a chave pública) ainda consegue criar, alterar e apagar jogadores. A proteção real é a Fase 2a: autenticação e `to authenticated` nas policies de `jogadores`.
+
+- **Banco:** tabela `jogadores` (nome, apelido, gênero, categoria, cidade, UF, instagram, ativo) e duas colunas **opcionais** em `duplas`: `jogador_a_id` e `jogador_b_id`. `atleta_a` e `atleta_b` continuam como texto e guardam o nome na hora da inscrição, então renomear um jogador não altera chaveamentos já gerados. O SQL está em `supabase/schema.sql` (idempotente) e **precisa ser aplicado manualmente** no Supabase.
 - **Privacidade:** a leitura é pública, então a tabela só guarda dados que podem ser exibidos a qualquer visitante. Não adicione e-mail, telefone, CPF nem data de nascimento nela.
 - **Segurança (atenção):** enquanto não há login, a escrita é anônima, como nas demais tabelas de organização. Qualquer visitante pode criar, editar e apagar perfis. A Fase 2a deve trocar `to anon` por `to authenticated` nas policies de `jogadores`.
 - **Excluir:** apaga de vez só quem não tem vínculo com nenhuma dupla; quem tem histórico é **arquivado** (`ativo = false`) e some da lista, mas permanece no banco.
 - **Nomes repetidos** são permitidos (homônimos existem). O formulário avisa e pede confirmação.
 - **Limite:** a lista carrega até 1000 jogadores (teto padrão do PostgREST). Acima disso é preciso paginar.
 - **Ranking (futuro):** pode sair de uma view que junta `jogos.vencedor_id` → `duplas` → `jogador_a_id`/`jogador_b_id`, sem tabela de pontos. A regra de pontuação ainda é uma decisão de produto.
-- **Código:** domínio puro em `src/domain/jogadores`, acesso a dados em `src/store/jogadorStore.ts` (cliente injetável, como o `bracketStore`) e as telas em `src/scripts/jogadores-lista.ts` e `jogador-perfil.ts`.
-- **Ainda não feito:** escolher o jogador no formulário de dupla da organização e migrar os nomes antigos de `atleta_a`/`atleta_b` para jogadores.
+- **Código:** domínio puro em `src/domain/jogadores`, acesso a dados em `src/store/jogadorStore.ts` (cliente injetável, como o `bracketStore`). As duas áreas compartilham os componentes `JogadoresLista` e `JogadorPerfil` e os scripts `jogadores-lista.ts` e `jogador-perfil.ts`. A área de gerenciamento é ligada pelo parâmetro `gerenciar: true`, que vale `false` por padrão, então a consulta pública nunca escreve, mesmo que o HTML tenha um formulário. O caminho `/gerenciar_jogadores` só existe em `src/pages/gerenciar_jogadores/` e em `src/scripts/rotas-gerenciar.ts`, e um teste impede que ele apareça em outros arquivos (menu, rodapé, módulos compartilhados).
+- **Categoria do jogador:** campo opcional `categoria`, com o mesmo vocabulário de Nível do filtro de eventos (sem "Outros"). Quem já aplicou a versão anterior do SQL precisa rodar o `alter table jogadores add column if not exists categoria …` que está em `supabase/schema.sql`.
+- **Duplas do jogador:** o perfil lista as duplas em que ele participou (categoria, evento e parceiro), lidas de `duplas` pelos vínculos `jogador_a_id`/`jogador_b_id`. Esses vínculos são gravados no formulário de dupla da organização: cada atleta tem um seletor opcional **"Jogador cadastrado"**. Escolher um jogador preenche o nome; editar o nome à mão desfaz o vínculo. Sem escolher, a dupla é só texto, como antes, e **não** entra no histórico de ninguém.
+- **Ainda não feito:** migrar os nomes antigos de `atleta_a`/`atleta_b` para jogadores (duplas já criadas continuam sem vínculo) e o ranking.
+
+## Menu
+
+O menu (cabeçalho e rodapé) vem de `src/utils/menu.ts` e só lista destinos reais e globais: **Eventos** (a lista na home) e **Jogadores**. Ele fica na própria barra do topo em qualquer largura, sem hambúrguer. "Acompanhar partidas" e "Organizar" são por evento e continuam sendo alcançados a partir da página do evento. Para adicionar um item, inclua-o em `ITENS_MENU`; se a lista passar de 3 ou 4 itens, vale um menu recolhível.
 
 ## Como adicionar/editar um campeonato (Fase 1)
 

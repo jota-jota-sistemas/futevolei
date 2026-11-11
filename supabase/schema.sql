@@ -174,6 +174,7 @@ create table if not exists jogadores (
   nome           text not null check (char_length(btrim(nome)) between 1 and 80),
   apelido        text check (apelido is null or char_length(btrim(apelido)) between 1 and 40),
   genero         text check (genero is null or genero in ('masculino','feminino')),
+  categoria      text check (categoria is null or char_length(btrim(categoria)) between 1 and 40),  -- nível do jogador (vocabulário em utils/categorias.ts, validado na aplicação)
   cidade         text check (cidade is null or char_length(btrim(cidade)) between 1 and 80),
   uf             char(2) check (uf is null or uf ~ '^[A-Z]{2}$'),
   instagram      text check (instagram is null or instagram ~ '^[a-z0-9._]{1,30}$'),  -- só o @usuario, sem "@"
@@ -181,6 +182,12 @@ create table if not exists jogadores (
   criado_em      timestamptz not null default now(),
   atualizado_em  timestamptz not null default now()
 );
+
+-- Bancos que já aplicaram a versão anterior desta tabela (sem `categoria`)
+-- ganham a coluna aqui; `if not exists` torna a linha inofensiva nos demais.
+alter table jogadores
+  add column if not exists categoria text
+    check (categoria is null or char_length(btrim(categoria)) between 1 and 40);
 
 -- Busca/ordenação por nome sem diferenciar caixa nem espaços nas pontas.
 -- Nomes repetidos são PERMITIDOS (homônimos existem); o formulário só avisa.

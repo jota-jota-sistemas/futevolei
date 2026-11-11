@@ -4,6 +4,7 @@
 // (scripts/jogador-form.ts, jogadores-lista.ts e jogador-perfil.ts) por meio
 // dos atributos data-*. `novalidate`: as mensagens vêm do domínio, em pt-BR.
 import { UFS_BRASIL } from "../domain/jogadores/validation";
+import { CATEGORIAS_JOGADOR } from "../domain/jogadores/types";
 
 interface Props {
   /** Prefixo dos ids (evita colisão se houver mais de um formulário na página). */
@@ -55,6 +56,19 @@ const { prefixo, rotuloEnvio } = Astro.props;
         <option value="feminino">Feminino</option>
       </select>
       <p class="jf__erro" id={`${prefixo}-genero-erro`} data-erro="genero" hidden></p>
+    </div>
+
+    <div class="jf__campo jf__campo--cheio">
+      <label for={`${prefixo}-categoria`}>Categoria</label>
+      <select
+        id={`${prefixo}-categoria`}
+        name="categoria"
+        aria-describedby={`${prefixo}-categoria-erro`}
+      >
+        <option value="">Não informar</option>
+        {CATEGORIAS_JOGADOR.map((c) => <option value={c}>{c}</option>)}
+      </select>
+      <p class="jf__erro" id={`${prefixo}-categoria-erro`} data-erro="categoria" hidden></p>
     </div>
 
     <div class="jf__campo">

@@ -65,6 +65,13 @@ export interface NovaDupla {
   nomeDupla: string;
   atletaA: string;
   atletaB: string;
+  /**
+   * Vínculos OPCIONAIS com jogadores cadastrados (ids de `jogadores`). Ausente
+   * ou inválido = dupla só com texto, como antes. Alimenta o histórico de
+   * duplas do perfil do jogador.
+   */
+  jogadorAId?: string | null;
+  jogadorBId?: string | null;
 }
 
 /**
@@ -116,6 +123,13 @@ function erroPersistencia(): Result<never> {
 /** Falha de leitura (select) → FALHA_LEITURA (R7.6). */
 function erroLeitura(): Result<never> {
   return { ok: false, erro: { code: "FALHA_LEITURA" } };
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Id de jogador utilizável: UUID válido ou null (qualquer outra coisa é ignorada). */
+function idDeJogador(valor: string | null | undefined): string | null {
+  return typeof valor === "string" && UUID.test(valor) ? valor : null;
 }
 
 /** Gera um identificador único na borda de I/O. */
@@ -212,6 +226,14 @@ export function criarBracketStoreBrowser(
       );
       if (!validada.ok) return validada;
 
+      // Vínculos opcionais com jogadores cadastrados. O mesmo jogador não pode
+      // ocupar os dois lugares (o banco também barra, com um check).
+      const jogadorAId = idDeJogador(dados.jogadorAId);
+      const jogadorBId = idDeJogador(dados.jogadorBId);
+      if (jogadorAId !== null && jogadorAId === jogadorBId) {
+        return { ok: false, erro: { code: "NOME_ATLETA_INVALIDO", qual: "B" } };
+      }
+
       // Gera id e criadoEm na borda; seed indefinido (0 => null na coluna) até
       // o seeding ser definido (R3).
       const pair: Pair = {
@@ -231,6 +253,9 @@ export function criarBracketStoreBrowser(
         atleta_b: pair.atletaB,
         seed: null, // null até seeding definido
         criado_em: pair.criadoEm,
+        // Só inclui as chaves quando há vínculo: sem jogador, o payload é o mesmo de sempre.
+        ...(jogadorAId !== null ? { jogador_a_id: jogadorAId } : {}),
+        ...(jogadorBId !== null ? { jogador_b_id: jogadorBId } : {}),
       };
 
       try {
