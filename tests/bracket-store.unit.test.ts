@@ -25,13 +25,13 @@ import {
   type CategoryRef,
   type NovaDupla,
 } from "../src/store/bracketStore";
-import type { Bracket } from "../src/domain/bracket/types";
+import type { Bracket, Match } from "../src/domain/bracket/types";
 
 // ---------------------------------------------------------------------------
 // Mock encadeável do cliente Supabase
 // ---------------------------------------------------------------------------
 
-type Op = "select" | "insert" | "upsert" | "delete";
+type Op = "select" | "insert" | "upsert" | "delete" | "update";
 
 interface MockResponse {
   data: unknown;
@@ -123,6 +123,12 @@ class SupabaseMock {
         }),
         delete: vi.fn(() => {
           log.op = "delete";
+          mutou = true;
+          return builder;
+        }),
+        update: vi.fn((valor: unknown) => {
+          log.op = "update";
+          log.args = [valor];
           mutou = true;
           return builder;
         }),
@@ -412,6 +418,140 @@ describe("Bracket_Store.salvarChaveamento", () => {
     const r = await store.salvarChaveamento(REF, bracketMinimo());
 
     expect(r).toEqual({ ok: false, erro: { code: "FALHA_PERSISTENCIA" } });
+  });
+});
+
+// ===========================================================================
+// salvarJogos (caminho rápido do placar)
+// ===========================================================================
+
+describe("Bracket_Store.salvarJogos", () => {
+  const jogo = (id: string): Match => ({
+    id,
+    side: "upper",
+    rodada: 1,
+    ordem: 0,
+    a: { pairId: "d1" },
+    b: { pairId: "d2" },
+    vencedorId: "d1",
+    registradoEm: "2026-01-01T00:00:00.000Z",
+    ordemDisputa: 1,
+    placarA: 15,
+    placarB: 10,
+  });
+
+  it("faz um único upsert em lote só dos jogos informados, sem apagar nada", async () => {
+    const mock = new SupabaseMock();
+    mock.configurar("chaveamentos", "select", ok({ id: "chav-1" }));
+
+    const store = criarBracketStoreBrowser(mock.asClient());
+    const r = await store.salvarJogos(REF, [jogo("m1"), jogo("m2")], "d1");
+
+    expect(r).toEqual({ ok: true, valor: undefined });
+    const upserts = mock.calls.filter((c) => c.table === "jogos" && c.op === "upsert");
+    expect(upserts).toHaveLength(1);
+    const linhas = upserts[0].args[0] as Array<Record<string, unknown>>;
+    expect(linhas.map((l) => l.id)).toEqual(["chav-1::m1", "chav-1::m2"]);
+    expect(linhas[0]).toMatchObject({ placar_a: 15, placar_b: 10, vencedor_id: "d1" });
+    expect(mock.calls.some((c) => c.op === "delete")).toBe(false);
+    const upd = mock.calls.find((c) => c.table === "chaveamentos" && c.op === "update");
+    expect((upd?.args[0] as Record<string, unknown>).campea_id).toBe("d1");
+  });
+
+  it("reaproveita o id do chaveamento já conhecido (sem nova consulta)", async () => {
+    const mock = new SupabaseMock();
+    mock.configurar("chaveamentos", "upsert", ok({ id: "chav-1" }));
+
+    const store = criarBracketStoreBrowser(mock.asClient());
+    await store.salvarChaveamento(REF, bracketMinimo());
+    const antes = mock.calls.filter((c) => c.table === "chaveamentos" && c.op === "select").length;
+    const r = await store.salvarJogos(REF, [jogo("m1")], null);
+
+    expect(r.ok).toBe(true);
+    const depois = mock.calls.filter((c) => c.table === "chaveamentos" && c.op === "select").length;
+    expect(depois).toBe(antes);
+  });
+
+  it("falha no upsert: FALHA_PERSISTENCIA", async () => {
+    const mock = new SupabaseMock();
+    mock.configurar("chaveamentos", "select", ok({ id: "chav-1" }));
+    mock.configurar("jogos", "upsert", fail());
+
+    const store = criarBracketStoreBrowser(mock.asClient());
+    const r = await store.salvarJogos(REF, [jogo("m1")], null);
+
+    expect(r).toEqual({ ok: false, erro: { code: "FALHA_PERSISTENCIA" } });
+  });
+});
+
+// ===========================================================================
+// assinarMudancas (tempo real)
+// ===========================================================================
+
+describe("Bracket_Store.assinarMudancas", () => {
+  /** Cliente falso: devolve o id do chaveamento e registra o canal Realtime. */
+  function clienteRealtime(chaveamentoId: string | null) {
+    const assinaturas: Array<{ table: string; filter: string; cb: () => void }> = [];
+    const canal: Record<string, unknown> = {};
+    canal.on = vi.fn((_tipo: string, cfg: { table: string; filter: string }, cb: () => void) => {
+      assinaturas.push({ table: cfg.table, filter: cfg.filter, cb });
+      return canal;
+    });
+    canal.subscribe = vi.fn(() => canal);
+    const removeChannel = vi.fn();
+    const consulta = {
+      select: () => consulta,
+      eq: () => consulta,
+      maybeSingle: () =>
+        Promise.resolve({ data: chaveamentoId ? { id: chaveamentoId } : null, error: null }),
+    };
+    const client = {
+      from: () => consulta,
+      channel: vi.fn(() => canal),
+      removeChannel,
+    } as unknown as SupabaseClient;
+    return { client, assinaturas, canal, removeChannel };
+  }
+
+  it("assina jogos (por chaveamento) e chaveamentos (por categoria) e avisa a cada evento", async () => {
+    const f = clienteRealtime("chav-1");
+    const store = criarBracketStoreBrowser(f.client);
+    const aoMudar = vi.fn();
+
+    const cancelar = await store.assinarMudancas(REF, aoMudar);
+
+    expect(f.assinaturas.map((a) => [a.table, a.filter])).toEqual([
+      ["chaveamentos", `categoria_id=eq.${REF.categoriaId}`],
+      ["jogos", "chaveamento_id=eq.chav-1"],
+    ]);
+    expect(f.canal.subscribe).toHaveBeenCalledTimes(1);
+    f.assinaturas[1].cb();
+    expect(aoMudar).toHaveBeenCalledTimes(1);
+
+    cancelar();
+    expect(f.removeChannel).toHaveBeenCalledWith(f.canal);
+  });
+
+  it("sem chaveamento ainda: assina só a tabela chaveamentos", async () => {
+    const f = clienteRealtime(null);
+    const store = criarBracketStoreBrowser(f.client);
+
+    await store.assinarMudancas(REF, () => {});
+
+    expect(f.assinaturas.map((a) => a.table)).toEqual(["chaveamentos"]);
+  });
+
+  it("falha de conexão não lança: devolve um cancelador inofensivo", async () => {
+    const client = {
+      from: () => {
+        throw new Error("offline");
+      },
+    } as unknown as SupabaseClient;
+    const store = criarBracketStoreBrowser(client);
+
+    const cancelar = await store.assinarMudancas(REF, () => {});
+
+    expect(() => cancelar()).not.toThrow();
   });
 });
 

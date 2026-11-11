@@ -227,6 +227,8 @@ function renderMatchCard(
           step: "1",
           inputmode: "numeric",
           "aria-label": `Placar de ${slot.rotulo}`,
+          "data-match-id": match.id,
+          "data-lado": lado,
           ...(placar !== null ? { value: String(placar) } : {}),
         },
       }) as HTMLInputElement;
