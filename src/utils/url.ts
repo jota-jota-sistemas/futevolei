@@ -120,3 +120,14 @@ export function slugCategoria(nome: string): string {
     .replace(/[^a-z0-9]+/g, "-") // não alfanumérico -> hífen
     .replace(/^-+|-+$/g, ""); // tira hífens das extremidades
 }
+
+/**
+ * Link para o perfil de um jogador. O site é estático e os jogadores são
+ * criados em runtime, então não há uma página pré-renderada por jogador: o id
+ * vai na query string de uma única página (/jogadores/perfil).
+ *
+ * Ex. (base "/"): hrefPerfilJogador("abc") -> "/jogadores/perfil?id=abc"
+ */
+export function hrefPerfilJogador(id: string): string {
+  return `${comBase("/jogadores/perfil")}?id=${encodeURIComponent(id)}`;
+}

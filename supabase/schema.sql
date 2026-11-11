@@ -152,13 +152,68 @@ create index if not exists jogos_chaveamento_side_rodada_ordem_idx
   on jogos (chaveamento_id, side, rodada, ordem);
 
 -- =============================================================================
+-- Jogadores (perfil público) e vínculo com as duplas
+-- -----------------------------------------------------------------------------
+-- Cadastro estável de atletas. A `duplas` é uma INSCRIÇÃO por categoria e
+-- guarda os atletas como texto livre (`atleta_a`/`atleta_b`); estes dois campos
+-- CONTINUAM existindo e funcionam como foto do nome no momento da inscrição,
+-- então renomear um jogador depois não altera chaveamentos já gerados.
+--
+-- O vínculo é feito por duas colunas OPCIONAIS em `duplas` (uma dupla tem
+-- sempre 2 atletas): duplas antigas e inscrições com atleta convidado seguem
+-- válidas só com texto. Um futuro ranking sai de `jogos.vencedor_id` →
+-- `duplas` → `jogador_a_id`/`jogador_b_id`, sem tabela de pontos.
+--
+-- ATENÇÃO (privacidade): a leitura de todas as tabelas é pública. Por isso esta
+-- tabela só guarda dados que podem ser exibidos a qualquer visitante: NÃO
+-- adicione e-mail, telefone, CPF ou data de nascimento aqui. Dados privados
+-- exigem uma tabela separada com RLS própria (Fase 2a, com autenticação).
+-- =============================================================================
+create table if not exists jogadores (
+  id             uuid primary key default gen_random_uuid(),
+  nome           text not null check (char_length(btrim(nome)) between 1 and 80),
+  apelido        text check (apelido is null or char_length(btrim(apelido)) between 1 and 40),
+  genero         text check (genero is null or genero in ('masculino','feminino')),
+  cidade         text check (cidade is null or char_length(btrim(cidade)) between 1 and 80),
+  uf             char(2) check (uf is null or uf ~ '^[A-Z]{2}$'),
+  instagram      text check (instagram is null or instagram ~ '^[a-z0-9._]{1,30}$'),  -- só o @usuario, sem "@"
+  ativo          boolean not null default true,       -- false = arquivado (some das listagens)
+  criado_em      timestamptz not null default now(),
+  atualizado_em  timestamptz not null default now()
+);
+
+-- Busca/ordenação por nome sem diferenciar caixa nem espaços nas pontas.
+-- Nomes repetidos são PERMITIDOS (homônimos existem); o formulário só avisa.
+create index if not exists jogadores_nome_idx on jogadores (lower(btrim(nome)));
+
+-- Vínculo com a dupla. `on delete restrict`: um jogador com histórico não pode
+-- ser apagado (a aplicação arquiva em vez disso).
+alter table duplas
+  add column if not exists jogador_a_id uuid references jogadores(id) on delete restrict,
+  add column if not exists jogador_b_id uuid references jogadores(id) on delete restrict;
+
+-- A mesma pessoa não pode ocupar os dois lugares da dupla.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'duplas_jogadores_distintos'
+  ) then
+    alter table duplas add constraint duplas_jogadores_distintos
+      check (jogador_a_id is null or jogador_b_id is null or jogador_a_id <> jogador_b_id);
+  end if;
+end $$;
+
+create index if not exists duplas_jogador_a_idx on duplas (jogador_a_id);
+create index if not exists duplas_jogador_b_idx on duplas (jogador_b_id);
+
+-- =============================================================================
 -- Row Level Security (RLS) — VERSÃO ATUAL (sem autenticação)
 -- -----------------------------------------------------------------------------
 -- Política desta fase:
 --   * Leitura pública (select) liberada em TODAS as tabelas.
 --   * Escrita (insert/update/delete) permitida ao papel anônimo (anon) APENAS
 --     nas tabelas de organização: categorias, duplas, chaveamentos, grupos,
---     grupo_duplas e jogos. É a barreira mínima enquanto não há auth (R9.3).
+--     grupo_duplas, jogos e jogadores. É a barreira mínima enquanto não há auth (R9.3).
 --   * `campeonatos` NÃO recebe escrita anon: é populada pelo script de
 --     migração idempotente usando o cliente admin (service role), que
 --     contorna RLS.
@@ -176,6 +231,7 @@ alter table chaveamentos enable row level security;
 alter table grupos       enable row level security;
 alter table grupo_duplas enable row level security;
 alter table jogos        enable row level security;
+alter table jogadores    enable row level security;
 
 -- -----------------------------------------------------------------------------
 -- Leitura pública (select) em TODAS as tabelas.
@@ -208,6 +264,10 @@ drop policy if exists jogos_select_publico on jogos;
 create policy jogos_select_publico on jogos
   for select using (true);
 
+drop policy if exists jogadores_select_publico on jogadores;
+create policy jogadores_select_publico on jogadores
+  for select using (true);
+
 -- -----------------------------------------------------------------------------
 -- Escrita anônima (anon) nas tabelas de ORGANIZAÇÃO apenas.
 -- FASE 2a: trocar `to anon` por `to authenticated` em cada policy abaixo.
@@ -234,4 +294,11 @@ create policy grupo_duplas_escrita_anon on grupo_duplas
 
 drop policy if exists jogos_escrita_anon on jogos;
 create policy jogos_escrita_anon on jogos
+  for all to anon using (true) with check (true);
+
+-- Jogadores: mesma barreira mínima das demais tabelas de organização. Atenção:
+-- enquanto não há login, qualquer visitante pode criar/editar/apagar perfis.
+-- FASE 2a: trocar `to anon` por `to authenticated` (e restringir por dono).
+drop policy if exists jogadores_escrita_anon on jogadores;
+create policy jogadores_escrita_anon on jogadores
   for all to anon using (true) with check (true);

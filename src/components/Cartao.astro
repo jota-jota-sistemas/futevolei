@@ -1,0 +1,45 @@
+---
+// Cartão branco do site (mesmo tratamento dos cards da home), com título de
+// seção marcado pela barra turquesa (igual a "Próximos eventos").
+interface Props {
+  titulo: string;
+  id?: string;
+}
+
+const { titulo, id } = Astro.props;
+const tituloId = id ? `${id}-titulo` : undefined;
+---
+
+<section class="cartao" id={id} aria-labelledby={tituloId}>
+  <h2 class="cartao__titulo" id={tituloId}>{titulo}</h2>
+  <slot />
+</section>
+
+<style>
+  .cartao {
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-card);
+    padding: 1.25rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    min-width: 0;
+  }
+
+  .cartao__titulo {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0 0 1rem;
+    font-size: 1.15rem;
+    font-weight: 800;
+  }
+
+  .cartao__titulo::before {
+    content: "";
+    flex: none;
+    width: 5px;
+    height: 1.2rem;
+    border-radius: 3px;
+    background: var(--cor-destaque);
+  }
+</style>

@@ -270,6 +270,20 @@ npm run coletar:torneios   # reabre o calendário com Playwright e sobrescreve s
 - **Filtro de categorias:** as categorias são texto livre (114 grafias distintas), então o filtro usa **Nível** (select) e **Gênero** (chips), derivados do texto por `src/utils/categorias.ts`. Cada variante de nível é uma opção própria (Estreante, Principiante, Aprendiz, Iniciante, "Iniciante + C", Intermediário, Amador, Bronze, Master, Open, Outros). Categoria sem gênero escrito é **Masculino** por padrão, exceto as de "Outros". Nível e gênero casam na **mesma categoria** do evento. O texto original continua no detalhe.
 - A seção "Chaveamentos" do detalhe está desligada (`EXIBIR_CHAVEAMENTOS` em `src/pages/campeonatos/[id].astro`), porque esses eventos não têm chaveamento associado.
 
+## Jogadores (perfil e CRUD)
+
+Cadastro de atletas em `/jogadores` (lista, busca e cadastro) e `/jogadores/perfil?id=…` (perfil, edição, arquivar e excluir). É a base para um futuro ranking de jogadores.
+
+- **Banco:** tabela `jogadores` (nome, apelido, gênero, cidade, UF, instagram, ativo) e duas colunas **opcionais** em `duplas`: `jogador_a_id` e `jogador_b_id`. `atleta_a` e `atleta_b` continuam como texto e guardam o nome na hora da inscrição, então renomear um jogador não altera chaveamentos já gerados. O SQL está em `supabase/schema.sql` (idempotente) e **precisa ser aplicado manualmente** no Supabase.
+- **Privacidade:** a leitura é pública, então a tabela só guarda dados que podem ser exibidos a qualquer visitante. Não adicione e-mail, telefone, CPF nem data de nascimento nela.
+- **Segurança (atenção):** enquanto não há login, a escrita é anônima, como nas demais tabelas de organização. Qualquer visitante pode criar, editar e apagar perfis. A Fase 2a deve trocar `to anon` por `to authenticated` nas policies de `jogadores`.
+- **Excluir:** apaga de vez só quem não tem vínculo com nenhuma dupla; quem tem histórico é **arquivado** (`ativo = false`) e some da lista, mas permanece no banco.
+- **Nomes repetidos** são permitidos (homônimos existem). O formulário avisa e pede confirmação.
+- **Limite:** a lista carrega até 1000 jogadores (teto padrão do PostgREST). Acima disso é preciso paginar.
+- **Ranking (futuro):** pode sair de uma view que junta `jogos.vencedor_id` → `duplas` → `jogador_a_id`/`jogador_b_id`, sem tabela de pontos. A regra de pontuação ainda é uma decisão de produto.
+- **Código:** domínio puro em `src/domain/jogadores`, acesso a dados em `src/store/jogadorStore.ts` (cliente injetável, como o `bracketStore`) e as telas em `src/scripts/jogadores-lista.ts` e `jogador-perfil.ts`.
+- **Ainda não feito:** escolher o jogador no formulário de dupla da organização e migrar os nomes antigos de `atleta_a`/`atleta_b` para jogadores.
+
 ## Como adicionar/editar um campeonato (Fase 1)
 
 1. Coloque a foto em `public/campeonatos/` (ex.: `public/campeonatos/meu-torneio.jpg`). Proporção recomendada: retrato (4:5), estilo Instagram.

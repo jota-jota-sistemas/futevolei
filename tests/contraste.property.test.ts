@@ -37,6 +37,7 @@ const PALETA = {
   textoSuave: "#4A5B6B", // --cor-texto-suave
   textoClaro: "#FFFFFF", // --cor-texto-claro (branco)
   textoClaroSuave: "#9FB3C8", // --cor-texto-claro-suave
+  erro: "#B3261E", // --cor-erro (mensagens de erro de formulário)
 } as const;
 
 // --- Fórmula de contraste WCAG 2.1 ---
@@ -127,6 +128,19 @@ const PARES: Par[] = [
     nome: "destaque-texto sobre destaque-suave (chips de tag)",
     frente: PALETA.destaqueTexto,
     fundo: PALETA.destaqueSuave,
+    limiar: 4.5,
+  },
+
+  {
+    nome: "erro sobre branco (mensagens de formulário em cards)",
+    frente: PALETA.erro,
+    fundo: PALETA.superficie,
+    limiar: 4.5,
+  },
+  {
+    nome: "erro sobre areia (mensagens fora de cards)",
+    frente: PALETA.erro,
+    fundo: PALETA.areia,
     limiar: 4.5,
   },
 
