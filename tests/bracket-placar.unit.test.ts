@@ -3,7 +3,7 @@
 import { describe, it, expect } from "vitest";
 import type { Bracket, Match, Pair } from "../src/domain/bracket/types";
 import { gerarChaveamento } from "../src/domain/bracket/generator";
-import { registrarPlacar } from "../src/domain/bracket/progression";
+import { registrarPlacar, atualizarPlacarAoVivo } from "../src/domain/bracket/progression";
 import { classificarGrupo } from "../src/domain/bracket/standings";
 import { serializar, desserializar } from "../src/domain/bracket/serializer";
 import { jogoRowParaMatch, matchParaJogoRow } from "../src/store/mappers";
@@ -144,5 +144,59 @@ describe("persistência do placar", () => {
     expect([row.placar_a, row.placar_b]).toEqual([15, 9]);
     const m2 = jogoRowParaMatch(row);
     expect([m2.placarA, m2.placarB]).toEqual([15, 9]);
+  });
+});
+
+describe("placar ao vivo", () => {
+  const base = gerar(3, { formato: "fase de grupos", numeroDeGrupos: 1 });
+  const j0 = base.matches[0];
+
+  it("grava o placar parcial sem decidir o jogo nem avançar ninguém (empate permitido)", () => {
+    const r = atualizarPlacarAoVivo(base, j0.id, 7, 7);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const j = r.bracket.matches.find((m) => m.id === j0.id)!;
+    expect([j.placarA, j.placarB]).toEqual([7, 7]);
+    expect(j.vencedorId).toBeNull();
+    expect(j.registradoEm).toBeNull();
+    // Não conta na classificação enquanto não encerra.
+    const t = classificarGrupo(r.bracket.grupos[0], r.bracket.matches);
+    expect(t.every((s) => s.jogos === 0 && s.pontos === 0)).toBe(true);
+  });
+
+  it("não muta a entrada e rejeita valores inválidos e jogo não pronto", () => {
+    const antes = JSON.stringify(base);
+    const r = atualizarPlacarAoVivo(base, j0.id, 3, 2);
+    expect(r.ok).toBe(true);
+    expect(JSON.stringify(base)).toBe(antes);
+
+    for (const [a, b] of [[-1, 0], [1.5, 0], [Number.NaN, 0]]) {
+      const inv = atualizarPlacarAoVivo(base, j0.id, a, b);
+      expect(inv.ok).toBe(false);
+      if (!inv.ok) expect(inv.erro.code).toBe("PLACAR_INVALIDO");
+    }
+
+    const mm = gerar(4, { formato: "eliminação simples" });
+    const futuro = mm.matches.find((m) => m.a.pairId === null || m.b.pairId === null)!;
+    const np = atualizarPlacarAoVivo(mm, futuro.id, 1, 0);
+    expect(np.ok).toBe(false);
+    if (!np.ok) expect(np.erro.code).toBe("JOGO_NAO_PRONTO");
+  });
+
+  it("jogo encerrado não aceita placar ao vivo; encerrar usa o placar parcial", () => {
+    const vivo = atualizarPlacarAoVivo(base, j0.id, 14, 12);
+    if (!vivo.ok) throw new Error("falhou");
+    const fim = registrarPlacar(vivo.bracket, j0.id, 15, 12, AGORA);
+    expect(fim.ok).toBe(true);
+    if (!fim.ok) return;
+    expect(fim.bracket.matches.find((m) => m.id === j0.id)!.vencedorId).toBe(j0.a.pairId);
+
+    const de_novo = atualizarPlacarAoVivo(fim.bracket, j0.id, 16, 12);
+    expect(de_novo.ok).toBe(false);
+    if (!de_novo.ok) expect(de_novo.erro.code).toBe("JOGO_ENCERRADO");
+
+    // Encerrar com empate continua proibido.
+    const empate = registrarPlacar(vivo.bracket, j0.id, 12, 12, AGORA);
+    expect(empate.ok).toBe(false);
   });
 });

@@ -325,7 +325,7 @@ const { campeonato, categoriaNome } = Astro.props;
     type ClassificadoDoGrupo,
   } from "../../../../domain/bracket/generator";
   import { rotuloDupla, gerarNomeDupla } from "../../../../domain/pairs/nome";
-  import { registrarPlacar } from "../../../../domain/bracket/progression";
+  import { registrarPlacar, atualizarPlacarAoVivo } from "../../../../domain/bracket/progression";
   import { numerarJogos } from "../../../../domain/bracket/ordenacao";
   import { jogosAlterados } from "../../../../domain/bracket/diff";
   import { selecionarClassificados } from "../../../../domain/bracket/standings";
@@ -369,6 +369,8 @@ const { campeonato, categoriaNome } = Astro.props;
         return "Informe placares inteiros, 0 ou maior.";
       case "PLACAR_EMPATE":
         return "Não há empate: um dos placares deve ser maior.";
+      case "JOGO_ENCERRADO":
+        return "Este jogo já foi encerrado.";
       case "FALHA_PERSISTENCIA":
         return "Falha ao salvar. Tente novamente em instantes.";
       case "FALHA_LEITURA":
@@ -1058,16 +1060,18 @@ const { campeonato, categoriaNome } = Astro.props;
     return d ? rotuloDupla(d) : "(indefinida)";
   }
 
+  /**
+   * Registra o resultado FINAL de um jogo (vencedor derivado do placar, avanço
+   * e cascata). Devolve a mensagem de erro, ou `null` se deu certo.
+   */
   async function registrarResultado(
     ctx: Ctx,
     matchId: string,
     placarA: number,
     placarB: number,
-  ): Promise<void> {
-    const erro = q<HTMLElement>(ctx.secao, "[data-erro-gerar]");
-    limparErro(erro);
+  ): Promise<string | null> {
     const bracket = ctx.bracket;
-    if (!bracket) return;
+    if (!bracket) return "Nenhum chaveamento carregado.";
 
     // Progressão PURA: produz um novo bracket (avanço + cascata). `agora` é
     // injetado na borda para manter a função pura (R6.1).
@@ -1079,8 +1083,9 @@ const { campeonato, categoriaNome } = Astro.props;
       new Date().toISOString(),
     );
     if (!res.ok) {
-      setTexto(ctx.status, mensagemErro(res.erro));
-      return;
+      const msg = mensagemErro(res.erro);
+      setTexto(ctx.status, msg);
+      return msg;
     }
 
     // Numera os jogos que passaram a ser elegíveis com este resultado (ex.: a
@@ -1088,7 +1093,7 @@ const { campeonato, categoriaNome } = Astro.props;
     // já numerados permanecem estáveis.
     const numerado = numerarJogos(res.bracket);
     const alterados = jogosAlterados(bracket, numerado);
-    if (alterados.length === 0) return;
+    if (alterados.length === 0) return null;
 
     // Atualização otimista: mostra o placar na hora e grava só os jogos que
     // mudaram (uma ida ao banco), sem reler o chaveamento inteiro.
@@ -1107,13 +1112,178 @@ const { campeonato, categoriaNome } = Astro.props;
       ctx.bracket = bracket;
       renderBracket(ctx);
       renderBotaoMataMata(ctx);
-      setTexto(ctx.status, mensagemErro(salvo.erro));
+      const msg = mensagemErro(salvo.erro);
+      setTexto(ctx.status, msg);
       if (reler) void recarregarChaveamento(ctx);
-      return;
+      return msg;
     }
     setTexto(ctx.status, "Placar registrado.");
     // Chegou evento de outra pessoa durante a gravação: relê agora.
     if (reler) void recarregarChaveamento(ctx);
+    return null;
+  }
+
+  /**
+   * Grava o placar PARCIAL de um jogo em andamento (sem encerrar nem avançar
+   * ninguém). Cada toque no "+" chega aqui: quem acompanha vê o placar mudar.
+   * Devolve a mensagem de erro, ou `null` se deu certo.
+   */
+  async function salvarPlacarAoVivo(
+    ctx: Ctx,
+    matchId: string,
+    placarA: number,
+    placarB: number,
+  ): Promise<string | null> {
+    const bracket = ctx.bracket;
+    if (!bracket) return "Nenhum chaveamento carregado.";
+    const res = atualizarPlacarAoVivo(bracket, matchId, placarA, placarB);
+    if (!res.ok) return mensagemErro(res.erro);
+    const alterados = jogosAlterados(bracket, res.bracket);
+    if (alterados.length === 0) return null;
+
+    ctx.bracket = res.bracket;
+    renderBracket(ctx);
+
+    ctx.salvando += 1;
+    const salvo = await ctx.store.salvarJogos(ctx.ref, alterados, res.bracket.campeaId);
+    ctx.salvando -= 1;
+    const reler = ctx.salvando === 0 && ctx.recarregarDepois;
+    if (reler) ctx.recarregarDepois = false;
+    if (reler) void recarregarChaveamento(ctx);
+    // Em caso de falha NÃO desfaz: o placar da tela de pontuação é o que vale e
+    // o próximo toque reenvia o valor mais recente.
+    return salvo.ok ? null : mensagemErro(salvo.erro);
+  }
+
+  // --------------------------------------------------------------------
+  // TELA DE PLACAR (ao vivo)
+  // --------------------------------------------------------------------
+  let telaPlacarAberta = false;
+
+  function abrirTelaPlacar(ctx: Ctx, matchId: string): void {
+    const bracket = ctx.bracket;
+    const jogo = bracket?.matches.find((m) => m.id === matchId);
+    if (!bracket || !jogo || telaPlacarAberta) return;
+    const duplaA = jogo.a.pairId ? bracket.duplas.find((d) => d.id === jogo.a.pairId) : undefined;
+    const duplaB = jogo.b.pairId ? bracket.duplas.find((d) => d.id === jogo.b.pairId) : undefined;
+    if (!duplaA || !duplaB) return;
+    telaPlacarAberta = true;
+
+    // Jogo já encerrado: modo CORREÇÃO (nada é gravado até confirmar). Em
+    // andamento: modo AO VIVO (cada toque grava).
+    const correcao = jogo.vencedorId !== null;
+    const estado = { a: jogo.placarA ?? 0, b: jogo.placarB ?? 0 };
+    let ultimoEnviado = jogo.placarA !== null ? `${jogo.placarA}x${jogo.placarB}` : "";
+    let cadeia: Promise<unknown> = Promise.resolve();
+
+    const dialog = document.createElement("dialog");
+    dialog.className = "placar-tela";
+    dialog.setAttribute("aria-labelledby", "placar-tela-titulo");
+
+    const titulo = document.createElement("h2");
+    titulo.id = "placar-tela-titulo";
+    titulo.className = "placar-tela__titulo";
+    titulo.textContent = jogo.ordemDisputa !== null ? `Jogo ${jogo.ordemDisputa}` : "Placar";
+
+    const subtitulo = document.createElement("p");
+    subtitulo.className = "placar-tela__sub";
+    subtitulo.textContent = correcao
+      ? "Jogo encerrado: ajuste o placar e salve a correção."
+      : "Toque em + a cada ponto. O público acompanha em tempo real.";
+
+    const lados = document.createElement("div");
+    lados.className = "placar-tela__lados";
+
+    const msg = document.createElement("p");
+    msg.className = "placar-tela__msg";
+    msg.setAttribute("role", "status");
+
+    const pontos: Record<"a" | "b", HTMLElement> = {
+      a: document.createElement("p"),
+      b: document.createElement("p"),
+    };
+
+    const enviarAoVivo = (): void => {
+      if (correcao) return;
+      cadeia = cadeia.then(async () => {
+        const chave = `${estado.a}x${estado.b}`;
+        if (chave === ultimoEnviado) return;
+        ultimoEnviado = chave;
+        const erro = await salvarPlacarAoVivo(ctx, matchId, estado.a, estado.b);
+        msg.textContent = erro ?? "";
+        if (erro) ultimoEnviado = ""; // força reenvio no próximo toque
+      });
+    };
+
+    const mudar = (lado: "a" | "b", delta: number): void => {
+      estado[lado] = Math.max(0, estado[lado] + delta);
+      pontos[lado].textContent = String(estado[lado]);
+      enviarAoVivo();
+    };
+
+    const montarLado = (lado: "a" | "b", nome: string): HTMLElement => {
+      const caixa = document.createElement("div");
+      caixa.className = "placar-tela__lado";
+      const n = document.createElement("p");
+      n.className = "placar-tela__nome";
+      n.textContent = nome;
+      pontos[lado].className = "placar-tela__pontos";
+      pontos[lado].setAttribute("aria-live", "polite");
+      pontos[lado].textContent = String(estado[lado]);
+      const mais = document.createElement("button");
+      mais.type = "button";
+      mais.className = "placar-tela__mais";
+      mais.textContent = "+1";
+      mais.setAttribute("aria-label", `Mais um ponto para ${nome}`);
+      mais.addEventListener("click", () => mudar(lado, 1));
+      const menos = document.createElement("button");
+      menos.type = "button";
+      menos.className = "placar-tela__menos";
+      menos.textContent = "−1";
+      menos.setAttribute("aria-label", `Tirar um ponto de ${nome}`);
+      menos.addEventListener("click", () => mudar(lado, -1));
+      caixa.append(n, pontos[lado], mais, menos);
+      return caixa;
+    };
+    lados.append(montarLado("a", rotuloDupla(duplaA)), montarLado("b", rotuloDupla(duplaB)));
+
+    const acoes = document.createElement("div");
+    acoes.className = "placar-tela__acoes";
+    const encerrar = document.createElement("button");
+    encerrar.type = "button";
+    encerrar.className = "org__botao org__botao--primario placar-tela__encerrar";
+    encerrar.textContent = correcao ? "Salvar correção" : "Partida encerrada";
+    const fechar = document.createElement("button");
+    fechar.type = "button";
+    fechar.className = "org__botao";
+    fechar.textContent = "Fechar";
+    acoes.append(encerrar, fechar);
+
+    dialog.append(titulo, subtitulo, lados, msg, acoes);
+    document.body.append(dialog);
+
+    const limpar = (): void => {
+      telaPlacarAberta = false;
+      dialog.remove();
+    };
+    dialog.addEventListener("close", limpar);
+    fechar.addEventListener("click", () => dialog.close());
+
+    encerrar.addEventListener("click", async () => {
+      encerrar.disabled = true;
+      msg.textContent = "";
+      await cadeia; // espera os toques em andamento gravarem
+      const erro = await registrarResultado(ctx, matchId, estado.a, estado.b);
+      if (erro) {
+        msg.textContent = erro;
+        encerrar.disabled = false;
+        return;
+      }
+      dialog.close();
+    });
+
+    dialog.showModal();
+    encerrar.focus();
   }
 
   // --------------------------------------------------------------------
@@ -1131,32 +1301,13 @@ const { campeonato, categoriaNome } = Astro.props;
       return;
     }
 
-    // Rascunhos: placares digitados e ainda não salvos (valor diferente do
-    // exibido). Reaplicados após o redesenho se o placar salvo daquele campo
-    // não mudou nesse meio tempo.
-    const rascunhos = new Map<string, { base: string; valor: string }>();
-    slot.querySelectorAll<HTMLInputElement>(".match-card__placar-input").forEach((i) => {
-      if (i.value !== i.defaultValue) {
-        rascunhos.set(`${i.dataset.matchId}|${i.dataset.lado}`, {
-          base: i.defaultValue,
-          valor: i.value,
-        });
-      }
-    });
-
     try {
-      // O organizador informa o placar; o vencedor é o maior número (sem
-      // empate). Validação, avanço e cascata ficam em `registrarResultado`.
+      // O organizador abre a tela de placar do jogo (ao vivo; vencedor =
+      // maior número, sem empate). Ver `abrirTelaPlacar`.
       const view = renderBracketClient(ctx.bracket, {
-        aoSalvarPlacar: (matchId, placarA, placarB) => {
-          void registrarResultado(ctx, matchId, placarA, placarB);
-        },
+        aoAbrirPlacar: (matchId) => abrirTelaPlacar(ctx, matchId),
       });
       slot.replaceChildren(view);
-      view.querySelectorAll<HTMLInputElement>(".match-card__placar-input").forEach((i) => {
-        const r = rascunhos.get(`${i.dataset.matchId}|${i.dataset.lado}`);
-        if (r && r.base === i.defaultValue) i.value = r.valor;
-      });
     } catch {
       const err = document.createElement("p");
       err.className = "org__indisponivel";
@@ -1627,6 +1778,118 @@ const { campeonato, categoriaNome } = Astro.props;
   [id].astro faz para manter a visualização coerente.
 -->
 <style is:global>
+  /* Tela de placar ao vivo (dialog) */
+  .placar-tela {
+    width: min(92vw, 560px);
+    max-height: 92vh;
+    padding: 1.2rem 1.2rem 1rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 18px;
+    background: var(--cor-superficie, #fff);
+    color: var(--cor-texto);
+  }
+
+  .placar-tela::backdrop {
+    background: rgba(8, 20, 40, 0.6);
+  }
+
+  .placar-tela__titulo {
+    margin: 0;
+    font-size: 1.25rem;
+  }
+
+  .placar-tela__sub {
+    margin: 0.2rem 0 1rem;
+    color: var(--cor-texto-suave);
+    font-size: 0.9rem;
+  }
+
+  .placar-tela__lados {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.8rem;
+  }
+
+  .placar-tela__lado {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    padding: 0.8rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 14px;
+    text-align: center;
+  }
+
+  .placar-tela__nome {
+    margin: 0;
+    font-weight: 700;
+    min-height: 2.6em;
+  }
+
+  .placar-tela__pontos {
+    margin: 0;
+    font-size: 3.6rem;
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--cor-destaque-texto);
+  }
+
+  .placar-tela__mais {
+    min-height: 3.4rem;
+    border: 0;
+    border-radius: 12px;
+    background: var(--cor-destaque);
+    color: #fff;
+    font: inherit;
+    font-size: 1.6rem;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .placar-tela__mais:active {
+    transform: scale(0.97);
+  }
+
+  .placar-tela__menos {
+    border: 1px solid var(--cor-borda);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--cor-texto);
+    font: inherit;
+    padding: 0.35rem;
+    cursor: pointer;
+  }
+
+  .placar-tela__mais:focus-visible,
+  .placar-tela__menos:focus-visible {
+    outline: 2px solid var(--cor-destaque);
+    outline-offset: 2px;
+  }
+
+  .placar-tela__msg {
+    min-height: 1.3em;
+    margin: 0.7rem 0 0;
+    color: var(--cor-erro, #c0392b);
+    font-size: 0.9rem;
+  }
+
+  .placar-tela__acoes {
+    display: flex;
+    gap: 0.6rem;
+    margin-top: 0.8rem;
+  }
+
+  .placar-tela__encerrar {
+    flex: 1;
+  }
+
+  .match-card__estado--aovivo {
+    color: #c0392b;
+    font-weight: 800;
+  }
+
   /* Nivelador: lista ordenável (arrastar e soltar + setas). */
   .org__nivelador {
     list-style: none;

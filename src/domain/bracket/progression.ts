@@ -227,6 +227,44 @@ export function registrarPlacar(
   return res;
 }
 
+/**
+ * Atualiza o placar de um jogo EM ANDAMENTO (ao vivo) e devolve um NOVO bracket.
+ *
+ * Diferente de `registrarPlacar`, NÃO decide o jogo: grava só `placarA/placarB`
+ * e mantém `vencedorId = null`, então nada avança no chaveamento nem entra na
+ * classificação. Empate é permitido (o jogo ainda está rolando). O jogo é
+ * encerrado depois, com `registrarPlacar` usando o placar final.
+ *
+ * - `JOGO_NAO_PRONTO`: alguma das duas duplas ainda não está definida.
+ * - `JOGO_ENCERRADO`: o jogo já tem vencedor (use `registrarPlacar` para corrigir).
+ * - `PLACAR_INVALIDO`: algum dos placares não é inteiro ou é negativo.
+ */
+export function atualizarPlacarAoVivo(
+  bracket: Bracket,
+  matchId: MatchId,
+  placarA: number,
+  placarB: number,
+): ProgressionResult {
+  const proximo = clonarBracket(bracket);
+  const jogo = proximo.matches.find((m) => m.id === matchId);
+  if (!jogo) {
+    return { ok: false, erro: { code: "VENCEDOR_INVALIDO" } };
+  }
+  if (!slotDefinido(jogo.a) || !slotDefinido(jogo.b)) {
+    return { ok: false, erro: { code: "JOGO_NAO_PRONTO" } };
+  }
+  if (jogo.vencedorId !== null) {
+    return { ok: false, erro: { code: "JOGO_ENCERRADO" } };
+  }
+  const valido = (n: number): boolean => Number.isInteger(n) && n >= 0;
+  if (!valido(placarA) || !valido(placarB)) {
+    return { ok: false, erro: { code: "PLACAR_INVALIDO" } };
+  }
+  jogo.placarA = placarA;
+  jogo.placarB = placarB;
+  return { ok: true, bracket: proximo };
+}
+
 // ---------------------------------------------------------------------------
 // Auxiliares puros
 // ---------------------------------------------------------------------------

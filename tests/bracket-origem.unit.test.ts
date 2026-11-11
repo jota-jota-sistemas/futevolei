@@ -70,3 +70,30 @@ describe("linhas de ligação do mata-mata", () => {
     expect(view.querySelectorAll(".elim-tree__linha--ramo").length).toBe(2);
   });
 });
+
+describe("card de jogo ao vivo e botão de placar", () => {
+  const r = gerarChaveamento({ duplas: duplas(4), config: { formato: "eliminação simples" } });
+  if (!r.ok) throw new Error(r.erro.code);
+  const jogo = r.bracket.matches.find((m) => m.a.pairId && m.b.pairId)!;
+
+  it("jogo com placar e sem vencedor mostra 'Ao vivo' e o placar parcial", () => {
+    const vivo = {
+      ...r.bracket,
+      matches: r.bracket.matches.map((m) => (m.id === jogo.id ? { ...m, placarA: 4, placarB: 3 } : m)),
+    };
+    const view = renderBracketClient(vivo);
+    expect(view.querySelector(".match-card__estado--aovivo")?.textContent).toBe("Ao vivo");
+    expect(view.querySelector(".match-card__estado--pendente")?.textContent).toBe("Pendente"); // o outro jogo
+    expect(Array.from(view.querySelectorAll(".match-card__placar")).map((e) => e.textContent)).toEqual(["4", "3"]);
+  });
+
+  it("na organização o botão abre a tela de placar do jogo", () => {
+    const abertos: string[] = [];
+    const view = renderBracketClient(r.bracket, { aoAbrirPlacar: (id) => abertos.push(id) });
+    const botoes = view.querySelectorAll<HTMLButtonElement>(".match-card__salvar");
+    expect(botoes.length).toBe(2); // só os 2 jogos prontos da 1ª rodada
+    expect(botoes[0].textContent).toBe("Marcar placar");
+    botoes[0].click();
+    expect(abertos).toHaveLength(1);
+  });
+});
