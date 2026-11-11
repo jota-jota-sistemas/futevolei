@@ -10,7 +10,12 @@
 //    Os dois são avaliados na MESMA categoria (ver utils/categorias.ts). Os
 //    chips [data-genero] selecionam o gênero (seleção única).
 //
-// A filtragem só ocorre no clique de "Buscar eventos" ([data-buscar]); os chips
+// Busca de texto ([data-filtro="busca"], nome + local): filtra AO DIGITAR, sem
+// precisar de "Buscar eventos". Combina (E) com os filtros já aplicados, mas
+// nunca aplica select/chip ainda não confirmado: os filtros do hero ficam num
+// snapshot atualizado só em aplicarFiltros().
+//
+// A filtragem dos demais filtros só ocorre no clique de "Buscar eventos" ([data-buscar]); os chips
 // de período e de gênero apenas marcam a seleção (não filtram sozinhos). "Limpar filtros"
 // ([data-limpar]) zera tudo. O "x" de um chip ativo ([data-chip-remover])
 // limpa aquela dimensão. Delegação única de clique no document (robusto a HMR).
@@ -21,6 +26,7 @@
 import type { Campeonato } from "../types";
 import {
   corresponde,
+  correspondeBusca,
   cidadeDoLocal,
   intervaloDoPreset,
   type FiltrosEventos,
@@ -35,6 +41,13 @@ const LIMITE_INICIAL = 8;
 // LIMITE_INICIAL quando não há filtro ativo); true = todos revelados ("Ver
 // todos"). O limite só se aplica quando NÃO há filtro ativo.
 let expandido = false;
+
+/** Filtros confirmados (snapshot) e o valor do preset, para os chips. */
+interface Aplicado {
+  filtros: FiltrosEventos;
+  preset: string;
+}
+let aplicado: Aplicado = { filtros: {}, preset: "" };
 
 /** Controle (select/input) por chave [data-filtro], ou null. */
 function controle(chave: string): HTMLInputElement | HTMLSelectElement | null {
@@ -57,16 +70,24 @@ function hojeISO(): string {
 }
 
 /** Monta os filtros atuais a partir dos controles (preset → intervalo). */
-function filtrosAtuais(): FiltrosEventos {
+function filtrosAtuais(): Aplicado {
   const preset = valorDoControle("preset");
   const { de, ate } = intervaloDoPreset(preset, hojeISO());
   return {
-    cidade: valorDoControle("cidade"),
-    data: de,
-    dataAte: ate,
-    nivel: valorDoControle("nivel"),
-    genero: valorDoControle("genero"),
+    preset,
+    filtros: {
+      cidade: valorDoControle("cidade"),
+      data: de,
+      dataAte: ate,
+      nivel: valorDoControle("nivel"),
+      genero: valorDoControle("genero"),
+    },
   };
+}
+
+/** Texto vivo da busca (não faz parte do snapshot). */
+function textoBusca(): string {
+  return controle("busca")?.value ?? "";
 }
 
 /** Reconstrói o Campeonato parcial de um card a partir dos data-*. */
@@ -96,14 +117,13 @@ function atualizarContador(visiveis: number, total: number): void {
 }
 
 /** Renderiza um chip removível por filtro ativo (cidade, período, nível, gênero). */
-function renderizarChips(filtros: FiltrosEventos): void {
+function renderizarChips({ filtros, preset }: Aplicado): void {
   const lista = document.querySelector<HTMLElement>("[data-chips]");
   if (!lista) return;
   lista.textContent = "";
 
   const ativos: { chave: string; icone: string; rotulo: string }[] = [];
   if (filtros.cidade) ativos.push({ chave: "cidade", icone: "📍", rotulo: filtros.cidade });
-  const preset = valorDoControle("preset");
   if (preset) ativos.push({ chave: "preset", icone: "📅", rotulo: rotuloPreset(preset) });
   if (filtros.nivel) ativos.push({ chave: "nivel", icone: "🏷️", rotulo: filtros.nivel });
   if (filtros.genero) ativos.push({ chave: "genero", icone: "👥", rotulo: filtros.genero });
@@ -150,17 +170,29 @@ function algumFiltroAtivo(filtros: FiltrosEventos): boolean {
  * Um card só aparece se corresponder ao filtro E não estiver sob o limite.
  */
 function aplicarFiltros(): void {
-  const filtros = filtrosAtuais();
+  aplicado = filtrosAtuais();
+  renderizar();
+}
+
+/** Reavalia a lista com o snapshot de filtros + o texto vivo da busca. */
+function renderizar(): void {
+  const { filtros } = aplicado;
+  const busca = textoBusca();
   const cards = Array.from(document.querySelectorAll<HTMLElement>("[data-evento]"));
 
-  const temFiltro = algumFiltroAtivo(filtros);
+  const temFiltro = algumFiltroAtivo(filtros) || busca.trim() !== "";
   // O limite só vale no estado inicial: sem filtro ativo e feed colapsado.
   const limitar = !temFiltro && !expandido;
 
   let correspondentes = 0; // passam no filtro (ignorando o limite)
   let visiveis = 0; // de fato exibidos (filtro E limite)
   for (const card of cards) {
-    const bate = corresponde(campeonatoDoCard(card) as Campeonato, filtros);
+    const bate =
+      corresponde(campeonatoDoCard(card) as Campeonato, filtros) &&
+      correspondeBusca(
+        { nome: card.dataset.nome ?? "", local: card.dataset.local ?? "" },
+        busca
+      );
     if (bate) correspondentes += 1;
 
     const excedente = card.dataset.excedente === "true";
@@ -175,7 +207,7 @@ function aplicarFiltros(): void {
   // Contador: no estado limitado, reflete "X de Y" (exibidos de total); com
   // filtro, reflete os correspondentes.
   atualizarContador(limitar ? visiveis : correspondentes, cards.length);
-  renderizarChips(filtros);
+  renderizarChips(aplicado);
 
   // Botão "Ver todos": visível apenas quando o limite está escondendo cards.
   const botao = document.querySelector<HTMLElement>("[data-ver-todos]");
@@ -275,8 +307,14 @@ if (!docFlag.__filtrosClienteRegistrado) {
   if (alvo.closest("[data-buscar]")) {
     aplicarFiltros();
   } else if (alvo.closest("[data-limpar]")) {
-    limpar(["cidade", "preset", "nivel", "genero"], true);
+    limpar(["cidade", "preset", "nivel", "genero", "busca"], true);
   }
+  });
+
+  // Busca de texto: filtra a cada tecla, sem tocar nos filtros pendentes.
+  document.addEventListener("input", (evento) => {
+    const alvo = evento.target as Element | null;
+    if (alvo?.matches?.("[data-filtro=\"busca\"]")) renderizar();
   });
 
   // Sincroniza o estado inicial assim que o módulo carrega: aplica o limite

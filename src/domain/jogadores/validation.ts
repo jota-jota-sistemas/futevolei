@@ -27,6 +27,7 @@ import {
   type ParticipacaoDupla,
   type ResultadoJogador,
 } from "./types";
+import { chaveTexto } from "../../utils/texto";
 
 const NOME_MAX = 80;
 const APELIDO_MAX = 40;
@@ -156,18 +157,8 @@ export function validarJogador(
   };
 }
 
-/**
- * Chave de comparação de textos para busca e homônimos: sem acentos, minúsculas
- * e com espaços colapsados ("  João   SILVA " -> "joao silva").
- */
-export function chaveTexto(texto: string): string {
-  return (texto ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
-}
+// Reexportada de utils/texto (compartilhada com a busca de eventos).
+export { chaveTexto };
 
 /**
  * Jogadores existentes com o MESMO nome (ignorando caixa, acentos e espaços

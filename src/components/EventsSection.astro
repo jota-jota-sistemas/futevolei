@@ -37,6 +37,20 @@ const LIMITE_INICIAL = 8;
       >Ver todos os eventos <span aria-hidden="true">→</span></button>
     </div>
 
+    {/* Busca de texto (nome + local): filtra ao digitar, dentro desta seção. */}
+    <div class="eventos__busca" role="search">
+      <label class="eventos__busca-rotulo" for="busca-eventos">Buscar evento</label>
+      <input
+        id="busca-eventos"
+        class="eventos__busca-campo"
+        type="search"
+        data-filtro="busca"
+        placeholder="Nome do evento ou local"
+        autocomplete="off"
+        disabled={ordenados.length === 0}
+      />
+    </div>
+
     {/*
       Região de resultados: contador + chips de filtros ativos.
       Preenchida/atualizada pelo script client-side a cada busca. Começa com o
@@ -61,7 +75,7 @@ const LIMITE_INICIAL = 8;
           {/* Estado vazio de FILTRO: distinto do "nenhum evento cadastrado". */}
           {/* Alternado pelo script client-side quando nada corresponde aos filtros. */}
           <p class="eventos__vazio" data-vazio-filtro hidden>
-            Nenhum evento corresponde aos filtros selecionados.
+            Nenhum evento corresponde à busca e aos filtros selecionados.
           </p>
         </div>
       )
@@ -139,6 +153,35 @@ const LIMITE_INICIAL = 8;
    */
   .eventos__grid:not([data-js="true"])[data-expandido="false"] [data-excedente] {
     display: none;
+  }
+
+  /* ---- Busca de texto: barra branca com rótulo e campo ---- */
+  .eventos__busca {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-card);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+
+  .eventos__busca-rotulo {
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  .eventos__busca-campo {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 44px;
+    padding: 0.5rem 0.75rem;
+    font-size: 1rem;
+    font-family: inherit;
+    border: 1px solid var(--cor-texto-suave);
+    border-radius: 12px;
   }
 
   /* ---- Região de resultados: contador + chips (mobile-first) ---- */
