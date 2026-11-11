@@ -2,6 +2,7 @@
 import type { Campeonato } from "../../../../types";
 import campeonatosData from "../../../../data/campeonatos.json";
 import Layout from "../../../../layouts/Layout.astro";
+import GuardaAcesso from "../../../../components/GuardaAcesso.astro";
 import { comBase, slugCategoria } from "../../../../utils/url";
 
 /**
@@ -11,9 +12,8 @@ import { comBase, slugCategoria } from "../../../../utils/url";
  * organização opera POR CATEGORIA — cada categoria tem um chaveamento
  * independente.
  *
- * Esta rota NÃO é linkada publicamente (sem link a partir das páginas públicas)
- * e o controle de acesso completo do organizador chega na Fase 2a (R9.3). A
- * visualização pública (R9.2) continua na página `/campeonatos/[id]`.
+ * Esta rota NÃO é linkada publicamente e só administradores logados a usam
+ * (GuardaAcesso + RLS com eh_admin()). A visualização pública (R9.2) continua na página `/campeonatos/[id]`.
  *
  * Fonte das categorias no estático: o JSON `src/data/campeonatos.json` (campo
  * `categorias?`), igual ao restante do site, para gerar as rotas estáticas e a
@@ -48,7 +48,9 @@ const itens = categorias.map((nome) => ({
 <Layout
   titulo={`Organização — ${campeonato.nome}`}
   descricao={`Área de organização do campeonato ${campeonato.nome}.`}
+  noindex
 >
+  <GuardaAcesso>
   <section class="organizar">
     <a class="organizar__voltar" href={comBase(`/campeonatos/${campeonato.id}`)}>
       <span aria-hidden="true">←</span> Voltar ao campeonato
@@ -64,8 +66,7 @@ const itens = categorias.map((nome) => ({
     </header>
 
     <p class="organizar__aviso" role="note">
-      Área restrita de organização. O controle de acesso completo chega na
-      Fase 2a — por ora estas páginas não são divulgadas publicamente.
+      Área restrita a administradores.
     </p>
 
     {
@@ -89,7 +90,15 @@ const itens = categorias.map((nome) => ({
       )
     }
   </section>
+  </GuardaAcesso>
 </Layout>
+
+<script>
+  import { guardarAcesso } from "../../../../scripts/guarda";
+  import { criarAuthStoreBrowser } from "../../../../store/authStore";
+
+  void guardarAcesso({ store: criarAuthStoreBrowser() });
+</script>
 
 <style>
   .organizar {

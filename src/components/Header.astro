@@ -2,6 +2,7 @@
 import BrandLogo from "./BrandLogo.astro";
 import { comBase } from "../utils/url";
 import { ITENS_MENU, itemAtivo } from "../utils/menu";
+import { hrefEntrar } from "../scripts/rotas-auth";
 
 const base = import.meta.env.BASE_URL || "/";
 const caminho = Astro.url.pathname;
@@ -26,9 +27,24 @@ const caminho = Astro.url.pathname;
           </a>
         ))
       }
+      {/* Itens de conta: "Entrar" no HTML estático; o script abaixo troca por
+          "Minha conta" (e "Gerenciar" para administradores) quando há login. */}
+      <span class="header__conta" data-menu-conta>
+        <a
+          class="header__link"
+          href={hrefEntrar()}
+          aria-current={caminho.replace(/\/+$/, "") === hrefEntrar().replace(/\/+$/, "") ? "page" : undefined}
+        >Entrar</a>
+      </span>
     </nav>
   </div>
 </header>
+
+<script>
+  import { iniciarMenuConta } from "../scripts/menu-conta";
+
+  void iniciarMenuConta();
+</script>
 
 <style>
   .header {
@@ -55,6 +71,43 @@ const caminho = Astro.url.pathname;
     gap: 0.75rem;
     margin-left: auto;
     min-width: 0;
+  }
+
+  /* Contêiner dos itens de conta: não altera o fluxo flex do menu. */
+  .header__conta {
+    display: contents;
+  }
+
+  /* Itens criados pelo script (sem o atributo de escopo): rótulo curto em telas
+     estreitas e link de gerenciamento só a partir de 640px (em telas menores
+     ele fica em "Minha conta"). */
+  .header__conta :global(.header__rot-curto) {
+    display: none;
+  }
+
+  .header__conta :global(.header__link--secundario) {
+    display: none;
+  }
+
+  @media (max-width: 399px) {
+    .header__conta :global(.header__rot-longo) {
+      display: none;
+    }
+
+    .header__conta :global(.header__rot-curto) {
+      display: inline;
+    }
+
+    /* Logo menor para o menu caber em 320px. */
+    .header :global(.marca__img) {
+      height: 32px;
+    }
+  }
+
+  @media (min-width: 640px) {
+    .header__conta :global(.header__link--secundario) {
+      display: inline-flex;
+    }
   }
 
   .header__link {

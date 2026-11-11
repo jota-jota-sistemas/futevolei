@@ -1,0 +1,156 @@
+---
+import Layout from "../layouts/Layout.astro";
+import PaginaTopo from "../components/PaginaTopo.astro";
+import Cartao from "../components/Cartao.astro";
+import { comBase } from "../utils/url";
+---
+
+<Layout
+  titulo="Entrar — Pingo Futevôlei"
+  descricao="Entre com Google ou receba um link de acesso por e-mail."
+  noindex
+>
+  <PaginaTopo
+    titulo="Entrar"
+    subtitulo="Use sua conta Google ou receba um link por e-mail."
+    voltarHref={comBase("/")}
+    voltarTexto="Voltar aos eventos"
+  />
+
+  <div class="entrar">
+    <Cartao titulo="Acesse sua conta" id="entrar">
+      <p class="entrar__estado" data-entrar-estado role="status">Verificando sua sessão…</p>
+
+      <div data-entrar-formulario hidden>
+        <button type="button" class="entrar__google" data-google>
+          <span aria-hidden="true">G</span> Entrar com Google
+        </button>
+
+        <p class="entrar__ou" aria-hidden="true">ou</p>
+
+        <form class="entrar__form" data-form-link novalidate>
+          <label for="email-entrar">E-mail para receber o link</label>
+          <input
+            id="email-entrar"
+            class="entrar__campo"
+            type="email"
+            name="email"
+            autocomplete="email"
+            inputmode="email"
+            placeholder="voce@exemplo.com"
+            data-email
+            required
+          />
+          <button type="submit" class="btn-destaque entrar__enviar" data-enviar-link>
+            Enviar link de acesso
+          </button>
+        </form>
+
+        <p class="entrar__erro" data-entrar-erro role="alert"></p>
+        <p class="entrar__sucesso" data-entrar-sucesso role="status"></p>
+      </div>
+
+      <noscript><p>Ative o JavaScript para entrar.</p></noscript>
+    </Cartao>
+  </div>
+</Layout>
+
+<script>
+  import { iniciarEntrar } from "../scripts/entrar";
+  import { criarAuthStoreBrowser } from "../store/authStore";
+
+  void iniciarEntrar({
+    store: criarAuthStoreBrowser(),
+    volta: new URLSearchParams(window.location.search).get("volta"),
+  });
+</script>
+
+<style>
+  .entrar {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 1rem;
+  }
+
+  .entrar__estado,
+  .entrar__ou {
+    margin: 0;
+    color: var(--cor-texto-suave);
+  }
+
+  .entrar__ou {
+    text-align: center;
+    margin: 1rem 0;
+  }
+
+  .entrar__google {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    width: 100%;
+    min-height: 44px;
+    padding: 0.6rem 1rem;
+    font: inherit;
+    font-weight: 700;
+    color: var(--cor-texto);
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-texto-suave);
+    border-radius: 12px;
+    cursor: pointer;
+  }
+
+  .entrar__google:hover:not(:disabled) {
+    background: var(--cor-destaque-suave);
+  }
+
+  .entrar__google:disabled,
+  .entrar__enviar:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+
+  .entrar__form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .entrar__form label {
+    font-size: 0.85rem;
+    font-weight: 700;
+  }
+
+  .entrar__campo {
+    width: 100%;
+    min-height: 44px;
+    padding: 0.5rem 0.75rem;
+    font: inherit;
+    font-size: 1rem;
+    border: 1px solid var(--cor-texto-suave);
+    border-radius: 12px;
+  }
+
+  .entrar__enviar {
+    min-height: 44px;
+    margin-top: 0.25rem;
+  }
+
+  .entrar__erro {
+    margin: 0.75rem 0 0;
+    color: var(--cor-erro);
+    font-weight: 600;
+  }
+
+  .entrar__sucesso {
+    margin: 0.75rem 0 0;
+    color: var(--cor-destaque-texto);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .entrar__erro:empty,
+  .entrar__sucesso:empty {
+    display: none;
+  }
+</style>

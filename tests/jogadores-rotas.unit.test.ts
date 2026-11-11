@@ -1,7 +1,7 @@
 // tests/jogadores-rotas.unit.test.ts
 //
 // Separação entre a CONSULTA PÚBLICA de jogadores (/jogadores) e a ÁREA DE
-// GERENCIAMENTO (/gerenciar_jogadores), que só se alcança digitando o endereço.
+// GERENCIAMENTO (/gerenciar_jogadores), restrita a administradores logados.
 //
 // A guarda de código abaixo impede que o caminho de gerenciamento apareça, como
 // string literal, em qualquer arquivo fora da própria área: assim ele não vira

@@ -277,25 +277,54 @@ Cadastro de atletas, base para um futuro ranking de jogadores. Há duas áreas:
 | Área | Endereço | O que faz |
 |---|---|---|
 | **Consulta pública** (menu "Jogadores") | `/jogadores` e `/jogadores/perfil?id=…` | Só lista, busca e perfil com o histórico de duplas. **Somente leitura**: não há formulário nem botão de editar. Mostra apenas jogadores ativos na lista. |
-| **Gerenciamento** (MVP) | `/gerenciar_jogadores` e `/gerenciar_jogadores/editar?id=…` | Criar, editar, arquivar/reativar e excluir. **Sem link em nenhuma página** (nem menu nem rodapé): só se chega digitando o endereço. Marcada com `noindex`. |
+| **Gerenciamento** | `/gerenciar_jogadores` e `/gerenciar_jogadores/editar?id=…` | Criar, editar, arquivar/reativar e excluir. **Só administradores logados** (ver "Login e administradores"). O link aparece no menu apenas para administradores. Marcada com `noindex`. |
 
-> **Atenção: isto não é controle de acesso.** Esconder o endereço é só discrição. Enquanto não houver login, as policies do banco liberam a escrita ao papel anônimo, então quem souber a URL (ou chamar a API do Supabase direto com a chave pública) ainda consegue criar, alterar e apagar jogadores. A proteção real é a Fase 2a: autenticação e `to authenticated` nas policies de `jogadores`.
+> **Acesso:** a escrita no banco exige `eh_admin()` (RLS). A guarda da tela é só de interface; veja a seção "Login e administradores".
 
 - **Banco:** tabela `jogadores` (nome, apelido, gênero, categoria, cidade, UF, instagram, ativo) e duas colunas **opcionais** em `duplas`: `jogador_a_id` e `jogador_b_id`. `atleta_a` e `atleta_b` continuam como texto e guardam o nome na hora da inscrição, então renomear um jogador não altera chaveamentos já gerados. O SQL está em `supabase/schema.sql` (idempotente) e **precisa ser aplicado manualmente** no Supabase.
 - **Privacidade:** a leitura é pública, então a tabela só guarda dados que podem ser exibidos a qualquer visitante. Não adicione e-mail, telefone, CPF nem data de nascimento nela.
-- **Segurança (atenção):** enquanto não há login, a escrita é anônima, como nas demais tabelas de organização. Qualquer visitante pode criar, editar e apagar perfis. A Fase 2a deve trocar `to anon` por `to authenticated` nas policies de `jogadores`.
+- **Segurança:** só administradores criam e apagam perfis; um usuário vinculado ao jogador edita apenas o próprio registro (policies em `supabase/schema.sql`). Bancos que aplicaram a versão anterior precisam reaplicar o SQL, que remove a escrita anônima.
 - **Excluir:** apaga de vez só quem não tem vínculo com nenhuma dupla; quem tem histórico é **arquivado** (`ativo = false`) e some da lista, mas permanece no banco.
 - **Nomes repetidos** são permitidos (homônimos existem). O formulário avisa e pede confirmação.
 - **Limite:** a lista carrega até 1000 jogadores (teto padrão do PostgREST). Acima disso é preciso paginar.
 - **Ranking (futuro):** pode sair de uma view que junta `jogos.vencedor_id` → `duplas` → `jogador_a_id`/`jogador_b_id`, sem tabela de pontos. A regra de pontuação ainda é uma decisão de produto.
-- **Código:** domínio puro em `src/domain/jogadores`, acesso a dados em `src/store/jogadorStore.ts` (cliente injetável, como o `bracketStore`). As duas áreas compartilham os componentes `JogadoresLista` e `JogadorPerfil` e os scripts `jogadores-lista.ts` e `jogador-perfil.ts`. A área de gerenciamento é ligada pelo parâmetro `gerenciar: true`, que vale `false` por padrão, então a consulta pública nunca escreve, mesmo que o HTML tenha um formulário. O caminho `/gerenciar_jogadores` só existe em `src/pages/gerenciar_jogadores/` e em `src/scripts/rotas-gerenciar.ts`, e um teste impede que ele apareça em outros arquivos (menu, rodapé, módulos compartilhados).
+- **Código:** domínio puro em `src/domain/jogadores`, acesso a dados em `src/store/jogadorStore.ts` (cliente injetável, como o `bracketStore`). As duas áreas compartilham os componentes `JogadoresLista` e `JogadorPerfil` e os scripts `jogadores-lista.ts` e `jogador-perfil.ts`. A área de gerenciamento é ligada pelo parâmetro `gerenciar: true`, que vale `false` por padrão, então a consulta pública nunca escreve, mesmo que o HTML tenha um formulário. O caminho `/gerenciar_jogadores` só existe em `src/pages/gerenciar_jogadores/` e em `src/scripts/rotas-gerenciar.ts`, e um teste impede que ele apareça como texto em outros arquivos (os demais módulos importam o `hrefGerenciar`).
 - **Categoria do jogador:** campo opcional `categoria`, com o mesmo vocabulário de Nível do filtro de eventos (sem "Outros"). Quem já aplicou a versão anterior do SQL precisa rodar o `alter table jogadores add column if not exists categoria …` que está em `supabase/schema.sql`.
 - **Duplas do jogador:** o perfil lista as duplas em que ele participou (categoria, evento e parceiro), lidas de `duplas` pelos vínculos `jogador_a_id`/`jogador_b_id`. Esses vínculos são gravados no formulário de dupla da organização: cada atleta tem um seletor opcional **"Jogador cadastrado"**. Escolher um jogador preenche o nome; editar o nome à mão desfaz o vínculo. Sem escolher, a dupla é só texto, como antes, e **não** entra no histórico de ninguém.
 - **Ainda não feito:** migrar os nomes antigos de `atleta_a`/`atleta_b` para jogadores (duplas já criadas continuam sem vínculo) e o ranking.
 
+## Login e administradores (Supabase Auth)
+
+O site continua **estático**. O login usa o Supabase Auth direto no navegador, com **Google** e **link mágico** por e-mail.
+
+| Página | Acesso |
+|---|---|
+| Home, eventos, detalhe do evento, `acompanhar`, `/jogadores` e `/jogadores/perfil` | Públicas, sem login |
+| `/entrar` e `/conta` | Login e "Minha conta" (dados, vínculo com um jogador, sair) |
+| `/gerenciar_jogadores` (lista e editar) e `/campeonatos/[id]/organizar` (índice e categoria) | Só **administradores** logados |
+
+- **Quem é administrador:** qualquer pessoa pode criar conta, mas só quem tem o e-mail na tabela `administradores` gerencia. A decisão é do banco: a função `eh_admin()` compara o e-mail do JWT com a tabela, e as policies de escrita (categorias, duplas, chaveamentos, grupos, jogos e jogadores) exigem `eh_admin()`. A escrita anônima foi removida.
+- **Menu:** visitante vê "Entrar"; logado vê "Minha conta"; administrador vê também "Gerenciar" (a partir de 640px; em telas menores o link fica em "Minha conta"). Quem nunca entrou no navegador não carrega o SDK de login.
+- **Vínculo com jogador:** em `/conta` a pessoa escolhe um jogador cadastrado (`perfis.jogador_id`, único, então dois donos não são possíveis) e passa a poder editar só o próprio registro. O vínculo é escolhido pela própria pessoa, sem confirmação de administrador. Se isso virar problema, passe a exigir aprovação antes de gravar `jogador_id`.
+- **Código:** domínio puro em `src/domain/auth`, acesso em `src/store/authStore.ts` (cliente injetável), guarda em `src/scripts/guarda.ts` + `src/components/GuardaAcesso.astro`, páginas `src/pages/entrar.astro` e `src/pages/conta.astro`. O destino pós-login (`?volta=`) só aceita caminhos internos (`caminhoSeguro`).
+
+> **Atenção: a guarda da tela é só de interface.** O conteúdo das telas de gerenciamento nasce oculto e só é revelado para administradores, mas o HTML estático continua baixável por qualquer pessoa. Quem protege os dados é o **RLS** do Supabase. Por isso é obrigatório aplicar o SQL atualizado.
+
+### Configuração (manual, no painel do Supabase)
+
+1. **Aplicar o SQL:** em um banco que já tinha o schema anterior, rode só `supabase/migracao-auth.sql` (é a parte nova, idempotente); em um banco novo, rode `supabase/schema.sql` inteiro. Se mudar o bloco de autenticação do `schema.sql`, atualize a migração (um teste confere). Ele cria `administradores`, `eh_admin()`, `perfis` (com trigger de primeiro login) e troca as policies de escrita anônima pelas de administrador.
+2. **Provedores:** em *Authentication → Providers*, ative **Email** (com "Confirm email"/OTP por link) e **Google** (Client ID e Secret criados no Google Cloud Console; a URL de callback é a que o painel mostra).
+3. **URLs de redirecionamento:** em *Authentication → URL Configuration*, defina o **Site URL** (`https://futevolei.vercel.app`) e inclua em *Redirect URLs* `https://futevolei.vercel.app/entrar` e `http://localhost:4321/entrar`.
+4. **Primeiro administrador:** depois de entrar uma vez, rode no SQL Editor:
+   ```sql
+   insert into administradores (email) values ('voce@exemplo.com') on conflict do nothing;
+   ```
+   O e-mail deve estar em minúsculas. Para remover, `delete from administradores where email = '…'`.
+5. **Variáveis:** continuam `PUBLIC_SUPABASE_URL` e `PUBLIC_SUPABASE_ANON_KEY` (veja `.env.example`). Nenhuma chave nova é necessária.
+
 ## Menu
 
-O menu (cabeçalho e rodapé) vem de `src/utils/menu.ts` e só lista destinos reais e globais: **Eventos** (a lista na home) e **Jogadores**. Ele fica na própria barra do topo em qualquer largura, sem hambúrguer. "Acompanhar partidas" e "Organizar" são por evento e continuam sendo alcançados a partir da página do evento. Para adicionar um item, inclua-o em `ITENS_MENU`; se a lista passar de 3 ou 4 itens, vale um menu recolhível.
+O menu (cabeçalho e rodapé) vem de `src/utils/menu.ts` e só lista destinos reais e globais: **Eventos** (a lista na home) e **Jogadores**. Os itens de conta (Entrar, Minha conta, Gerenciar) são trocados por `src/scripts/menu-conta.ts` conforme o login. Ele fica na própria barra do topo em qualquer largura, sem hambúrguer. "Acompanhar partidas" e "Organizar" são por evento e continuam sendo alcançados a partir da página do evento. Para adicionar um item, inclua-o em `ITENS_MENU`; se a lista passar de 3 ou 4 itens, vale um menu recolhível.
 
 ## Como adicionar/editar um campeonato (Fase 1)
 

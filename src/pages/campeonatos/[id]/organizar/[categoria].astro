@@ -2,6 +2,7 @@
 import type { Campeonato } from "../../../../types";
 import campeonatosData from "../../../../data/campeonatos.json";
 import Layout from "../../../../layouts/Layout.astro";
+import GuardaAcesso from "../../../../components/GuardaAcesso.astro";
 import { comBase, slugCategoria } from "../../../../utils/url";
 
 /**
@@ -26,8 +27,8 @@ import { comBase, slugCategoria } from "../../../../utils/url";
  *     `src/store/bracketStore.ts` (cliente público com RLS);
  *   - reutiliza `renderBracketClient` para exibir o estado atual do chaveamento.
  *
- * Esta rota NÃO é linkada publicamente e o controle de acesso completo chega na
- * Fase 2a (R9.3). Como o ambiente de build não tem Supabase real, o script é
+ * Esta rota NÃO é linkada publicamente e só administradores logados a usam
+ * (GuardaAcesso + RLS com eh_admin()). Como o ambiente de build não tem Supabase real, o script é
  * DEFENSIVO (try/catch): sem Supabase a página apenas mostra avisos e não
  * quebra a geração estática.
  *
@@ -75,7 +76,9 @@ const { campeonato, categoriaNome } = Astro.props;
 <Layout
   titulo={`Organizar ${categoriaNome} — ${campeonato.nome}`}
   descricao={`Organização da categoria ${categoriaNome} do campeonato ${campeonato.nome}.`}
+  noindex
 >
+  <GuardaAcesso>
   <section
     class="org"
     data-campeonato-id={campeonato.id}
@@ -295,6 +298,7 @@ const { campeonato, categoriaNome } = Astro.props;
       </section>
     </div>
   </section>
+  </GuardaAcesso>
 </Layout>
 
 <script>
@@ -309,6 +313,8 @@ const { campeonato, categoriaNome } = Astro.props;
   import type { SupabaseClient } from "@supabase/supabase-js";
   import { criarBracketStoreBrowser } from "../../../../store/bracketStore";
   import { criarJogadorStoreBrowser } from "../../../../store/jogadorStore";
+  import { criarAuthStoreBrowser } from "../../../../store/authStore";
+  import { guardarAcesso } from "../../../../scripts/guarda";
   import {
     ligarSeletoresDeJogador,
     type SeletorJogadores,
@@ -441,6 +447,9 @@ const { campeonato, categoriaNome } = Astro.props;
   // Inicialização
   // --------------------------------------------------------------------
   async function iniciar(): Promise<void> {
+    // Só administradores logados: a guarda redireciona ou bloqueia os demais.
+    if (!(await guardarAcesso({ store: criarAuthStoreBrowser() }))) return;
+
     const secao = q<HTMLElement>(document, ".org[data-campeonato-id]");
     if (!secao) return;
 

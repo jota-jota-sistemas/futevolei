@@ -45,3 +45,49 @@ export function itemAtivo(item: ItemMenu, pathname: string, base = "/"): boolean
     alvo === "/" ? atual === "/" : atual === alvo || atual.startsWith(alvo + "/")
   );
 }
+
+// ---------------------------------------------------------------------------
+// Itens do menu que dependem da conta (login). O HTML estático traz só
+// "Entrar"; um script do cabeçalho troca pelos itens do estado real.
+// ---------------------------------------------------------------------------
+
+export type EstadoConta = "visitante" | "logado" | "admin";
+
+export interface ItemConta {
+  rotulo: string;
+  href: string;
+  /** Rótulo para telas estreitas (o cabeçalho só alterna a exibição). */
+  rotuloCurto?: string;
+  /** Some do cabeçalho em telas estreitas (continua acessível em /conta). */
+  secundario?: boolean;
+}
+
+/** Destinos já resolvidos (com `base`), vindos de quem chama. */
+export interface HrefsConta {
+  entrar: string;
+  conta: string;
+  gerenciar: string;
+}
+
+/**
+ * Itens de conta para o estado dado: visitante vê "Entrar"; logado vê "Minha
+ * conta"; administrador vê também o link de gerenciamento. Os itens públicos
+ * (ITENS_MENU) não mudam.
+ */
+export function itensConta(estado: EstadoConta, hrefs: HrefsConta): ItemConta[] {
+  if (estado === "visitante") return [{ rotulo: "Entrar", href: hrefs.entrar }];
+  const conta: ItemConta = { rotulo: "Minha conta", href: hrefs.conta, rotuloCurto: "Conta" };
+  if (estado === "admin") {
+    return [{ rotulo: "Gerenciar", href: hrefs.gerenciar, secundario: true }, conta];
+  }
+  return [conta];
+}
+
+/**
+ * Há uma sessão do Supabase guardada no navegador? O cliente guarda a sessão em
+ * `sb-<projeto>-auth-token`. Serve para NÃO carregar o SDK de login em visitas
+ * de quem nunca entrou. Pura: recebe as chaves do storage.
+ */
+export function temSessaoSalva(chaves: readonly string[]): boolean {
+  return chaves.some((c) => /^sb-.+-auth-token$/.test(c));
+}
