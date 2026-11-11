@@ -29,7 +29,7 @@
 //          seu próprio formato, de forma independente.
 //   17.2 — estado sem chaveamento (R8.4) e isolamento de falha (R8.7): o
 //          placeholder textual e o try/catch por categoria vivem no SCRIPT da
-//          página pública (`campeonatos/[id].astro`), NÃO em renderBracketClient
+//          página pública (`campeonatos/[id]/acompanhar.astro`), NÃO em renderBracketClient
 //          (que só é chamado quando há bracket). Aqui verificamos, de forma
 //          pragmática, que renderBracketClient renderiza um bracket válido e
 //          que cada formato é independente do outro. Ver nota no describe 17.2.
@@ -334,7 +334,7 @@ describe("Feature: criar-chaveamento-campeonato, R8.2/R8.3/R8.4/R8.7: formatos d
   // A indicação textual de indisponibilidade (quando a categoria não tem
   // chaveamento, R8.4) e o try/catch por categoria que isola uma falha de
   // leitura sem derrubar as demais (R8.7) vivem no SCRIPT da página pública
-  // (`src/pages/campeonatos/[id].astro`): o placeholder é HTML estático e
+  // (`src/pages/campeonatos/[id]/acompanhar.astro`): o placeholder é HTML estático e
   // `renderBracketClient` só é chamado quando há um bracket carregado.
   //
   // Portanto, modelamos aqui de forma pragmática a fronteira dessa função:
