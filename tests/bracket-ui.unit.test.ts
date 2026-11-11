@@ -243,7 +243,7 @@ describe("Feature: criar-chaveamento-campeonato, R8.6: destaque da campeã", () 
     const rotulo = banner!.querySelector(".bracket-view__campea-rotulo");
     const nome = banner!.querySelector(".bracket-view__campea-nome");
     expect(rotulo?.textContent).toBe("Campeã");
-    expect(nome?.textContent).toBe(campea.nomeDupla);
+    expect(nome?.textContent).toBe(`${campea.atletaA} & ${campea.atletaB}`);
   });
 
   it("sem campeã definida, o banner não é renderizado", () => {
@@ -285,9 +285,8 @@ describe("Feature: criar-chaveamento-campeonato, R8.6: destaque da campeã", () 
     const raiz = renderBracketClient(bracket);
     const banner = raiz.querySelector(".bracket-view__campea");
     expect(banner).not.toBeNull();
-    const nomeEsperado = bracket.duplas.find(
-      (d) => d.id === bracket.campeaId,
-    )?.nomeDupla;
+    const campeaDupla = bracket.duplas.find((d) => d.id === bracket.campeaId);
+    const nomeEsperado = `${campeaDupla?.atletaA} & ${campeaDupla?.atletaB}`;
     expect(
       banner!.querySelector(".bracket-view__campea-nome")?.textContent,
     ).toBe(nomeEsperado);

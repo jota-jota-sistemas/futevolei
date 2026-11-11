@@ -101,15 +101,15 @@ describe("Feature: criar-chaveamento-campeonato — fronteira organização × v
       }
     });
 
-    it("depende apenas de domínio puro (types e standings)", () => {
+    it("depende apenas de domínio puro (bracket e rótulo de dupla)", () => {
       const specifiers = [...fonteRender.matchAll(/from\s+["']([^"']+)["']/g)].map(
         (m) => m[1],
       );
       // Todo import não-tipo-nativo deve apontar para o domínio de bracket.
       for (const spec of specifiers) {
         expect(
-          spec.includes("domain/bracket/"),
-          `import inesperado em renderBracketClient.ts: "${spec}" (esperado apenas domain/bracket/*)`,
+          spec.includes("domain/bracket/") || spec.includes("domain/pairs/nome"),
+          `import inesperado em renderBracketClient.ts: "${spec}" (esperado apenas domain puro: bracket/* ou pairs/nome)`,
         ).toBe(true);
       }
     });

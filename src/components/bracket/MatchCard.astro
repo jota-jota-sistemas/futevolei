@@ -1,5 +1,6 @@
 ---
 import type { Match, Pair, Participant } from "../../domain/bracket/types";
+import { rotuloDupla } from "../../domain/pairs/nome";
 
 /**
  * MatchCard — exibe UM confronto (Match) de um chaveamento.
@@ -11,7 +12,7 @@ import type { Match, Pair, Participant } from "../../domain/bracket/types";
  * Estados de cada slot (participante):
  *  - `bye`              → rótulo "BYE" (avanço automático; R4.6)
  *  - `pairId === null`  → rótulo "A definir" (aguardando jogo anterior)
- *  - dupla resolvida    → `nomeDupla` da dupla correspondente
+ *  - dupla resolvida    → "Atleta A & Atleta B" da dupla correspondente
  *
  * Estado do confronto:
  *  - há `vencedorId`                         → destaca a dupla vencedora e
@@ -57,7 +58,7 @@ function resolverSlot(p: Participant): SlotInfo {
     estado: "definido",
     // Fallback defensivo: se a dupla não estiver no mapa, mostra o id em vez
     // de quebrar a renderização. Não inventa dados.
-    rotulo: dupla ? dupla.nomeDupla : p.pairId,
+    rotulo: dupla ? rotuloDupla(dupla) : p.pairId,
     pairId: p.pairId,
     vencedora: match.vencedorId !== null && match.vencedorId === p.pairId,
   };

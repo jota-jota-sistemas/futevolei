@@ -646,7 +646,7 @@ const INDISPONIVEL = "Chaveamento ainda não disponível";
 
   .elim-tree__rodadas {
     display: flex;
-    gap: 1rem;
+    gap: 2rem;
     overflow-x: auto;
     padding-bottom: 0.25rem;
   }
@@ -657,6 +657,35 @@ const INDISPONIVEL = "Chaveamento ainda não disponível";
     gap: 0.6rem;
     min-width: 230px;
     flex: 0 0 auto;
+  }
+
+  .elim-tree__rodadas {
+    position: relative;
+  }
+
+  .elim-tree__linhas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    overflow: visible;
+  }
+
+  .elim-tree__linha {
+    fill: none;
+    stroke: var(--cor-borda, #cbd5e1);
+    stroke-width: 2;
+    transition: stroke 0.12s ease;
+  }
+
+  .elim-tree__linha--ramo {
+    stroke: var(--cor-destaque);
+    stroke-width: 3;
+  }
+
+  .elim-tree__item--ramo .match-card {
+    border-color: var(--cor-destaque);
+    box-shadow: 0 0 0 2px var(--cor-destaque-suave);
   }
 
   .elim-tree__rodada-titulo {
@@ -676,7 +705,7 @@ const INDISPONIVEL = "Chaveamento ainda não disponível";
     flex-direction: column;
     gap: 0.6rem;
     justify-content: space-around;
-    height: 100%;
+    flex: 1;
   }
 
   .elim-tree__item {
