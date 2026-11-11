@@ -34,6 +34,7 @@ import type {
   Pair,
   Participant,
 } from "../../domain/bracket/types";
+import { rotuloDupla } from "../../domain/pairs/nome";
 import { classificarGrupo } from "../../domain/bracket/standings";
 import {
   chaveSlot,
@@ -152,7 +153,7 @@ function resolverSlot(
     estado: "definido",
     // Fallback defensivo: se a dupla não estiver no mapa, mostra o id em vez de
     // quebrar a renderização. Não inventa dados.
-    rotulo: dupla ? dupla.nomeDupla : p.pairId,
+    rotulo: dupla ? rotuloDupla(dupla) : p.pairId,
     pairId: p.pairId,
     vencedora: match.vencedorId !== null && match.vencedorId === p.pairId,
   };
@@ -316,8 +317,10 @@ function renderGroupTable(
   duplasPorId: DuplasPorId,
   opcoes?: RenderOpcoes,
 ): HTMLElement {
-  const nomeDupla = (pairId: string): string =>
-    duplasPorId[pairId]?.nomeDupla ?? pairId;
+  const nomeDupla = (pairId: string): string => {
+    const d = duplasPorId[pairId];
+    return d ? rotuloDupla(d) : pairId;
+  };
 
   const porId = new Map<string, Match>();
   for (const m of matches) porId.set(m.id, m);
@@ -482,8 +485,136 @@ function rodadasDoSide(matches: Match[], side: BracketSide): Rodada[] {
     .sort((a, b) => a[0] - b[0])
     .map(([numero, jogos]) => ({
       numero,
-      jogos: [...jogos].sort(compararPorOrdemDisputa),
+      // Posição na árvore (não a ordem de disputa): é o que alinha cada jogo
+      // com o seguinte e permite ligar as caixas por linhas. O número do jogo
+      // continua visível em cada card ("Jogo N").
+      jogos: [...jogos].sort((a, b) => a.ordem - b.ordem || a.id.localeCompare(b.id)),
     }));
+}
+
+// ---------------------------------------------------------------------------
+// Linhas de ligação entre os jogos do mata-mata
+// ---------------------------------------------------------------------------
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** Pares (origem → destino) em que o VENCEDOR avança, dentro de uma seção. */
+function ligacoesDaSecao(jogos: Match[]): Array<{ de: string; para: string }> {
+  const ids = new Set(jogos.map((m) => m.id));
+  const ligacoes: Array<{ de: string; para: string }> = [];
+  for (const m of jogos) {
+    const alvo = m.avancaVencedorPara?.matchId;
+    if (alvo && ids.has(alvo)) ligacoes.push({ de: m.id, para: alvo });
+  }
+  return ligacoes;
+}
+
+/** Todos os jogos da mesma ramificação: antecessores e sucessores de `id`. */
+function ramoDoJogo(
+  id: string,
+  ligacoes: Array<{ de: string; para: string }>,
+): Set<string> {
+  const ramo = new Set<string>([id]);
+  const varrer = (inicio: string, sentido: "frente" | "tras"): void => {
+    const fila = [inicio];
+    while (fila.length > 0) {
+      const atual = fila.pop() as string;
+      for (const l of ligacoes) {
+        const vizinho =
+          sentido === "frente" ? (l.de === atual ? l.para : null) : l.para === atual ? l.de : null;
+        if (vizinho !== null && !ramo.has(vizinho)) {
+          ramo.add(vizinho);
+          fila.push(vizinho);
+        }
+      }
+    }
+  };
+  varrer(id, "frente");
+  varrer(id, "tras");
+  return ramo;
+}
+
+/**
+ * Liga as caixas do mata-mata com linhas em "cotovelo" (SVG sobreposto) e
+ * destaca a ramificação do jogo sob o mouse/foco. As posições são medidas no
+ * layout real, então o desenho é refeito quando o contêiner muda de tamanho.
+ */
+function ligarJogos(
+  container: HTMLElement,
+  jogos: Match[],
+): void {
+  const ligacoes = ligacoesDaSecao(jogos);
+  if (ligacoes.length === 0) return;
+
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("class", "elim-tree__linhas");
+  svg.setAttribute("aria-hidden", "true");
+  container.append(svg);
+
+  const itens = (): Map<string, HTMLElement> => {
+    const mapa = new Map<string, HTMLElement>();
+    container
+      .querySelectorAll<HTMLElement>(".elim-tree__item[data-match-id]")
+      .forEach((li) => mapa.set(li.getAttribute("data-match-id") as string, li));
+    return mapa;
+  };
+
+  const desenhar = (): void => {
+    const mapa = itens();
+    const base = container.getBoundingClientRect();
+    svg.setAttribute("width", String(container.scrollWidth));
+    svg.setAttribute("height", String(container.scrollHeight));
+    svg.replaceChildren();
+    for (const l of ligacoes) {
+      const origem = mapa.get(l.de)?.firstElementChild as HTMLElement | undefined;
+      const destino = mapa.get(l.para)?.firstElementChild as HTMLElement | undefined;
+      if (!origem || !destino) continue;
+      const a = origem.getBoundingClientRect();
+      const b = destino.getBoundingClientRect();
+      const x1 = a.right - base.left + container.scrollLeft;
+      const y1 = a.top + a.height / 2 - base.top + container.scrollTop;
+      const x2 = b.left - base.left + container.scrollLeft;
+      const y2 = b.top + b.height / 2 - base.top + container.scrollTop;
+      const xm = x1 + (x2 - x1) / 2;
+      const path = document.createElementNS(SVG_NS, "path");
+      path.setAttribute("d", `M ${x1} ${y1} H ${xm} V ${y2} H ${x2}`);
+      path.setAttribute("class", "elim-tree__linha");
+      path.setAttribute("data-de", l.de);
+      path.setAttribute("data-para", l.para);
+      svg.append(path);
+    }
+  };
+
+  const destacar = (id: string | null): void => {
+    const ramo = id === null ? new Set<string>() : ramoDoJogo(id, ligacoes);
+    const mapa = itens();
+    mapa.forEach((li, mid) =>
+      li.classList.toggle("elim-tree__item--ramo", ramo.has(mid)),
+    );
+    svg.querySelectorAll<SVGPathElement>(".elim-tree__linha").forEach((p) =>
+      p.classList.toggle(
+        "elim-tree__linha--ramo",
+        ramo.has(p.getAttribute("data-de") as string) &&
+          ramo.has(p.getAttribute("data-para") as string),
+      ),
+    );
+  };
+
+  container.addEventListener("mouseover", (e) => {
+    const li = (e.target as HTMLElement).closest<HTMLElement>(".elim-tree__item");
+    destacar(li ? li.getAttribute("data-match-id") : null);
+  });
+  container.addEventListener("mouseleave", () => destacar(null));
+  container.addEventListener("focusin", (e) => {
+    const li = (e.target as HTMLElement).closest<HTMLElement>(".elim-tree__item");
+    destacar(li ? li.getAttribute("data-match-id") : null);
+  });
+  container.addEventListener("focusout", () => destacar(null));
+
+  desenhar();
+  if (typeof ResizeObserver !== "undefined") {
+    new ResizeObserver(() => desenhar()).observe(container);
+  }
 }
 
 function rotuloRodada(side: BracketSide, numero: number): string {
@@ -532,7 +663,7 @@ function renderEliminationTree(
         attrs: { "aria-label": secao.titulo },
         filhos: [
           el("h4", { classes: ["elim-tree__titulo"], texto: secao.titulo }),
-          el("div", {
+          comLinhas(el("div", {
             classes: ["elim-tree__rodadas"],
             filhos: secao.rodadas.map((rodada) =>
               el("div", {
@@ -548,6 +679,7 @@ function renderEliminationTree(
                     filhos: rodada.jogos.map((match) =>
                       el("li", {
                         classes: ["elim-tree__item"],
+                        attrs: { "data-match-id": match.id },
                         filhos: [renderMatchCard(match, duplasPorId, opcoes, origens)],
                       }),
                     ),
@@ -555,11 +687,17 @@ function renderEliminationTree(
                 ],
               }),
             ),
-          }),
+          }), secao.rodadas.flatMap((r) => r.jogos)),
         ],
       }),
     ),
   });
+}
+
+/** Adiciona as linhas de ligação ao contêiner de rodadas e o devolve. */
+function comLinhas(container: HTMLElement, jogos: Match[]): HTMLElement {
+  ligarJogos(container, jogos);
+  return container;
 }
 
 // ---------------------------------------------------------------------------
@@ -596,7 +734,10 @@ export function renderBracketClient(
 
   const temCampea = bracket.campeaId !== null;
   const nomeCampea = temCampea
-    ? duplasPorId[bracket.campeaId!]?.nomeDupla ?? bracket.campeaId!
+    ? (() => {
+        const d = duplasPorId[bracket.campeaId!];
+        return d ? rotuloDupla(d) : bracket.campeaId!;
+      })()
     : "";
 
   const filhos: Node[] = [];

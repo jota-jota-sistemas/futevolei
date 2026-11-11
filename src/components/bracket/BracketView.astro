@@ -1,5 +1,6 @@
 ---
 import type { Bracket, Match, Pair } from "../../domain/bracket/types";
+import { rotuloDupla } from "../../domain/pairs/nome";
 import GroupTable from "./GroupTable.astro";
 import EliminationTree from "./EliminationTree.astro";
 
@@ -52,7 +53,7 @@ const temMataMata = matchesMataMata.length > 0;
 // defensivo para o id caso a dupla não esteja no mapa (não inventa dados).
 const temCampea = bracket.campeaId !== null;
 const nomeCampea = temCampea
-  ? (duplasPorId[bracket.campeaId!]?.nomeDupla ?? bracket.campeaId!)
+  ? (duplasPorId[bracket.campeaId!] ? rotuloDupla(duplasPorId[bracket.campeaId!]) : bracket.campeaId!)
   : "";
 ---
 

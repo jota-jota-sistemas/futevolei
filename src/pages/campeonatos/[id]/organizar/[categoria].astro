@@ -107,17 +107,6 @@ const { campeonato, categoriaNome } = Astro.props;
         <h2 class="org__bloco-titulo" id="titulo-duplas">Duplas</h2>
 
         <form class="org__form" data-form-dupla novalidate>
-          <div class="org__campo">
-            <label for="dupla-nome">Nome da dupla</label>
-            <input
-              id="dupla-nome"
-              name="nomeDupla"
-              type="text"
-              autocomplete="off"
-              maxlength="80"
-              required
-            />
-          </div>
           <div class="org__linha">
             <div class="org__campo">
               <label for="dupla-atleta-a">Atleta A</label>
@@ -225,20 +214,20 @@ const { campeonato, categoriaNome } = Astro.props;
         </form>
       </section>
 
-      <!-- ============================ SEEDING =========================== -->
+      <!-- =========================== NIVELADOR ========================= -->
       <section class="org__bloco" aria-labelledby="titulo-seeding">
-        <h2 class="org__bloco-titulo" id="titulo-seeding">Seeding</h2>
+        <h2 class="org__bloco-titulo" id="titulo-seeding">Nivelador</h2>
         <p class="org__ajuda">
-          O seeding é opcional. Se você não definir posições, ao gerar o
-          chaveamento será usado o seeding padrão (ordem alfabética do nome da
-          dupla). Para definir manualmente, atribua posições 1…N sem repetir
-          nem deixar lacunas.
+          Ordene as duplas da mais forte (topo) para a mais fraca. O nivelador
+          equilibra grupos e chaves, evitando que as melhores duplas se
+          enfrentem cedo. Já vem preenchido em ordem alfabética: arraste os
+          cards para reordenar (ou use as setas) e clique em salvar.
         </p>
 
         <form class="org__form" data-form-seeding novalidate>
-          <ul class="org__seeding" data-lista-seeding></ul>
+          <ol class="org__nivelador" data-lista-seeding></ol>
           <button class="org__botao" type="submit" data-salvar-seeding>
-            Salvar seeding
+            Salvar nivelador
           </button>
           <p class="org__erro" data-erro-seeding role="alert"></p>
         </form>
@@ -335,6 +324,7 @@ const { campeonato, categoriaNome } = Astro.props;
     posicionarClassificadosNoMataMata,
     type ClassificadoDoGrupo,
   } from "../../../../domain/bracket/generator";
+  import { rotuloDupla, gerarNomeDupla } from "../../../../domain/pairs/nome";
   import { registrarPlacar } from "../../../../domain/bracket/progression";
   import { numerarJogos } from "../../../../domain/bracket/ordenacao";
   import { selecionarClassificados } from "../../../../domain/bracket/standings";
@@ -361,11 +351,11 @@ const { campeonato, categoriaNome } = Astro.props;
       case "CLASSIFICADOS_INVALIDO":
         return "Número de classificados por grupo inválido (inteiro, de 1 até o tamanho do menor grupo menos 1).";
       case "SEED_DUPLICADO":
-        return `A posição de seeding ${erro.posicao} está repetida.`;
+        return `A posição do nivelador ${erro.posicao} está repetida.`;
       case "SEED_FORA_INTERVALO":
-        return `A posição de seeding ${erro.posicao} está fora do intervalo permitido.`;
+        return `A posição do nivelador ${erro.posicao} está fora do intervalo permitido.`;
       case "SEED_LACUNA":
-        return `Há uma lacuna no seeding: falta a posição ${erro.posicao}.`;
+        return `Há uma lacuna no nivelador: falta a posição ${erro.posicao}.`;
       case "DUPLAS_INSUFICIENTES":
         return "São necessárias pelo menos 2 duplas para gerar o chaveamento.";
       case "DUPLAS_EXCEDEM_LIMITE":
@@ -551,11 +541,8 @@ const { campeonato, categoriaNome } = Astro.props;
       info.className = "org__dupla-info";
       const nome = document.createElement("span");
       nome.className = "org__dupla-nome";
-      nome.textContent = dupla.nomeDupla;
-      const atletas = document.createElement("span");
-      atletas.className = "org__dupla-atletas";
-      atletas.textContent = `${dupla.atletaA} / ${dupla.atletaB}`;
-      info.append(nome, atletas);
+      nome.textContent = rotuloDupla(dupla);
+      info.append(nome);
       li.append(info);
 
       if (!temBracket) {
@@ -565,7 +552,7 @@ const { campeonato, categoriaNome } = Astro.props;
         remover.textContent = "Remover";
         remover.setAttribute(
           "aria-label",
-          `Remover dupla ${dupla.nomeDupla}`,
+          `Remover dupla ${rotuloDupla(dupla)}`,
         );
         remover.addEventListener("click", () => void removerDupla(ctx, dupla));
         li.append(remover);
@@ -581,10 +568,14 @@ const { campeonato, categoriaNome } = Astro.props;
     if (!form) return;
     limparErro(erro);
 
+    const atletaA = q<HTMLInputElement>(form, "#dupla-atleta-a")?.value ?? "";
+    const atletaB = q<HTMLInputElement>(form, "#dupla-atleta-b")?.value ?? "";
+    // Dupla não tem nome próprio: o nome interno (único) é "A & B <horário do
+    // cadastro>". Nas telas aparece só "A & B".
     const dados = {
-      nomeDupla: (q<HTMLInputElement>(form, "#dupla-nome")?.value ?? ""),
-      atletaA: (q<HTMLInputElement>(form, "#dupla-atleta-a")?.value ?? ""),
-      atletaB: (q<HTMLInputElement>(form, "#dupla-atleta-b")?.value ?? ""),
+      nomeDupla: gerarNomeDupla(atletaA, atletaB, new Date().toISOString()),
+      atletaA,
+      atletaB,
     };
 
     // Validação de domínio ANTES de qualquer I/O (R1.2–R1.4). A store também
@@ -604,7 +595,7 @@ const { campeonato, categoriaNome } = Astro.props;
 
     form.reset();
     await carregarEstado(ctx);
-    q<HTMLInputElement>(form, "#dupla-nome")?.focus();
+    q<HTMLInputElement>(form, "#dupla-atleta-a")?.focus();
   }
 
   async function removerDupla(ctx: Ctx, dupla: Pair): Promise<void> {
@@ -678,8 +669,43 @@ const { campeonato, categoriaNome } = Astro.props;
   }
 
   // --------------------------------------------------------------------
-  // SEEDING (R3)
+  // NIVELADOR (seeding, R3) — lista ordenável por arrastar-e-soltar
   // --------------------------------------------------------------------
+
+  /** Ordem inicial: seed salvo (se válido e completo) ou alfabética. */
+  function ordemInicialNivelador(ctx: Ctx): Pair[] {
+    const n = ctx.duplas.length;
+    const seedsValidos =
+      ctx.duplas.every((d) => Number.isInteger(d.seed) && d.seed >= 1 && d.seed <= n) &&
+      new Set(ctx.duplas.map((d) => d.seed)).size === n;
+    if (seedsValidos) return [...ctx.duplas].sort((a, b) => a.seed - b.seed);
+    const padrao = new Map(seedingPadrao(ctx.duplas).map((s) => [s.pairId, s.posicao]));
+    return [...ctx.duplas].sort(
+      (a, b) => (padrao.get(a.id) ?? 0) - (padrao.get(b.id) ?? 0),
+    );
+  }
+
+  /** Ids das duplas na ordem atual mostrada na lista (ou null se não há lista). */
+  function ordemAtualDoNivelador(ctx: Ctx): string[] | null {
+    const itens = Array.from(
+      ctx.secao.querySelectorAll<HTMLElement>(".org__nivelador-item"),
+    );
+    if (itens.length !== ctx.duplas.length || itens.length === 0) return null;
+    return itens.map((li) => li.dataset.pairId ?? "");
+  }
+
+  function atualizarPosicoesNivelador(lista: HTMLElement): void {
+    const itens = Array.from(lista.querySelectorAll<HTMLElement>(".org__nivelador-item"));
+    itens.forEach((li, i) => {
+      const pos = li.querySelector<HTMLElement>(".org__nivelador-pos");
+      if (pos) pos.textContent = `${i + 1}º`;
+      const sobe = li.querySelector<HTMLButtonElement>("[data-sobe]");
+      const desce = li.querySelector<HTMLButtonElement>("[data-desce]");
+      if (sobe) sobe.disabled = i === 0;
+      if (desce) desce.disabled = i === itens.length - 1;
+    });
+  }
+
   function renderSeeding(ctx: Ctx): void {
     const lista = q<HTMLElement>(ctx.secao, "[data-lista-seeding]");
     if (!lista) return;
@@ -688,47 +714,88 @@ const { campeonato, categoriaNome } = Astro.props;
     if (ctx.duplas.length === 0) {
       const vazio = document.createElement("li");
       vazio.className = "org__seeding-vazio";
-      vazio.textContent = "Cadastre duplas para definir o seeding.";
+      vazio.textContent = "Cadastre duplas para definir o nivelador.";
       lista.append(vazio);
       return;
     }
 
-    for (const dupla of ctx.duplas) {
+    let arrastando: HTMLElement | null = null;
+
+    for (const dupla of ordemInicialNivelador(ctx)) {
       const li = document.createElement("li");
-      li.className = "org__seeding-item";
+      li.className = "org__nivelador-item";
+      li.dataset.pairId = dupla.id;
+      li.draggable = true;
 
-      const label = document.createElement("label");
-      label.className = "org__seeding-label";
-      label.textContent = dupla.nomeDupla;
-      const inputId = `seed-${dupla.id}`;
-      label.htmlFor = inputId;
+      const alca = document.createElement("span");
+      alca.className = "org__nivelador-alca";
+      alca.setAttribute("aria-hidden", "true");
+      alca.textContent = "⠿";
 
-      const input = document.createElement("input");
-      input.id = inputId;
-      input.type = "number";
-      input.min = "1";
-      input.step = "1";
-      input.inputMode = "numeric";
-      input.className = "org__seeding-input";
-      input.dataset.pairId = dupla.id;
-      // Preenche com o seed atual quando já definido (>0).
-      if (dupla.seed && dupla.seed > 0) input.value = String(dupla.seed);
+      const pos = document.createElement("span");
+      pos.className = "org__nivelador-pos";
 
-      li.append(label, input);
+      const nome = document.createElement("span");
+      nome.className = "org__nivelador-nome";
+      nome.textContent = rotuloDupla(dupla);
+
+      const mover = (delta: number): void => {
+        const irmao = delta < 0 ? li.previousElementSibling : li.nextElementSibling;
+        if (!irmao) return;
+        if (delta < 0) lista.insertBefore(li, irmao);
+        else lista.insertBefore(irmao, li);
+        atualizarPosicoesNivelador(lista);
+        li.querySelector<HTMLButtonElement>(delta < 0 ? "[data-sobe]" : "[data-desce]")?.focus();
+      };
+      const botao = (rotulo: string, aria: string, attr: string, delta: number) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "org__nivelador-seta";
+        b.textContent = rotulo;
+        b.setAttribute("aria-label", `${aria}: ${rotuloDupla(dupla)}`);
+        b.setAttribute(attr, "");
+        b.addEventListener("click", () => mover(delta));
+        return b;
+      };
+
+      li.append(alca, pos, nome, botao("▲", "Subir", "data-sobe", -1), botao("▼", "Descer", "data-desce", 1));
+
+      // Arrastar e soltar (mouse). Em telas de toque, usar as setas.
+      li.addEventListener("dragstart", (e) => {
+        arrastando = li;
+        li.classList.add("org__nivelador-item--arrastando");
+        e.dataTransfer?.setData("text/plain", dupla.id);
+        if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+      });
+      li.addEventListener("dragend", () => {
+        arrastando = null;
+        li.classList.remove("org__nivelador-item--arrastando");
+        atualizarPosicoesNivelador(lista);
+      });
+      li.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        if (!arrastando || arrastando === li) return;
+        const r = li.getBoundingClientRect();
+        const depois = e.clientY > r.top + r.height / 2;
+        lista.insertBefore(arrastando, depois ? li.nextSibling : li);
+      });
+      li.addEventListener("drop", (e) => e.preventDefault());
+
       lista.append(li);
     }
+    atualizarPosicoesNivelador(lista);
   }
 
   async function salvarSeeding(ctx: Ctx): Promise<void> {
     const erro = q<HTMLElement>(ctx.secao, "[data-erro-seeding]");
     limparErro(erro);
 
-    const inputs = Array.from(
-      ctx.secao.querySelectorAll<HTMLInputElement>(".org__seeding-input"),
-    );
-    const seeds: SeedAssignment[] = inputs.map((input) => ({
-      pairId: input.dataset.pairId ?? "",
-      posicao: Number(input.value),
+    const ordem = ordemAtualDoNivelador(ctx);
+    if (!ordem) return;
+    // A posição de cada dupla é a sua posição na lista (1 = mais forte).
+    const seeds: SeedAssignment[] = ordem.map((pairId, i) => ({
+      pairId,
+      posicao: i + 1,
     }));
 
     const valido = validarSeeding(seeds, ctx.duplas.length);
@@ -742,7 +809,7 @@ const { campeonato, categoriaNome } = Astro.props;
       setTexto(erro, mensagemErro(res.erro));
       return;
     }
-    setTexto(ctx.status, "Seeding salvo.");
+    setTexto(ctx.status, "Nivelador salvo.");
     await carregarEstado(ctx);
   }
 
@@ -751,24 +818,16 @@ const { campeonato, categoriaNome } = Astro.props;
   // --------------------------------------------------------------------
 
   /**
-   * Monta a lista de duplas com seeding RESOLVIDO para alimentar o gerador:
-   * usa o seed salvo em cada dupla quando TODAS têm seed válido (1..N); caso
-   * contrário aplica o seeding padrão alfabético (R3.4).
+   * Monta a lista de duplas com seeding RESOLVIDO para alimentar o gerador,
+   * a partir da ordem do nivelador exibida (inicialmente salva ou alfabética).
    */
   function duplasComSeeding(ctx: Ctx): Pair[] {
-    const n = ctx.duplas.length;
-    const todasComSeed = ctx.duplas.every(
-      (d) => Number.isInteger(d.seed) && d.seed >= 1 && d.seed <= n,
-    );
-    // Também exige que o conjunto de seeds seja exatamente {1..N}.
-    const seedsOk =
-      todasComSeed &&
-      new Set(ctx.duplas.map((d) => d.seed)).size === n;
-
-    if (seedsOk) {
-      return ctx.duplas.map((d) => ({ ...d }));
+    // O que o organizador vê na lista do nivelador é o que vale (mesmo sem salvar).
+    const ordem = ordemAtualDoNivelador(ctx);
+    if (ordem) {
+      const posicaoPorId = new Map(ordem.map((id, i) => [id, i + 1]));
+      return ctx.duplas.map((d) => ({ ...d, seed: posicaoPorId.get(d.id) ?? d.seed }));
     }
-
     const padrao = seedingPadrao(ctx.duplas);
     const posicaoPorId = new Map(padrao.map((s) => [s.pairId, s.posicao]));
     return ctx.duplas.map((d) => ({
@@ -960,7 +1019,7 @@ const { campeonato, categoriaNome } = Astro.props;
   function nomeDupla(bracket: Bracket, pairId: string | null): string {
     if (!pairId) return "(indefinida)";
     const d = bracket.duplas.find((x) => x.id === pairId);
-    return d ? d.nomeDupla : "(indefinida)";
+    return d ? rotuloDupla(d) : "(indefinida)";
   }
 
   async function registrarResultado(
@@ -1495,6 +1554,73 @@ const { campeonato, categoriaNome } = Astro.props;
   [id].astro faz para manter a visualização coerente.
 -->
 <style is:global>
+  /* Nivelador: lista ordenável (arrastar e soltar + setas). */
+  .org__nivelador {
+    list-style: none;
+    margin: 0 0 0.8rem;
+    padding: 0;
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .org__nivelador-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem 0.7rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 10px;
+    background: var(--cor-fundo);
+    cursor: grab;
+    user-select: none;
+  }
+
+  .org__nivelador-item--arrastando {
+    opacity: 0.45;
+    border-style: dashed;
+    border-color: var(--cor-destaque);
+  }
+
+  .org__nivelador-alca {
+    color: var(--cor-texto-suave);
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+
+  .org__nivelador-pos {
+    min-width: 2.2rem;
+    font-weight: 800;
+    color: var(--cor-destaque-texto);
+  }
+
+  .org__nivelador-nome {
+    flex: 1;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .org__nivelador-seta {
+    border: 1px solid var(--cor-borda);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--cor-texto);
+    padding: 0.2rem 0.5rem;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .org__nivelador-seta:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  .org__nivelador-seta:focus-visible {
+    outline: 2px solid var(--cor-destaque);
+    outline-offset: 1px;
+  }
+
   .bracket-view {
     display: flex;
     flex-direction: column;
@@ -1681,7 +1807,7 @@ const { campeonato, categoriaNome } = Astro.props;
 
   .elim-tree__rodadas {
     display: flex;
-    gap: 1rem;
+    gap: 2rem;
     overflow-x: auto;
     padding-bottom: 0.25rem;
   }
@@ -1692,6 +1818,35 @@ const { campeonato, categoriaNome } = Astro.props;
     gap: 0.6rem;
     min-width: 230px;
     flex: 0 0 auto;
+  }
+
+  .elim-tree__rodadas {
+    position: relative;
+  }
+
+  .elim-tree__linhas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    overflow: visible;
+  }
+
+  .elim-tree__linha {
+    fill: none;
+    stroke: var(--cor-borda, #cbd5e1);
+    stroke-width: 2;
+    transition: stroke 0.12s ease;
+  }
+
+  .elim-tree__linha--ramo {
+    stroke: var(--cor-destaque);
+    stroke-width: 3;
+  }
+
+  .elim-tree__item--ramo .match-card {
+    border-color: var(--cor-destaque);
+    box-shadow: 0 0 0 2px var(--cor-destaque-suave);
   }
 
   .elim-tree__rodada-titulo {
@@ -1711,7 +1866,7 @@ const { campeonato, categoriaNome } = Astro.props;
     flex-direction: column;
     gap: 0.6rem;
     justify-content: space-around;
-    height: 100%;
+    flex: 1;
   }
 
   .elim-tree__item {

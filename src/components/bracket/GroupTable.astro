@@ -1,6 +1,7 @@
 ---
 import type { Group, Match, Pair } from "../../domain/bracket/types";
 import { classificarGrupo, grupoCompleto as grupoEstaCompleto } from "../../domain/bracket/standings";
+import { rotuloDupla } from "../../domain/pairs/nome";
 import MatchCard from "./MatchCard.astro";
 
 /**
@@ -33,8 +34,10 @@ interface Props {
 
 const { grupo, matches, duplasPorId } = Astro.props;
 
-const nomeDupla = (pairId: string): string =>
-  duplasPorId[pairId]?.nomeDupla ?? pairId;
+const nomeDupla = (pairId: string): string => {
+  const d = duplasPorId[pairId];
+  return d ? rotuloDupla(d) : pairId;
+};
 
 // Jogos deste grupo, na ordem determinística registrada em `grupo.jogos`.
 const porId = new Map<string, Match>();

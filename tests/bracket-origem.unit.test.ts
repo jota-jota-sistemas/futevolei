@@ -50,3 +50,23 @@ describe("origem das vagas indefinidas", () => {
     expect(texto).toMatch(/Perdedor do jogo \d+/);
   });
 });
+
+describe("linhas de ligação do mata-mata", () => {
+  const r = gerarChaveamento({ duplas: duplas(8), config: { formato: "eliminação simples" } });
+  if (!r.ok) throw new Error(r.erro.code);
+
+  it("cria uma linha por avanço de vencedor e destaca a ramificação ao passar o mouse", () => {
+    const view = renderBracketClient(r.bracket);
+    const esperadas = r.bracket.matches.filter((m) => m.avancaVencedorPara).length;
+    const linhas = view.querySelectorAll(".elim-tree__linha");
+    expect(linhas.length).toBe(esperadas);
+
+    // Mouse sobre um jogo da 1ª rodada destaca ele, o caminho até a final e só esses.
+    const primeiro = view.querySelector<HTMLElement>(".elim-tree__item")!;
+    primeiro.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    expect(primeiro.classList.contains("elim-tree__item--ramo")).toBe(true);
+    const emRamo = view.querySelectorAll(".elim-tree__item--ramo").length;
+    expect(emRamo).toBe(3); // oitavas/quartas → semi → final em 8 duplas (1+1+1)
+    expect(view.querySelectorAll(".elim-tree__linha--ramo").length).toBe(2);
+  });
+});
