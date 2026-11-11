@@ -19,7 +19,7 @@
 // destaque da campeã) e as MESMAS classes CSS daqueles componentes — o CSS
 // correspondente é injetado uma vez na página pública (`[id].astro`).
 //
-// A classificação de grupo usa `classificarGrupo`/`indiceDeSeed` de
+// A classificação de grupo usa `classificarGrupo` de
 // `../../domain/bracket/standings` — funções puras e determinísticas, idênticas
 // às usadas por `GroupTable.astro`, garantindo a mesma saída em build e no
 // cliente.
@@ -34,10 +34,13 @@ import type {
   Pair,
   Participant,
 } from "../../domain/bracket/types";
+import { classificarGrupo } from "../../domain/bracket/standings";
 import {
-  classificarGrupo,
-  indiceDeSeed,
-} from "../../domain/bracket/standings";
+  chaveSlot,
+  origemDosSlots,
+  rotuloOrigem,
+  type OrigemSlot,
+} from "../../domain/bracket/origem";
 
 /** Mapa pairId -> Pair. */
 type DuplasPorId = Record<string, Pair>;
@@ -45,21 +48,22 @@ type DuplasPorId = Record<string, Pair>;
 /**
  * Opções de interação da renderização. São OPCIONAIS: a página pública chama
  * `renderBracketClient` sem elas (visualização inerte, somente leitura — R9.2),
- * enquanto a página de organização passa `aoEscolherVencedor` para habilitar o
- * clique direto na dupla.
+ * enquanto a página de organização passa `aoSalvarPlacar` para habilitar os
+ * campos de placar em cada jogo.
  *
  * IMPORTANTE (fronteira R9.1/R9.2): este módulo permanece PURO em relação a I/O.
- * Ele apenas chama o callback recebido ao clicar num slot; não conhece store,
- * Supabase nem qualquer operação de escrita. Quem persiste é a página de
- * organização, dona do callback.
+ * Ele apenas chama o callback recebido ao confirmar o placar; não conhece store,
+ * Supabase nem qualquer operação de escrita. Quem valida e persiste é a página
+ * de organização, dona do callback.
  */
 export interface RenderOpcoes {
   /**
-   * Quando fornecido, os slots de duplas DEFINIDAS de um jogo pronto (ambas as
-   * duplas definidas, sem bye) ficam clicáveis. Ao clicar, chama este callback
-   * com o id do jogo e o id da dupla escolhida como vencedora.
+   * Quando fornecido, cada jogo PRONTO (ambas as duplas definidas, sem bye)
+   * ganha dois campos de placar e um botão de salvar. Ao salvar, chama este
+   * callback com o id do jogo e os placares digitados (`NaN` se o campo estiver
+   * vazio). A validação (inteiro ≥ 0, sem empate) é do domínio.
    */
-  aoEscolherVencedor?: (matchId: string, pairId: string) => void;
+  aoSalvarPlacar?: (matchId: string, placarA: number, placarB: number) => void;
 }
 
 /**
@@ -129,6 +133,7 @@ function resolverSlot(
   p: Participant,
   match: Match,
   duplasPorId: DuplasPorId,
+  origem?: OrigemSlot,
 ): SlotInfo {
   if (p.bye) {
     return { estado: "bye", rotulo: "BYE", pairId: null, vencedora: false };
@@ -136,7 +141,8 @@ function resolverSlot(
   if (p.pairId === null) {
     return {
       estado: "indefinido",
-      rotulo: "A definir",
+      // Vaga alimentada por outro jogo: diz de qual ("Vencedor do jogo 4").
+      rotulo: origem ? rotuloOrigem(origem) : "A definir",
       pairId: null,
       vencedora: false,
     };
@@ -156,30 +162,46 @@ function renderMatchCard(
   match: Match,
   duplasPorId: DuplasPorId,
   opcoes?: RenderOpcoes,
+  origens?: Map<string, OrigemSlot>,
 ): HTMLElement {
-  const slotA = resolverSlot(match.a, match, duplasPorId);
-  const slotB = resolverSlot(match.b, match, duplasPorId);
+  const slotA = resolverSlot(match.a, match, duplasPorId, origens?.get(chaveSlot(match.id, "a")));
+  const slotB = resolverSlot(match.b, match, duplasPorId, origens?.get(chaveSlot(match.id, "b")));
 
   const ambasDefinidas = slotA.pairId !== null && slotB.pairId !== null;
   const temVencedor = match.vencedorId !== null;
   const pendente = !temVencedor && ambasDefinidas;
 
-  // Interativo apenas quando há callback E ambas as duplas estão definidas
-  // (jogo pronto). Vale também para jogos já decididos: clicar na OUTRA dupla
-  // corrige o vencedor (a cascata é tratada pela progressão).
-  const interativo = typeof opcoes?.aoEscolherVencedor === "function" && ambasDefinidas;
+  // Editável apenas quando há callback E ambas as duplas estão definidas (jogo
+  // pronto). Vale também para jogos já decididos: editar o placar corrige o
+  // resultado (a cascata é tratada pela progressão).
+  const editavel =
+    typeof opcoes?.aoSalvarPlacar === "function" && ambasDefinidas;
 
   const ariaConfronto = (() => {
     const base = `Confronto: ${slotA.rotulo} contra ${slotB.rotulo}`;
     if (temVencedor) {
       const vencedora = slotA.vencedora ? slotA.rotulo : slotB.rotulo;
-      return `${base}. Vencedora: ${vencedora}`;
+      const placar =
+        match.placarA !== null && match.placarB !== null
+          ? ` (${match.placarA} a ${match.placarB})`
+          : "";
+      return `${base}. Vencedora: ${vencedora}${placar}`;
     }
     if (pendente) return `${base}. Resultado pendente`;
     return base;
   })();
 
-  const slotLi = (slot: SlotInfo): HTMLElement => {
+  const inputs: { a?: HTMLInputElement; b?: HTMLInputElement } = {};
+
+  const salvar = (): void => {
+    const ler = (input?: HTMLInputElement): number => {
+      const bruto = (input?.value ?? "").trim();
+      return bruto === "" ? Number.NaN : Number(bruto);
+    };
+    opcoes!.aoSalvarPlacar!(match.id, ler(inputs.a), ler(inputs.b));
+  };
+
+  const slotLi = (slot: SlotInfo, lado: "a" | "b"): HTMLElement => {
     const filhos: Node[] = [
       el("span", { classes: ["match-card__dupla"], texto: slot.rotulo }),
     ];
@@ -193,31 +215,34 @@ function renderMatchCard(
       );
     }
 
-    // Slot clicável de escolha de vencedor (só na organização). Usamos <button>
-    // para acessibilidade (foco e teclado nativos); na visualização pública
-    // (sem callback) renderizamos <li> inerte, como antes.
-    const clicavel = interativo && slot.estado === "definido" && slot.pairId !== null;
-    if (clicavel) {
-      const botao = el("button", {
-        classes: [
-          "match-card__slot",
-          "match-card__slot--definido",
-          "match-card__slot--clicavel",
-          slot.vencedora && "match-card__slot--vencedora",
-        ],
+    const placar = lado === "a" ? match.placarA : match.placarB;
+    if (editavel && slot.estado === "definido") {
+      // Campo de placar (só na organização).
+      const input = el("input", {
+        classes: ["match-card__placar-input"],
         attrs: {
-          type: "button",
-          "aria-pressed": slot.vencedora ? "true" : "false",
-          "aria-label": slot.vencedora
-            ? `${slot.rotulo} — vencedora (clique em outra para corrigir)`
-            : `Marcar ${slot.rotulo} como vencedora`,
+          type: "number",
+          min: "0",
+          step: "1",
+          inputmode: "numeric",
+          "aria-label": `Placar de ${slot.rotulo}`,
+          ...(placar !== null ? { value: String(placar) } : {}),
         },
-        filhos,
+      }) as HTMLInputElement;
+      input.addEventListener("keydown", (e) => {
+        if ((e as KeyboardEvent).key === "Enter") salvar();
       });
-      botao.addEventListener("click", () => {
-        opcoes!.aoEscolherVencedor!(match.id, slot.pairId as string);
-      });
-      return el("li", { classes: ["match-card__slot-wrap"], filhos: [botao] });
+      inputs[lado] = input;
+      filhos.push(input);
+    } else if (placar !== null) {
+      // Placar somente leitura (visualização pública).
+      filhos.push(
+        el("span", {
+          classes: ["match-card__placar"],
+          attrs: { "aria-label": `Placar: ${placar}` },
+          texto: String(placar),
+        }),
+      );
     }
 
     return el("li", {
@@ -246,9 +271,20 @@ function renderMatchCard(
   filhos.push(
     el("ul", {
       classes: ["match-card__slots"],
-      filhos: [slotLi(slotA), slotLi(slotB)],
+      filhos: [slotLi(slotA, "a"), slotLi(slotB, "b")],
     }),
   );
+
+  if (editavel) {
+    const botao = el("button", {
+      classes: ["match-card__salvar"],
+      attrs: { type: "button" },
+      texto: temVencedor ? "Atualizar placar" : "Salvar placar",
+    });
+    botao.addEventListener("click", salvar);
+    filhos.push(botao);
+  }
+
   if (pendente) {
     filhos.push(
       el("p", {
@@ -291,40 +327,42 @@ function renderGroupTable(
     if (jogo) jogosDoGrupo.push(jogo);
   }
 
-  const seedIndex = indiceDeSeed(
-    grupo.duplas
-      .map((pairId) => duplasPorId[pairId])
-      .filter((d): d is Pair => Boolean(d)),
-  );
-  const classificacao = classificarGrupo(grupo, jogosDoGrupo, seedIndex);
-  const grupoCompleto = classificacao !== null;
+  // Classificação PARCIAL: calculada com as partidas já decididas (R5.3).
+  const classificacao = classificarGrupo(grupo, jogosDoGrupo);
+  const grupoCompleto = jogosDoGrupo.every((j) => j.vencedorId !== null);
+  const algumJogo = classificacao.some((s) => s.jogos > 0);
 
   interface Linha {
     pairId: string;
     nome: string;
     posicao: number | null;
-    vitorias: number | null;
+    jogos: number;
+    vitorias: number;
+    pontos: number;
+    saldo: number;
   }
 
-  const linhas: Linha[] = grupoCompleto
-    ? classificacao!.map((s) => ({
-        pairId: s.pairId,
-        nome: nomeDupla(s.pairId),
-        posicao: s.posicao,
-        vitorias: s.vitorias,
-      }))
-    : [...grupo.duplas]
-        .sort(
-          (x, y) =>
-            (seedIndex.get(x) ?? Number.POSITIVE_INFINITY) -
-            (seedIndex.get(y) ?? Number.POSITIVE_INFINITY),
-        )
-        .map((pairId) => ({
-          pairId,
-          nome: nomeDupla(pairId),
-          posicao: null,
-          vitorias: null,
-        }));
+  const porPair = new Map(classificacao.map((s) => [s.pairId, s]));
+  // Antes do 1º jogo ninguém tem posição: mantém a ordem original do grupo e
+  // mostra "—" no lugar do ranking.
+  const ordemExibicao = algumJogo
+    ? classificacao.map((s) => s.pairId)
+    : [...grupo.duplas];
+
+  const linhas: Linha[] = ordemExibicao.map((pairId) => {
+    const st = porPair.get(pairId)!;
+    return {
+      pairId,
+      nome: nomeDupla(pairId),
+      posicao: algumJogo ? st.posicao : null,
+      jogos: st.jogos,
+      vitorias: st.vitorias,
+      pontos: st.pontos,
+      saldo: st.saldo,
+    };
+  });
+
+  const formatarSaldo = (n: number): string => (n > 0 ? `+${n}` : String(n));
 
   const tituloGrupo = `Grupo ${grupo.indice + 1}`;
 
@@ -335,31 +373,28 @@ function renderGroupTable(
     caption.appendChild(
       el("span", {
         classes: ["group-table__pendente"],
-        texto: " — classificação pendente",
+        texto: " — parcial",
       }),
     );
   }
+
+  const cabecalho = (classe: string, texto: string, titulo?: string) =>
+    el("th", {
+      classes: [classe],
+      attrs: { scope: "col", ...(titulo ? { title: titulo } : {}) },
+      texto,
+    });
 
   // <thead>
   const thead = el("thead", {
     filhos: [
       el("tr", {
         filhos: [
-          el("th", {
-            classes: ["group-table__col-pos"],
-            attrs: { scope: "col" },
-            texto: "#",
-          }),
-          el("th", {
-            classes: ["group-table__col-dupla"],
-            attrs: { scope: "col" },
-            texto: "Dupla",
-          }),
-          el("th", {
-            classes: ["group-table__col-vit"],
-            attrs: { scope: "col" },
-            texto: "Vitórias",
-          }),
+          cabecalho("group-table__col-pos", "#"),
+          cabecalho("group-table__col-dupla", "Dupla"),
+          cabecalho("group-table__col-num", "Pts", "Pontos (3 por vitória)"),
+          cabecalho("group-table__col-num", "V", "Vitórias"),
+          cabecalho("group-table__col-num", "Saldo", "Saldo de pontos"),
         ],
       }),
     ],
@@ -371,7 +406,7 @@ function renderGroupTable(
       el("tr", {
         classes: [
           "group-table__linha",
-          linha.posicao === 1 && "group-table__linha--lider",
+          linha.posicao === 1 && linha.jogos > 0 && "group-table__linha--lider",
         ],
         filhos: [
           el("td", {
@@ -379,10 +414,9 @@ function renderGroupTable(
             texto: linha.posicao !== null ? String(linha.posicao) : "—",
           }),
           el("td", { classes: ["group-table__col-dupla"], texto: linha.nome }),
-          el("td", {
-            classes: ["group-table__col-vit"],
-            texto: linha.vitorias !== null ? String(linha.vitorias) : "—",
-          }),
+          el("td", { classes: ["group-table__col-num"], texto: String(linha.pontos) }),
+          el("td", { classes: ["group-table__col-num"], texto: String(linha.vitorias) }),
+          el("td", { classes: ["group-table__col-num"], texto: formatarSaldo(linha.saldo) }),
         ],
       }),
     ),
@@ -461,6 +495,7 @@ function renderEliminationTree(
   duplasPorId: DuplasPorId,
   opcoes?: RenderOpcoes,
 ): HTMLElement {
+  const origens = origemDosSlots(matches);
   const secoes: Array<{
     side: BracketSide;
     titulo: string;
@@ -513,7 +548,7 @@ function renderEliminationTree(
                     filhos: rodada.jogos.map((match) =>
                       el("li", {
                         classes: ["elim-tree__item"],
-                        filhos: [renderMatchCard(match, duplasPorId, opcoes)],
+                        filhos: [renderMatchCard(match, duplasPorId, opcoes, origens)],
                       }),
                     ),
                   }),

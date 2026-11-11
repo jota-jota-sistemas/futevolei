@@ -335,12 +335,9 @@ const { campeonato, categoriaNome } = Astro.props;
     posicionarClassificadosNoMataMata,
     type ClassificadoDoGrupo,
   } from "../../../../domain/bracket/generator";
-  import { registrarVencedor } from "../../../../domain/bracket/progression";
+  import { registrarPlacar } from "../../../../domain/bracket/progression";
   import { numerarJogos } from "../../../../domain/bracket/ordenacao";
-  import {
-    selecionarClassificados,
-    indiceDeSeed,
-  } from "../../../../domain/bracket/standings";
+  import { selecionarClassificados } from "../../../../domain/bracket/standings";
 
   // --------------------------------------------------------------------
   // Tradução de DomainError → mensagem amigável em português (R7/R2/etc.)
@@ -377,6 +374,10 @@ const { campeonato, categoriaNome } = Astro.props;
         return "A dupla informada não participa deste jogo.";
       case "JOGO_NAO_PRONTO":
         return "Este jogo ainda não está pronto para registro (falta definir uma das duplas).";
+      case "PLACAR_INVALIDO":
+        return "Informe placares inteiros, 0 ou maior.";
+      case "PLACAR_EMPATE":
+        return "Não há empate: um dos placares deve ser maior.";
       case "FALHA_PERSISTENCIA":
         return "Falha ao salvar. Tente novamente em instantes.";
       case "FALHA_LEITURA":
@@ -892,7 +893,6 @@ const { campeonato, categoriaNome } = Astro.props;
     if (!bracket || !gruposTodosCompletos(bracket)) return;
 
     const classificadosPorGrupo = bracket.config.classificadosPorGrupo ?? 1;
-    const seedIndex = indiceDeSeed(bracket.duplas);
     const duplaPorId = new Map(bracket.duplas.map((d) => [d.id, d]));
 
     // Monta a lista de classificados (dupla + grupo + posição) para posicionar.
@@ -901,7 +901,6 @@ const { campeonato, categoriaNome } = Astro.props;
       const top = selecionarClassificados(
         grupo,
         bracket.matches,
-        seedIndex,
         classificadosPorGrupo,
       );
       if (top === null) {
@@ -967,7 +966,8 @@ const { campeonato, categoriaNome } = Astro.props;
   async function registrarResultado(
     ctx: Ctx,
     matchId: string,
-    vencedorId: string,
+    placarA: number,
+    placarB: number,
   ): Promise<void> {
     const erro = q<HTMLElement>(ctx.secao, "[data-erro-gerar]");
     limparErro(erro);
@@ -976,10 +976,11 @@ const { campeonato, categoriaNome } = Astro.props;
 
     // Progressão PURA: produz um novo bracket (avanço + cascata). `agora` é
     // injetado na borda para manter a função pura (R6.1).
-    const res = registrarVencedor(
+    const res = registrarPlacar(
       bracket,
       matchId,
-      vencedorId,
+      placarA,
+      placarB,
       new Date().toISOString(),
     );
     if (!res.ok) {
@@ -996,7 +997,7 @@ const { campeonato, categoriaNome } = Astro.props;
       setTexto(ctx.status, mensagemErro(salvo.erro));
       return;
     }
-    setTexto(ctx.status, "Resultado registrado.");
+    setTexto(ctx.status, "Placar registrado.");
     await carregarEstado(ctx);
   }
 
@@ -1016,17 +1017,11 @@ const { campeonato, categoriaNome } = Astro.props;
     }
 
     try {
-      // Clique direto na dupla para registrar o vencedor (R6). Pede confirmação
-      // antes de salvar (clique único + confirmação). A lógica de registro/
-      // correção/cascata e persistência está em `registrarResultado`.
+      // O organizador informa o placar; o vencedor é o maior número (sem
+      // empate). Validação, avanço e cascata ficam em `registrarResultado`.
       const view = renderBracketClient(ctx.bracket, {
-        aoEscolherVencedor: (matchId, pairId) => {
-          const nome = nomeDupla(ctx.bracket!, pairId);
-          const ok = window.confirm(
-            `Confirmar ${nome} como vencedora deste jogo?`,
-          );
-          if (!ok) return;
-          void registrarResultado(ctx, matchId, pairId);
+        aoSalvarPlacar: (matchId, placarA, placarB) => {
+          void registrarResultado(ctx, matchId, placarA, placarB);
         },
       });
       slot.replaceChildren(view);
@@ -1764,30 +1759,54 @@ const { campeonato, categoriaNome } = Astro.props;
     background: var(--cor-fundo);
   }
 
-  /* Slot clicável de escolha de vencedor (apenas na organização). É um
-     <button>, então zeramos os estilos padrão e damos feedback de hover/foco.
-     Envolto por .match-card__slot-wrap para ocupar a largura da linha. */
-  .match-card__slot-wrap {
-    display: block;
-  }
-
-  button.match-card__slot--clicavel {
-    width: 100%;
-    border: 1px solid transparent;
+  /* Campo de placar (organização) e placar somente leitura (público). */
+  .match-card__placar-input {
+    width: 3.2rem;
+    padding: 0.25rem 0.35rem;
+    border: 1px solid var(--cor-borda, #cbd5e1);
+    border-radius: 8px;
     font: inherit;
-    text-align: left;
-    cursor: pointer;
-    transition: background 0.12s ease, border-color 0.12s ease;
+    font-weight: 700;
+    text-align: center;
+    background: #fff;
+    color: var(--cor-texto);
   }
 
-  button.match-card__slot--clicavel:hover {
-    background: var(--cor-destaque-suave);
-    border-color: var(--cor-destaque);
-  }
-
-  button.match-card__slot--clicavel:focus-visible {
+  .match-card__placar-input:focus-visible,
+  .match-card__salvar:focus-visible {
     outline: 2px solid var(--cor-destaque);
     outline-offset: 1px;
+  }
+
+  .match-card__placar {
+    font-weight: 800;
+    min-width: 1.5rem;
+    text-align: right;
+  }
+
+  .match-card__salvar {
+    margin-top: 0.4rem;
+    width: 100%;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--cor-destaque);
+    border-radius: 10px;
+    background: var(--cor-destaque-suave);
+    color: var(--cor-destaque-texto);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .match-card__salvar:hover {
+    background: var(--cor-destaque);
+    color: #fff;
+  }
+
+  .group-table__col-num {
+    width: 1%;
+    white-space: nowrap;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
   }
 
   .match-card__dupla {

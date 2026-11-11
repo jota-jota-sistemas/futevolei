@@ -21,7 +21,7 @@
 //           mata-mata, jogável até a campeã.
 //
 // Funções puras exercitadas: exigirFormato (config), gerarChaveamento,
-// registrarVencedor, indiceDeSeed/selecionarClassificados/classificarGrupo
+// registrarPlacar/registrarVencedor, selecionarClassificados/classificarGrupo
 // (standings), posicionarClassificadosNoMataMata (generator).
 
 import { describe, it, expect } from "vitest";
@@ -38,9 +38,8 @@ import {
   posicionarClassificadosNoMataMata,
   type ClassificadoDoGrupo,
 } from "../src/domain/bracket/generator";
-import { registrarVencedor } from "../src/domain/bracket/progression";
+import { registrarPlacar, registrarVencedor } from "../src/domain/bracket/progression";
 import {
-  indiceDeSeed,
   classificarGrupo,
   selecionarClassificados,
 } from "../src/domain/bracket/standings";
@@ -325,24 +324,22 @@ describe("Âncora fase de grupos N=6, G=2, 1 classificado/grupo — R5.2/R5.3/R5
     // jogos e fica em 1º; a classificação é determinística (R5.3).
     let atual = bracket;
     for (const j of jogosDeGrupo) {
-      const vencedorId = j.a.pairId as PairId;
-      const r = registrarVencedor(atual, j.id, vencedorId, AGORA);
+      // Placar 6x0: o slot A vence (o vencedor é derivado do placar).
+      const r = registrarPlacar(atual, j.id, 6, 0, AGORA);
       expect(r.ok).toBe(true);
       if (!r.ok) return;
       atual = r.bracket;
     }
 
     // --- Classifica e seleciona 1 por grupo (R5.4) ------------------------
-    const seedIndex = indiceDeSeed(atual.duplas);
     const classificadosPorGrupo: ClassificadoDoGrupo[] = [];
     for (const grupo of atual.grupos) {
-      const standings = classificarGrupo(grupo, atual.matches, seedIndex);
+      const standings = classificarGrupo(grupo, atual.matches);
       expect(standings).not.toBeNull();
 
       const selecionados = selecionarClassificados(
         grupo,
         atual.matches,
-        seedIndex,
         1,
       );
       expect(selecionados).not.toBeNull();

@@ -1,0 +1,52 @@
+// @vitest-environment jsdom
+// Origem das vagas indefinidas ("Vencedor do jogo 4", "Perdedor do jogo 13").
+import { describe, it, expect } from "vitest";
+import type { Pair } from "../src/domain/bracket/types";
+import { gerarChaveamento } from "../src/domain/bracket/generator";
+import { numerarJogos } from "../src/domain/bracket/ordenacao";
+import { chaveSlot, origemDosSlots, rotuloOrigem } from "../src/domain/bracket/origem";
+import { renderBracketClient } from "../src/components/bracket/renderBracketClient";
+
+function duplas(n: number): Pair[] {
+  return Array.from({ length: n }, (_, i) => ({
+    id: `d${i + 1}`,
+    nomeDupla: `Dupla ${i + 1}`,
+    atletaA: `A${i + 1}`,
+    atletaB: `B${i + 1}`,
+    seed: i + 1,
+    criadoEm: `2025-01-01T00:00:${String(i + 1).padStart(2, "0")}.000Z`,
+  }));
+}
+
+describe("origem das vagas indefinidas", () => {
+  const r = gerarChaveamento({ duplas: duplas(8), config: { formato: "dupla eliminação" } });
+  if (!r.ok) throw new Error(r.erro.code);
+  const bracket = numerarJogos(r.bracket);
+
+  it("todo slot indefinido de jogo não-inicial tem uma origem", () => {
+    const origens = origemDosSlots(bracket.matches);
+    for (const m of bracket.matches) {
+      for (const lado of ["a", "b"] as const) {
+        const p = m[lado];
+        if (p.pairId === null && !p.bye) {
+          expect(origens.has(chaveSlot(m.id, lado))).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("rótulos: vencedor/perdedor, com número do jogo quando numerado", () => {
+    const origens = origemDosSlots(bracket.matches);
+    const rotulos = [...origens.values()].map(rotuloOrigem);
+    expect(rotulos.some((t) => /^Vencedor do jogo \d+$/.test(t))).toBe(true);
+    expect(rotulos.some((t) => /^Perdedor do jogo \d+$/.test(t))).toBe(true);
+    expect(rotulos.some((t) => /^Vencedor da chave de vencedores, rodada \d+, jogo \d+$/.test(t))).toBe(true);
+  });
+
+  it("a visualização mostra a origem no lugar de 'A definir'", () => {
+    const view = renderBracketClient(bracket);
+    const texto = view.textContent ?? "";
+    expect(texto).toMatch(/Vencedor do jogo \d+/);
+    expect(texto).toMatch(/Perdedor do jogo \d+/);
+  });
+});
