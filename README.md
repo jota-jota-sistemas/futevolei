@@ -347,6 +347,7 @@ https://jota-jota-sistemas.github.io/futevolei/
 - [x] Implementar o feed vertical de campeonatos
 - [x] Configurar deploy no GitHub Pages (workflow + base)
 - [x] Buscar e filtrar eventos (cidade, período, categoria) com busca no botão
+- [x] Busca de texto na lista de eventos (nome e local): filtra ao digitar, ignora acento e caixa, todas as palavras precisam aparecer. Os filtros do hero continuam valendo só no clique de "Buscar eventos", e "Limpar filtros" também esvazia a busca
 - [x] "Ver todos os eventos": home com 8 cards + botão que revela o restante
 - [x] Página de detalhe: sem foto, o bloco de imagem é omitido; categorias e botão "Inscreva-se"
 - [ ] Ativar GitHub Pages no repositório (Settings → Pages → Source: GitHub Actions)

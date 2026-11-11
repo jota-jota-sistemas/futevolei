@@ -1,4 +1,5 @@
 import type { Campeonato } from "../types";
+import { chaveTexto } from "./texto";
 import {
   GENEROS,
   NIVEIS,
@@ -69,6 +70,21 @@ export interface FiltrosEventos {
   nivel?: string;
   /** gênero (ver utils/categorias); "" = qualquer gênero */
   genero?: string;
+}
+
+/**
+ * Busca de texto livre em nome + local. Todas as palavras da consulta precisam
+ * aparecer (em qualquer ordem), ignorando caixa, acentos e espaços extras.
+ * Consulta vazia casa tudo.
+ */
+export function correspondeBusca(
+  campo: { nome?: string; local?: string },
+  consulta: string
+): boolean {
+  const termos = chaveTexto(consulta);
+  if (termos === "") return true;
+  const alvo = chaveTexto(`${campo.nome ?? ""} ${campo.local ?? ""}`);
+  return termos.split(" ").every((t) => alvo.includes(t));
 }
 
 /**

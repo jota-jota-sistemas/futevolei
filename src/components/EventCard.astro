@@ -31,6 +31,7 @@ const dataCategorias = (campeonato.categorias ?? []).join("|");
 <article
   class="event-card"
   data-evento
+  data-nome={campeonato.nome}
   data-local={campeonato.local}
   data-data={campeonato.data}
   data-categorias={dataCategorias}
