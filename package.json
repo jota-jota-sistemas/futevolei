@@ -15,7 +15,8 @@
     "astro": "astro",
     "test": "vitest run",
     "test:watch": "vitest",
-    "migrar:campeonatos": "node scripts/migrar-campeonatos.mjs"
+    "migrar:campeonatos": "node scripts/migrar-campeonatos.mjs",
+    "coletar:torneios": "node scripts/coletar-torneios.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",
@@ -25,6 +26,7 @@
     "fast-check": "^3.23.2",
     "happy-dom": "^15.11.7",
     "jsdom": "^29.1.1",
+    "playwright": "1.65.0",
     "vitest": "^3.2.7"
   }
 }

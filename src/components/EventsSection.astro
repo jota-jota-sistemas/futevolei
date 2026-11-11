@@ -1,10 +1,10 @@
 ---
-import type { Campeonato } from "../types";
-import campeonatosData from "../data/campeonatos.json";
 import EventCard from "./EventCard.astro";
 import { ordenarPorDataId } from "../utils/eventos";
+import { carregarCampeonatos } from "../utils/torneios";
 
-const campeonatos = campeonatosData as Campeonato[];
+// Fonte dos eventos: src/data/torneios.json (coletado de torneios-ftv.com).
+const campeonatos = carregarCampeonatos();
 
 // Ordena por data (asc); desempate por id para uma ordem determinística.
 const ordenados = ordenarPorDataId(campeonatos);
