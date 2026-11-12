@@ -15,8 +15,9 @@
     "astro": "astro",
     "test": "vitest run",
     "test:watch": "vitest",
-    "migrar:campeonatos": "node scripts/migrar-campeonatos.mjs",
-    "coletar:torneios": "node scripts/coletar-torneios.mjs"
+    "coletar:torneios": "node scripts/coletar-torneios.mjs",
+    "gerar:mapa-ids-eventos": "vite-node scripts/gerar-mapa-ids-eventos.ts",
+    "gerar:seed-eventos": "vite-node scripts/gerar-seed-eventos.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",

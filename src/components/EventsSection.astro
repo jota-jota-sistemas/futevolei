@@ -1,10 +1,10 @@
 ---
 import EventCard from "./EventCard.astro";
 import { ordenarPorDataId } from "../utils/eventos";
-import { carregarCampeonatos } from "../utils/torneios";
+import { carregarEventos } from "../utils/eventos-db";
 
-// Fonte dos eventos: src/data/torneios.json (coletado de torneios-ftv.com).
-const campeonatos = carregarCampeonatos();
+// Fonte dos eventos: tabela `campeonatos` do Supabase, consultada no build.
+const campeonatos = await carregarEventos();
 
 // Ordena por data (asc); desempate por id para uma ordem determinística.
 const ordenados = ordenarPorDataId(campeonatos);

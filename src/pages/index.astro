@@ -2,7 +2,7 @@
 import Layout from "../layouts/Layout.astro";
 import Hero from "../components/Hero.astro";
 import EventsSection from "../components/EventsSection.astro";
-import { carregarCampeonatos } from "../utils/torneios";
+import { carregarEventos } from "../utils/eventos-db";
 import {
   opcoesCidades,
   contagemNiveis,
@@ -13,7 +13,7 @@ import {
 /*
   Dono dos dados: como a SearchBar é renderizada dentro do Hero (e não no
   EventsSection), a página deriva aqui no build as opções dos filtros a partir
-  do JSON (src/data/torneios.json, via carregarCampeonatos) e as repassa ao
+  do banco (tabela campeonatos, consultada no build por carregarEventos) e as repassa ao
   Hero → SearchBar:
    - cidades: lista normalizada (via cidadeDoLocal) com contagem por cidade;
    - presets: meses com eventos (chips de período), relativos resolvidos no cliente;
@@ -21,7 +21,7 @@ import {
      com contagem de eventos (ver utils/categorias.ts).
   A ordem dos cards continua sob responsabilidade do EventsSection.
 */
-const campeonatos = carregarCampeonatos();
+const campeonatos = await carregarEventos();
 const cidades = opcoesCidades(campeonatos);
 const niveis = contagemNiveis(campeonatos);
 const generos = contagemGeneros(campeonatos);

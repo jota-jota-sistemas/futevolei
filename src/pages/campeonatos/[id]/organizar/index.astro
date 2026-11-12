@@ -1,9 +1,8 @@
 ---
-import type { Campeonato } from "../../../../types";
-import campeonatosData from "../../../../data/campeonatos.json";
 import Layout from "../../../../layouts/Layout.astro";
 import GuardaAcesso from "../../../../components/GuardaAcesso.astro";
 import { comBase, slugCategoria } from "../../../../utils/url";
+import { carregarEventos, type EventoCarregado } from "../../../../utils/eventos-db";
 
 /**
  * Área de ORGANIZAÇÃO (R9.1) de um campeonato: lista as categorias do
@@ -15,13 +14,13 @@ import { comBase, slugCategoria } from "../../../../utils/url";
  * Esta rota NÃO é linkada publicamente e só administradores logados a usam
  * (GuardaAcesso + RLS com eh_admin()). A visualização pública (R9.2) continua na página `/campeonatos/[id]`.
  *
- * Fonte das categorias no estático: o JSON `src/data/campeonatos.json` (campo
- * `categorias?`), igual ao restante do site, para gerar as rotas estáticas e a
- * lista. No RUNTIME, a organização lê/grava categorias e chaveamentos via
- * Bracket_Store/Supabase (fonte de verdade).
+ * Fonte no estático: a tabela `campeonatos` (e `categorias`) do Supabase,
+ * consultada no build, para gerar as rotas e a lista (todos os eventos ativos,
+ * listados ou não). No RUNTIME, a organização lê/grava duplas e chaveamentos
+ * via Bracket_Store/Supabase.
  */
-export function getStaticPaths() {
-  const lista = campeonatosData as Campeonato[];
+export async function getStaticPaths() {
+  const lista = await carregarEventos({ escopo: "todos" });
   return lista.map((campeonato) => ({
     params: { id: campeonato.id },
     props: { campeonato },
@@ -29,13 +28,16 @@ export function getStaticPaths() {
 }
 
 interface Props {
-  campeonato: Campeonato;
+  campeonato: EventoCarregado;
 }
 
 const { campeonato } = Astro.props;
 
-// Categorias a partir do JSON; ausência de `categorias` => lista vazia.
-const categorias = campeonato.categorias ?? [];
+// Nomes das categorias como estão no banco; sem categorias => lista vazia.
+const categorias = campeonato.categoriasBanco;
+
+// Só eventos listados têm página de detalhe (os demais voltam para a home).
+const hrefVoltar = comBase(campeonato.listado ? `/campeonatos/${campeonato.id}` : "/");
 
 // Deriva o slug estável do nome (mesma convenção que a rota [categoria] da
 // tarefa 18.2 deve seguir: slugCategoria em src/utils/url.ts).
@@ -52,8 +54,8 @@ const itens = categorias.map((nome) => ({
 >
   <GuardaAcesso>
   <section class="organizar">
-    <a class="organizar__voltar" href={comBase(`/campeonatos/${campeonato.id}`)}>
-      <span aria-hidden="true">←</span> Voltar ao campeonato
+    <a class="organizar__voltar" href={hrefVoltar}>
+      <span aria-hidden="true">←</span> {campeonato.listado ? "Voltar ao campeonato" : "Voltar ao início"}
     </a>
 
     <header class="organizar__cabecalho">

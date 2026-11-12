@@ -7,7 +7,7 @@
 // O comportamento é ligado pelo script de cada página (ver scripts/jogador-perfil.ts).
 import Cartao from "./Cartao.astro";
 import JogadorForm from "./JogadorForm.astro";
-import { carregarCampeonatos } from "../utils/torneios";
+import { carregarEventos } from "../utils/eventos-db";
 
 interface Props {
   /** Mostra os controles de gerenciamento (editar, arquivar e excluir). */
@@ -17,7 +17,7 @@ interface Props {
 const { gerenciar = false } = Astro.props;
 
 // Eventos que têm página de detalhe: só eles viram link no histórico de duplas.
-const eventosComDetalhe = carregarCampeonatos().map((c) => c.id);
+const eventosComDetalhe = (await carregarEventos()).map((c) => c.id);
 ---
 
 <div
