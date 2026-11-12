@@ -6,7 +6,7 @@
 //
 // O site é Astro `output: "static"` (ver astro.config.mjs). A página pública
 // `campeonatos/[id].astro` é pré-renderada em build a partir de
-// `src/data/campeonatos.json`. Os dados do chaveamento, porém, vivem no
+// tabela `campeonatos` do Supabase (consultada no build). Os dados do chaveamento, porém, vivem no
 // Supabase e NÃO estão disponíveis em build — eles precisam ser lidos no
 // NAVEGADOR, em tempo de execução, via `Bracket_Store` (leitura, RLS).
 //

@@ -67,7 +67,13 @@ describe("schema.sql: RLS com autenticação", () => {
 
 describe("supabase/migracao-auth.sql", () => {
   const marca = "-- AUTENTICAÇÃO (Supabase Auth) e ESCRITA";
-  const bloco = (texto: string) => texto.slice(texto.indexOf(marca)).trim();
+  // Do marcador de autenticação até o próximo bloco (eventos), se houver.
+  const bloco = (texto: string) => {
+    const ini = texto.indexOf(marca);
+    const prox = texto.indexOf("-- EVENTOS (formato do torneios.json)");
+    const fim = prox > ini ? prox : texto.length;
+    return texto.slice(ini, fim).replace(/\n-- -+\s*$/, "").trim();
+  };
   const migracao = readFileSync(join(__dirname, "..", "supabase", "migracao-auth.sql"), "utf8");
 
   it("repete exatamente o bloco de autenticação do schema.sql", () => {

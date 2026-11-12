@@ -1,13 +1,14 @@
 import type { Campeonato, Torneio } from "../types";
-import torneiosData from "../data/torneios.json";
 
 /**
- * Camada de leitura de `src/data/torneios.json` (coletado de torneios-ftv.com).
+ * Conversão de um registro no formato de `src/data/torneios.json` (coletado de
+ * torneios-ftv.com) para o modelo `Campeonato`, usado pelo site.
  *
  * O restante do site (lista, filtros, cards, detalhe) trabalha com o tipo
- * `Campeonato`. Em vez de espalhar o formato novo pelos componentes, esta
- * camada converte cada `Torneio` em `Campeonato` e padroniza o que vem "sujo"
- * da origem (caixa de cidades e categorias). O JSON coletado fica intacto.
+ * `Campeonato`. Esta camada converte cada `Torneio` em `Campeonato` e padroniza
+ * o que vem "sujo" da origem (caixa de cidades e categorias). Quem lê os eventos
+ * é `utils/eventos-db.ts` (tabela `campeonatos` do Supabase); o JSON só alimenta
+ * o seed (`supabase/seed-eventos.sql`).
  */
 
 /** Conectivos que permanecem em minúsculas em nomes próprios (pt-BR). */
@@ -84,7 +85,3 @@ export function torneioParaCampeonato(t: Torneio): Campeonato {
   };
 }
 
-/** Todos os eventos de `torneios.json`, já no modelo `Campeonato`. */
-export function carregarCampeonatos(): Campeonato[] {
-  return (torneiosData as Torneio[]).map(torneioParaCampeonato);
-}

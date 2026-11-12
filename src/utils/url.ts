@@ -108,7 +108,7 @@ export function formatarPeriodo(inicio: string, fim?: string): string {
  *      slugCategoria("Open")                    -> "open"
  *
  * Observação: o slug é derivado do nome porque, no estático, as categorias vêm
- * do JSON (src/data/campeonatos.json). No runtime a organização lê/grava as
+ * do banco (tabelas campeonatos/categorias, lidas no build). No runtime a organização lê/grava as
  * categorias e o chaveamento via Bracket_Store/Supabase (fonte de verdade),
  * mas as rotas estáticas e a lista continuam derivadas do nome por este slug.
  */

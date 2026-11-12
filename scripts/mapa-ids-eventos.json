@@ -1,0 +1,177 @@
+{
+  "_aviso": "Gerado por scripts/gerar-mapa-ids-eventos.ts. Pares: idAntigo (campeonatos.json) <= idColetor (torneios.json).",
+  "pares": [
+    {
+      "idAntigo": "261111_mogi_das_cruzes_ct_piter_yuri",
+      "idColetor": "261211_mogi_das_cruzes_9_etapa_torneio_ct_piter_yuri_de_futevolei",
+      "nome": "9ª Etapa Torneio CT Piter Yuri de Futevôlei"
+    },
+    {
+      "idAntigo": "261113_gv_desafio_allan",
+      "idColetor": "261113_gv_desafio_allan",
+      "nome": "Desafio do Allan"
+    },
+    {
+      "idAntigo": "261113_ibitinga_posto016",
+      "idColetor": "261113_ibitinga_torneio_de_futevolei_posto_016",
+      "nome": "Torneio de Futevôlei Posto 016"
+    },
+    {
+      "idAntigo": "261113_ourinhos_arena_kbeca",
+      "idColetor": "261113_ourinhos_torneio_arena_kbeca_de_futevolei",
+      "nome": "Torneio Arena Kbeça de Futevôlei"
+    },
+    {
+      "idAntigo": "261113_piracicaba_arena_campestre_resenha",
+      "idColetor": "261113_piracicaba_arena_campestre_resenha_cup",
+      "nome": "Arena Campestre Resenha Cup"
+    },
+    {
+      "idAntigo": "261113_ribeirao_preto_caricas_cup",
+      "idColetor": "261113_ribeirao_preto_caricas_cup",
+      "nome": "Caricas Cup"
+    },
+    {
+      "idAntigo": "261113_sao_paulo_quebrada_cup",
+      "idColetor": "261113_sao_paulo_quebrada_cup",
+      "nome": "Quebrada Cup"
+    },
+    {
+      "idAntigo": "261114_caraguatatuba_gomes",
+      "idColetor": "261114_caraguatatuba_gomes_futevolei",
+      "nome": "Gomes Futevôlei"
+    },
+    {
+      "idAntigo": "261114_guarulhos_hg_beach",
+      "idColetor": "261114_guarulhos_6_hg_beach_guarulhos_futevolei",
+      "nome": "6º HG Beach Guarulhos Futevôlei"
+    },
+    {
+      "idAntigo": "261114_jacarei_am_cup",
+      "idColetor": "261114_jacarei_am_cup_edicao_especial_rainhas_da_areia",
+      "nome": "AM Cup Edição Especial Rainhas da Areia"
+    },
+    {
+      "idAntigo": "261114_leme_torneio_burin",
+      "idColetor": "261114_leme_6_torneio_burin_futevolei",
+      "nome": "6º Torneio Burin Futevôlei"
+    },
+    {
+      "idAntigo": "261114_ribeirao_pires_aberto",
+      "idColetor": "261114_ribeirao_pires_aberto_de_futevolei_2_edicao_2026",
+      "nome": "Aberto de Futevôlei 2ª Edição 2026"
+    },
+    {
+      "idAntigo": "261114_ribeirao_preto_reis_da_areia",
+      "idColetor": "261113_ribeirao_preto_1_copa_de_futevolei_reis_da_areia",
+      "nome": "1ª Copa de Futevôlei Reis da Areia"
+    },
+    {
+      "idAntigo": "261115_sorocaba_flash",
+      "idColetor": "261115_sorocaba_segundo_flash_de_futevolei_unidade_sorocaba",
+      "nome": "Segundo Flash de Futevôlei Unidade Sorocaba"
+    },
+    {
+      "idAntigo": "261120_sao_paulo_copa_cabeca",
+      "idColetor": "261120_sao_paulo_copa_cabeca_5_edicao",
+      "nome": "Copa Cabeça 5ª Edição"
+    },
+    {
+      "idAntigo": "261121_pedreira_open_lp",
+      "idColetor": "261121_pedreira_open_lp_futevolei",
+      "nome": "Open LP Futevôlei"
+    },
+    {
+      "idAntigo": "261121_sao_caetano_copa_sanchez",
+      "idColetor": "261121_sao_caetano_do_sul_copa_sanchez_futevolei",
+      "nome": "Copa Sanchez Futevôlei"
+    },
+    {
+      "idAntigo": "261121_sao_paulo_besouro_cup",
+      "idColetor": "261121_sao_paulo_3_etapa_besouro_cup_futevolei",
+      "nome": "3ª Etapa Besouro Cup Futevôlei"
+    },
+    {
+      "idAntigo": "261122_rio_grande_da_serra_fute_delas",
+      "idColetor": "261122_rio_grande_da_serra_fute_delas_torneio_futevolei_exclusivo_feminino",
+      "nome": "Fute Delas Torneio Futevôlei Exclusivo Feminino"
+    },
+    {
+      "idAntigo": "261128_franco_da_rocha_copa_cfr",
+      "idColetor": "261128_franco_da_rocha_copa_cfr_futevolei",
+      "nome": "Copa CFR Futevôlei"
+    },
+    {
+      "idAntigo": "261128_sao_paulo_copa_2m",
+      "idColetor": "261128_sao_paulo_3_edicao_copa_2m",
+      "nome": "3ª Edição Copa 2M"
+    },
+    {
+      "idAntigo": "261129_americana_circuito_lyft",
+      "idColetor": "261129_americana_circuito_lyft_de_futevolei",
+      "nome": "Circuito Lyft de Futevôlei"
+    },
+    {
+      "idAntigo": "261204_pirassununga_arena_mistieri",
+      "idColetor": "261204_pirassununga_7_torneio_de_futevolei_arena_mistieri_beach",
+      "nome": "7º Torneio de Futevôlei Arena Mistieri Beach"
+    },
+    {
+      "idAntigo": "261204_ribeirao_pires_open_arena_rp",
+      "idColetor": "261204_ribeirao_pires_4_etapa_open_arena_rp",
+      "nome": "4ª Etapa Open Arena RP"
+    },
+    {
+      "idAntigo": "261204_taubate_torres_cup",
+      "idColetor": "261204_taubate_torres_cup",
+      "nome": "Torres Cup"
+    },
+    {
+      "idAntigo": "261205_sao_bernardo_campeonato_paulista",
+      "idColetor": "261205_sao_bernardo_do_campo_campeonato_paulista_de_futevolei",
+      "nome": "Campeonato Paulista de Futevôlei"
+    },
+    {
+      "idAntigo": "261205_sao_paulo_sagrada_primeira",
+      "idColetor": "261205_sao_paulo_sagrada_primeira_ftv",
+      "nome": "Sagrada Primeira FTV"
+    },
+    {
+      "idAntigo": "261211_sao_paulo_rp_futevolei",
+      "idColetor": "261211_sao_paulo_10_edicao_do_torneio_rp_futevolei",
+      "nome": "10ª Edição do Torneio RP Futevôlei"
+    },
+    {
+      "idAntigo": "261212_sao_paulo_mss_cup",
+      "idColetor": "261212_sao_paulo_mss_cup",
+      "nome": "MSS Cup"
+    },
+    {
+      "idAntigo": "261218_mogi_das_cruzes_c4e",
+      "idColetor": "261218_mogi_das_cruzes_circuito_4_estacoes_futevolei_c4e_etapa_primavera",
+      "nome": "Circuito 4 Estações Futevôlei C4E Etapa Primavera"
+    },
+    {
+      "idAntigo": "261219_santos_copa_lion",
+      "idColetor": "261219_santos_2_edicao_copa_lion_futevolei",
+      "nome": "2ª Edição Copa Lion Futevôlei"
+    },
+    {
+      "idAntigo": "270131_guarulhos_san_beach",
+      "idColetor": "270131_guarulhos_torneio_san_beach_bar",
+      "nome": "Torneio San Beach Bar"
+    }
+  ],
+  "soCampeonatos": [
+    "261113_sao_paulo_trf11",
+    "261114_aruja_open_prainha",
+    "261122_morumbi_copa_cabeca",
+    "261127_limeira_circuito_shark_cup",
+    "261129_gv_copa_2m",
+    "261204_andradina_resenha_mp",
+    "261204_guarulhos_san_cup",
+    "261205_santos_elite_cup",
+    "261206_cotia_open_riplay_granja_viana",
+    "261212_pirituba_mss_cup"
+  ]
+}
