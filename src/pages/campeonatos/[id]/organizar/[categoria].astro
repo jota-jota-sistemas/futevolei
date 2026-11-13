@@ -1991,6 +1991,70 @@ const { campeonato, categoriaNome } = Astro.props;
   [id].astro faz para manter a visualização coerente.
 -->
 <style is:global>
+  /* ---- Ranking final ---- */
+  .ranking-final__tabela {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+  }
+
+  .ranking-final__legenda {
+    text-align: left;
+    margin-bottom: 0.5rem;
+    font-size: 0.82rem;
+    color: var(--cor-texto-suave);
+  }
+
+  .ranking-final__tabela th,
+  .ranking-final__tabela td {
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid var(--cor-borda);
+    text-align: left;
+  }
+
+  .ranking-final__tabela th {
+    font-size: 0.74rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cor-texto-suave);
+  }
+
+  .ranking-final__pos {
+    width: 1%;
+    white-space: nowrap;
+    font-weight: 800;
+  }
+
+  .ranking-final__dupla {
+    font-weight: 700;
+  }
+
+  .ranking-final__etapa {
+    color: var(--cor-texto-suave);
+  }
+
+  .ranking-final__num {
+    width: 1%;
+    white-space: nowrap;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ranking-final__linha--p1 {
+    background: var(--cor-destaque-suave);
+  }
+
+  .ranking-final__linha--p1 .ranking-final__pos,
+  .ranking-final__linha--p1 .ranking-final__dupla {
+    color: var(--cor-destaque-texto);
+    font-weight: 800;
+  }
+
+  .ranking-final__linha--p2 .ranking-final__pos,
+  .ranking-final__linha--p3 .ranking-final__pos {
+    color: var(--cor-destaque-texto);
+  }
+
   /* Botão que abre a tela cheia do jogo (cards do chaveamento) */
   .match-card__acompanhar {
     margin-top: 0.4rem;
