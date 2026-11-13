@@ -236,13 +236,22 @@ const { campeonato, categoriaNome } = Astro.props;
       <section class="org__bloco" aria-labelledby="titulo-seeding">
         <h2 class="org__bloco-titulo" id="titulo-seeding">Nivelador</h2>
         <p class="org__ajuda">
-          Ordene as duplas da mais forte (topo) para a mais fraca. O nivelador
-          equilibra grupos e chaves, evitando que as melhores duplas se
-          enfrentem cedo. Já vem preenchido em ordem alfabética: arraste os
-          cards para reordenar (ou use as setas) e clique em salvar.
+          O nivelador equilibra grupos e chaves, evitando que as melhores
+          duplas se enfrentem cedo. Se você não quiser usar, as duplas entram
+          em ordem aleatória a cada vez que o chaveamento é gerado.
         </p>
 
-        <form class="org__form" data-form-seeding novalidate>
+        <label class="org__opcao">
+          <input type="checkbox" data-usar-nivelador />
+          Quero definir o nivelador (ordem de força das duplas)
+        </label>
+
+        <form class="org__form" data-form-seeding data-nivelador-conteudo hidden novalidate>
+          <p class="org__ajuda">
+            Ordene da dupla mais forte (topo) para a mais fraca. Já vem em ordem
+            alfabética: arraste os cards para reordenar (ou use as setas) e
+            clique em salvar.
+          </p>
           <ol class="org__nivelador" data-lista-seeding></ol>
           <button class="org__botao" type="submit" data-salvar-seeding>
             Salvar nivelador
@@ -349,6 +358,7 @@ const { campeonato, categoriaNome } = Astro.props;
   import {
     validarSeeding,
     seedingPadrao,
+    seedingAleatorio,
     type SeedAssignment,
   } from "../../../../domain/bracket/seeding";
   import {
@@ -530,6 +540,12 @@ const { campeonato, categoriaNome } = Astro.props;
 
     // Carrega o estado inicial (duplas + chaveamento) antes de exibir a UI.
     await carregarEstado(ctx);
+
+    // Se já existe um nivelador salvo, a caixa começa marcada; senão, desmarcada.
+    const usarNivelador = q<HTMLInputElement>(secao, "[data-usar-nivelador]");
+    if (usarNivelador) usarNivelador.checked = temSeedingSalvo(ctx);
+    atualizarVisibilidadeNivelador(ctx);
+    usarNivelador?.addEventListener("change", () => atualizarVisibilidadeNivelador(ctx));
 
     // Tempo real: placares lançados por outras pessoas aparecem sem recarregar.
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -782,6 +798,27 @@ const { campeonato, categoriaNome } = Astro.props;
     );
   }
 
+  /** O organizador marcou "Quero definir o nivelador"? */
+  function niveladorLigado(ctx: Ctx): boolean {
+    return q<HTMLInputElement>(ctx.secao, "[data-usar-nivelador]")?.checked === true;
+  }
+
+  /** Mostra ou esconde a lista do nivelador conforme a caixa de seleção. */
+  function atualizarVisibilidadeNivelador(ctx: Ctx): void {
+    const conteudo = q<HTMLElement>(ctx.secao, "[data-nivelador-conteudo]");
+    if (conteudo) conteudo.hidden = !niveladorLigado(ctx);
+  }
+
+  /** Há seeding completo salvo (1..N sem repetição) vindo de um nivelador anterior? */
+  function temSeedingSalvo(ctx: Ctx): boolean {
+    const n = ctx.duplas.length;
+    return (
+      n > 0 &&
+      ctx.duplas.every((d) => Number.isInteger(d.seed) && d.seed >= 1 && d.seed <= n) &&
+      new Set(ctx.duplas.map((d) => d.seed)).size === n
+    );
+  }
+
   /** Ids das duplas na ordem atual mostrada na lista (ou null se não há lista). */
   function ordemAtualDoNivelador(ctx: Ctx): string[] | null {
     const itens = Array.from(
@@ -919,7 +956,14 @@ const { campeonato, categoriaNome } = Astro.props;
    * a partir da ordem do nivelador exibida (inicialmente salva ou alfabética).
    */
   function duplasComSeeding(ctx: Ctx): Pair[] {
-    // O que o organizador vê na lista do nivelador é o que vale (mesmo sem salvar).
+    // Sem nivelador: ordem aleatória (sorteada na borda; o gerador segue puro).
+    if (!niveladorLigado(ctx)) {
+      const sorteio = new Map(
+        seedingAleatorio(ctx.duplas).map((s) => [s.pairId, s.posicao]),
+      );
+      return ctx.duplas.map((d) => ({ ...d, seed: sorteio.get(d.id) ?? d.seed }));
+    }
+    // Com nivelador, o que o organizador vê na lista é o que vale (mesmo sem salvar).
     const ordem = ordemAtualDoNivelador(ctx);
     if (ordem) {
       const posicaoPorId = new Map(ordem.map((id, i) => [id, i + 1]));
@@ -1248,7 +1292,7 @@ const { campeonato, categoriaNome } = Astro.props;
     subtitulo.className = "placar-tela__sub";
     subtitulo.textContent = correcao
       ? "Jogo encerrado: ajuste o placar e salve a correção."
-      : "Toque em + a cada ponto. O público acompanha em tempo real.";
+      : "Toque em +1 a cada ponto (o público acompanha em tempo real) ou digite o placar final.";
 
     const lados = document.createElement("div");
     lados.className = "placar-tela__lados";
@@ -1257,9 +1301,17 @@ const { campeonato, categoriaNome } = Astro.props;
     msg.className = "placar-tela__msg";
     msg.setAttribute("role", "status");
 
-    const pontos: Record<"a" | "b", HTMLElement> = {
-      a: document.createElement("p"),
-      b: document.createElement("p"),
+    // O placar de cada lado é um campo numérico grande: dá para tocar em +1/−1
+    // ou digitar o valor (útil quando não dá para marcar em tempo real).
+    const pontos: Record<"a" | "b", HTMLInputElement> = {
+      a: document.createElement("input"),
+      b: document.createElement("input"),
+    };
+
+    /** Valor inteiro ≥ 0 do campo; vazio ou inválido conta como 0. */
+    const lerCampo = (lado: "a" | "b"): number => {
+      const n = Math.floor(Number(pontos[lado].value));
+      return Number.isFinite(n) && n > 0 ? n : 0;
     };
 
     const enviarAoVivo = (): void => {
@@ -1276,7 +1328,7 @@ const { campeonato, categoriaNome } = Astro.props;
 
     const mudar = (lado: "a" | "b", delta: number): void => {
       estado[lado] = Math.max(0, estado[lado] + delta);
-      pontos[lado].textContent = String(estado[lado]);
+      pontos[lado].value = String(estado[lado]);
       enviarAoVivo();
     };
 
@@ -1286,9 +1338,28 @@ const { campeonato, categoriaNome } = Astro.props;
       const n = document.createElement("p");
       n.className = "placar-tela__nome";
       n.textContent = nome;
-      pontos[lado].className = "placar-tela__pontos";
-      pontos[lado].setAttribute("aria-live", "polite");
-      pontos[lado].textContent = String(estado[lado]);
+      const campo = pontos[lado];
+      campo.className = "placar-tela__pontos";
+      campo.type = "number";
+      campo.min = "0";
+      campo.step = "1";
+      campo.inputMode = "numeric";
+      campo.setAttribute("aria-label", `Placar de ${nome}`);
+      campo.value = String(estado[lado]);
+      // Enquanto digita, só guarda o valor (sem gravar "1" a caminho de "15").
+      campo.addEventListener("input", () => {
+        estado[lado] = lerCampo(lado);
+      });
+      // Ao terminar de digitar (sai do campo / Enter), normaliza e grava ao vivo.
+      campo.addEventListener("change", () => {
+        estado[lado] = lerCampo(lado);
+        campo.value = String(estado[lado]);
+        enviarAoVivo();
+      });
+      campo.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") campo.blur();
+      });
+      campo.addEventListener("focus", () => campo.select());
       const mais = document.createElement("button");
       mais.type = "button";
       mais.className = "placar-tela__mais";
@@ -1331,6 +1402,9 @@ const { campeonato, categoriaNome } = Astro.props;
     encerrar.addEventListener("click", async () => {
       encerrar.disabled = true;
       msg.textContent = "";
+      // Garante que o que está digitado nos campos vale, mesmo sem ter saído deles.
+      estado.a = lerCampo("a");
+      estado.b = lerCampo("b");
       await cadeia; // espera os toques em andamento gravarem
       const erro = await registrarResultado(ctx, matchId, estado.a, estado.b);
       if (erro) {
@@ -2167,6 +2241,21 @@ const { campeonato, categoriaNome } = Astro.props;
     }
   }
 
+  .org__opcao {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0.2rem 0 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .org__opcao input {
+    width: 1.15rem;
+    height: 1.15rem;
+    accent-color: var(--cor-destaque);
+  }
+
   /* Tela de placar ao vivo (dialog) */
   .placar-tela {
     width: min(92vw, 560px);
@@ -2217,12 +2306,33 @@ const { campeonato, categoriaNome } = Astro.props;
   }
 
   .placar-tela__pontos {
+    width: 100%;
     margin: 0;
+    padding: 0.1em 0;
+    border: 2px dashed var(--cor-borda);
+    border-radius: 12px;
+    background: transparent;
+    font: inherit;
     font-size: 3.6rem;
     font-weight: 800;
-    line-height: 1;
+    line-height: 1.1;
+    text-align: center;
     font-variant-numeric: tabular-nums;
     color: var(--cor-destaque-texto);
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
+  .placar-tela__pontos::-webkit-outer-spin-button,
+  .placar-tela__pontos::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .placar-tela__pontos:focus-visible {
+    outline: 2px solid var(--cor-destaque);
+    outline-offset: 2px;
+    border-style: solid;
   }
 
   .placar-tela__mais {

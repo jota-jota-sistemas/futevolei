@@ -105,6 +105,27 @@ export function compararSeedingPadrao(a: Pair, b: Pair): number {
 }
 
 /**
+ * Seeding ALEATÓRIO: posições 1..N em ordem embaralhada (Fisher-Yates). Usado
+ * quando o organizador não quer definir o nivelador. A fonte de aleatoriedade
+ * é INJETADA (`rand`, padrão `Math.random`), então com um `rand` fixo o
+ * resultado é determinístico — a função em si continua pura.
+ *
+ * Parte da ordem padrão (R3.4) para que, dado o mesmo `rand`, a saída não
+ * dependa da ordem de entrada. Não muta a entrada.
+ */
+export function seedingAleatorio(
+  duplas: ReadonlyArray<Pair>,
+  rand: () => number = Math.random,
+): SeedAssignment[] {
+  const ordem = [...duplas].sort(compararSeedingPadrao);
+  for (let i = ordem.length - 1; i > 0; i--) {
+    const j = Math.min(i, Math.floor(rand() * (i + 1)));
+    [ordem[i], ordem[j]] = [ordem[j], ordem[i]];
+  }
+  return ordem.map((dupla, indice) => ({ pairId: dupla.id, posicao: indice + 1 }));
+}
+
+/**
  * Gera o seeding padrão de uma lista de duplas (R3.4): atribui posições
  * 1..N em ordem alfabética do nome da dupla (ignorando caixa), desempatando
  * pela ordem de inscrição (criadoEm).
