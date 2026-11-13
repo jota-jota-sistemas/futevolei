@@ -299,6 +299,12 @@ const { campeonato, categoriaNome } = Astro.props;
       <section class="org__bloco" aria-labelledby="titulo-estado">
         <h2 class="org__bloco-titulo" id="titulo-estado">Estado atual</h2>
 
+        <div class="org__acoes">
+          <button class="org__botao" type="button" data-tela-cheia hidden>
+            ⛶ Tela cheia
+          </button>
+        </div>
+
         {/* Clique direto na dupla dentro de cada jogo registra o vencedor. */}
         {/* Visualização do chaveamento (renderBracketClient). */}
         <div class="org__bracket" data-bracket-slot>
@@ -361,6 +367,8 @@ const { campeonato, categoriaNome } = Astro.props;
     type ClassificadoDoGrupo,
   } from "../../../../domain/bracket/generator";
   import { rotuloDupla, gerarNomeDupla } from "../../../../domain/pairs/nome";
+  import { abrirTelaChaveamento, type TelaChaveamento } from "../../../../components/bracket/telaChaveamento";
+  import { abrirTelaJogo, type TelaJogo } from "../../../../components/bracket/telaJogo";
   import { registrarPlacar, atualizarPlacarAoVivo } from "../../../../domain/bracket/progression";
   import { numerarJogos } from "../../../../domain/bracket/ordenacao";
   import { jogosAlterados } from "../../../../domain/bracket/diff";
@@ -448,6 +456,10 @@ const { campeonato, categoriaNome } = Astro.props;
     // (evita sobrescrever a tela com dados ainda não gravados).
     salvando: number;
     recarregarDepois: boolean;
+    // Telas cheias abertas (chaveamento completo / um jogo): acompanham as
+    // atualizações do chaveamento.
+    telaChaveamento: TelaChaveamento | null;
+    telaJogo: TelaJogo | null;
     // Seletores opcionais de jogador cadastrado (null = indisponível; o
     // formulário segue só com texto).
     seletor: SeletorJogadores | null;
@@ -521,6 +533,8 @@ const { campeonato, categoriaNome } = Astro.props;
       bracket: null,
       salvando: 0,
       recarregarDepois: false,
+      telaChaveamento: null,
+      telaJogo: null,
       seletor: null,
     };
 
@@ -1412,6 +1426,17 @@ const { campeonato, categoriaNome } = Astro.props;
     const slot = q<HTMLElement>(ctx.secao, "[data-bracket-slot]");
     if (!slot) return;
 
+    // Botão "Tela cheia" só com chaveamento; telas cheias abertas acompanham.
+    const botaoTelaCheia = q<HTMLButtonElement>(ctx.secao, "[data-tela-cheia]");
+    if (botaoTelaCheia) botaoTelaCheia.hidden = !ctx.bracket;
+    if (ctx.bracket) {
+      ctx.telaChaveamento?.atualizar(ctx.bracket);
+      ctx.telaJogo?.atualizar(ctx.bracket);
+    } else {
+      ctx.telaJogo?.fechar();
+      ctx.telaChaveamento?.fechar();
+    }
+
     if (!ctx.bracket) {
       const vazio = document.createElement("p");
       vazio.className = "org__indisponivel";
@@ -1456,7 +1481,42 @@ const { campeonato, categoriaNome } = Astro.props;
   // --------------------------------------------------------------------
   // Ligação de handlers
   // --------------------------------------------------------------------
+  /** "Tela cheia": o chaveamento completo (só visualização), em tempo real. */
+  function ligarTelaCheia(ctx: Ctx): void {
+    const categoria = ctx.secao.dataset.categoriaNome ?? "Chaveamento";
+    const abrirJogo = (
+      matchId: string,
+      contexto?: { dentroDe: HTMLElement; aoFecharJogo: () => void },
+    ): void => {
+      if (!ctx.bracket) return;
+      ctx.telaJogo?.fechar();
+      ctx.telaJogo = abrirTelaJogo({
+        bracket: ctx.bracket,
+        matchId,
+        categoria,
+        dentroDe: contexto?.dentroDe,
+        aoFechar: () => {
+          ctx.telaJogo = null;
+          contexto?.aoFecharJogo();
+        },
+      });
+    };
+    q<HTMLButtonElement>(ctx.secao, "[data-tela-cheia]")?.addEventListener("click", () => {
+      if (!ctx.bracket) return;
+      ctx.telaChaveamento?.fechar();
+      ctx.telaChaveamento = abrirTelaChaveamento({
+        bracket: ctx.bracket,
+        categoria,
+        aoAbrirJogo: abrirJogo,
+        aoFechar: () => {
+          ctx.telaChaveamento = null;
+        },
+      });
+    });
+  }
+
   function ligarHandlers(ctx: Ctx): void {
+    ligarTelaCheia(ctx);
     // Duplas
     const formDupla = q<HTMLFormElement>(ctx.secao, "[data-form-dupla]");
     formDupla?.addEventListener("submit", (e) => {
@@ -1931,6 +1991,256 @@ const { campeonato, categoriaNome } = Astro.props;
   [id].astro faz para manter a visualização coerente.
 -->
 <style is:global>
+  /* Botão que abre a tela cheia do jogo (cards do chaveamento) */
+  .match-card__acompanhar {
+    margin-top: 0.4rem;
+    width: 100%;
+    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 10px;
+    background: var(--cor-superficie);
+    color: var(--cor-texto);
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .match-card__acompanhar:hover {
+    border-color: var(--cor-destaque);
+    color: var(--cor-destaque-texto);
+  }
+
+  .match-card__acompanhar:focus-visible {
+    outline: 2px solid var(--cor-destaque);
+    outline-offset: 2px;
+  }
+
+  /* ---- Tela cheia do chaveamento completo ---- */
+  .tela-chaveamento {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    display: flex;
+    flex-direction: column;
+    background: var(--cor-fundo, #f4f7fa);
+    color: var(--cor-texto);
+  }
+
+  .tela-chaveamento__topo {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.8rem clamp(1rem, 3vw, 2rem);
+    border-bottom: 1px solid var(--cor-borda);
+    background: var(--cor-superficie, #fff);
+  }
+
+  .tela-chaveamento__titulo {
+    margin: 0;
+    font-size: clamp(1.1rem, 2.4vw, 1.6rem);
+  }
+
+  .tela-chaveamento__fechar {
+    padding: 0.45rem 1.1rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 999px;
+    background: var(--cor-superficie, #fff);
+    color: var(--cor-texto);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .tela-chaveamento__fechar:hover {
+    border-color: var(--cor-destaque);
+  }
+
+  .tela-chaveamento__fechar:focus-visible {
+    outline: 3px solid var(--cor-destaque);
+    outline-offset: 2px;
+  }
+
+  /* O chaveamento ocupa o tamanho que precisa e a área rola nos dois sentidos
+     (em vez de cada seção rolar sozinha). */
+  .tela-chaveamento__corpo {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: clamp(1rem, 2vw, 1.6rem);
+  }
+
+  .tela-chaveamento__corpo .bracket-view,
+  .tela-chaveamento__corpo .elim-tree {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .tela-chaveamento__corpo .elim-tree__rodadas {
+    overflow: visible;
+  }
+
+  /* ---- Tela cheia de um jogo ---- */
+  body.tela-jogo-aberta {
+    overflow: hidden;
+  }
+
+  .tela-jogo {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(0.8rem, 3vh, 2rem);
+    padding: clamp(1rem, 3vw, 2.5rem);
+    background: #0a1a30;
+    color: #fff;
+    overflow: auto;
+  }
+
+  .tela-jogo__topo {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .tela-jogo__titulos p {
+    margin: 0;
+  }
+
+  .tela-jogo__categoria {
+    font-size: clamp(1.1rem, 2.4vw, 1.8rem);
+    font-weight: 800;
+  }
+
+  .tela-jogo__contexto,
+  .tela-jogo__numero {
+    font-size: clamp(0.9rem, 1.8vw, 1.3rem);
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  .tela-jogo__fechar {
+    flex: 0 0 auto;
+    padding: 0.5rem 1.1rem;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 999px;
+    background: transparent;
+    color: #fff;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .tela-jogo__fechar:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .tela-jogo__fechar:focus-visible {
+    outline: 3px solid var(--cor-destaque);
+    outline-offset: 2px;
+  }
+
+  .tela-jogo__situacao {
+    align-self: center;
+    margin: 0;
+    padding: 0.35rem 1.2rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+    font-size: clamp(1rem, 2.2vw, 1.6rem);
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .tela-jogo[data-situacao="aovivo"] .tela-jogo__situacao {
+    background: #c0392b;
+  }
+
+  .tela-jogo[data-situacao="encerrado"] .tela-jogo__situacao {
+    background: var(--cor-destaque);
+    color: #06213a;
+  }
+
+  .tela-jogo__placar {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: clamp(0.5rem, 2vw, 2rem);
+    min-height: 0;
+  }
+
+  .tela-jogo__lado {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(0.4rem, 1.5vh, 1rem);
+    text-align: center;
+    padding: clamp(0.8rem, 2vw, 2rem);
+    border-radius: 24px;
+    border: 3px solid transparent;
+  }
+
+  .tela-jogo__lado--vencedora {
+    border-color: var(--cor-destaque);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .tela-jogo__nome {
+    margin: 0;
+    font-size: clamp(1.4rem, 4vw, 3.2rem);
+    font-weight: 800;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+
+  .tela-jogo__pontos {
+    margin: 0;
+    font-size: clamp(6rem, 24vw, 20rem);
+    font-weight: 900;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tela-jogo__selo {
+    margin: 0;
+    min-height: 1.4em;
+    font-size: clamp(1rem, 2.4vw, 1.8rem);
+    font-weight: 800;
+    color: var(--cor-destaque);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .tela-jogo__x {
+    margin: 0;
+    font-size: clamp(2rem, 6vw, 5rem);
+    color: rgba(255, 255, 255, 0.45);
+  }
+
+  .tela-jogo__rodape {
+    margin: 0;
+    text-align: center;
+    min-height: 1.4em;
+    font-size: clamp(0.9rem, 1.8vw, 1.3rem);
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  /* Celular em pé: as duas duplas empilhadas. */
+  @media (max-aspect-ratio: 1 / 1) {
+    .tela-jogo__placar {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr auto 1fr;
+    }
+
+    .tela-jogo__pontos {
+      font-size: clamp(5rem, 30vw, 14rem);
+    }
+  }
+
   .org__opcao {
     display: flex;
     align-items: center;

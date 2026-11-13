@@ -23,6 +23,13 @@ export interface OpcoesTelaJogo {
   /** Nome da categoria (exibido no topo). */
   categoria: string;
   aoFechar?: () => void;
+  /**
+   * Quando a tela do jogo abre a partir de outra tela já em tela cheia (ex.:
+   * o chaveamento completo), ela precisa ficar DENTRO desse elemento para
+   * aparecer — o navegador esconde o que não está dentro do elemento em tela
+   * cheia. Nesse caso não pede tela cheia de novo.
+   */
+  dentroDe?: HTMLElement;
 }
 
 type Situacao = "aguardando" | "aovivo" | "encerrado";
@@ -103,7 +110,7 @@ export function abrirTelaJogo(opcoes: OpcoesTelaJogo): TelaJogo {
   const rodape = el("p", "tela-jogo__rodape");
 
   raiz.append(topo, situacao, placar, rodape);
-  document.body.append(raiz);
+  (opcoes.dentroDe ?? document.body).append(raiz);
   document.body.classList.add("tela-jogo-aberta");
 
   let fechada = false;
@@ -182,7 +189,7 @@ export function abrirTelaJogo(opcoes: OpcoesTelaJogo): TelaJogo {
 
   // Tela cheia de verdade quando o navegador permite (precisa do gesto do
   // toque que abriu a tela). Sem suporte (ex.: iPhone), a tela ocupa a janela.
-  if (typeof raiz.requestFullscreen === "function") {
+  if (!opcoes.dentroDe && typeof raiz.requestFullscreen === "function") {
     raiz
       .requestFullscreen()
       .then(() => {
