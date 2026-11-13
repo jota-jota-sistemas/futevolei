@@ -245,7 +245,10 @@ describe("Feature: criar-chaveamento-campeonato, Property 17: Dupla eliminação
           (jogo) => jogo.a.bye !== true && jogo.b.bye !== true,
         );
 
-        expect(decisivos.length).toBe(2 * m - 2);
+        // Até 4 duplas: estrutura clássica (2M−2). A partir de 5 duplas há
+        // semifinais cruzadas no lugar da final da upper e das 2 últimas
+        // rodadas da lower: −3 jogos +2 semifinais = 2M−3.
+        expect(decisivos.length).toBe(m <= 4 ? 2 * m - 2 : 2 * m - 3);
       }),
       { numRuns: 200 },
     );
@@ -276,9 +279,17 @@ describe("Feature: criar-chaveamento-campeonato, Property 17: Dupla eliminação
               jogo.b.bye !== true,
           ).length;
 
-        expect(decisivo("upper")).toBe(m - 1);
-        expect(decisivo("lower")).toBe(m - 2);
-        expect(decisivo("grande-final")).toBe(1);
+        if (m <= 4) {
+          expect(decisivo("upper")).toBe(m - 1);
+          expect(decisivo("lower")).toBe(m - 2);
+          expect(decisivo("grande-final")).toBe(1);
+        } else {
+          // Semifinais cruzadas: sem final da upper (−1) e sem as 2 últimas da
+          // lower (−2); a "grande final" passa a ter 2 semifinais + a final.
+          expect(decisivo("upper")).toBe(m - 2);
+          expect(decisivo("lower")).toBe(m - 4);
+          expect(decisivo("grande-final")).toBe(3);
+        }
       }),
       { numRuns: 200 },
     );

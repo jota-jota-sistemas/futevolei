@@ -175,7 +175,9 @@ describe("Feature: criar-chaveamento-campeonato, R8.3: renderização de dupla e
     );
     expect(rotulos).toContain("Chave de vencedores");
     expect(rotulos).toContain("Chave de perdedores");
-    expect(rotulos).toContain("Grande final");
+    // Com semifinais cruzadas (5+ duplas) a seção chama-se "Semifinais e final";
+    // com até 4 duplas continua "Grande final".
+    expect(rotulos.some((r) => r === "Grande final" || r === "Semifinais e final")).toBe(true);
   });
 });
 

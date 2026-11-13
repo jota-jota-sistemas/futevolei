@@ -623,8 +623,15 @@ function ligarJogos(
   }
 }
 
-function rotuloRodada(side: BracketSide, numero: number): string {
-  return side === "grande-final" ? "Jogo decisivo" : `Rodada ${numero}`;
+function rotuloRodada(
+  side: BracketSide,
+  numero: number,
+  totalRodadas: number,
+): string {
+  if (side !== "grande-final") return `Rodada ${numero}`;
+  // Com semifinais cruzadas o lado tem 2 rodadas: semifinais e final.
+  if (totalRodadas <= 1) return "Jogo decisivo";
+  return numero < totalRodadas ? "Semifinais" : "Grande final";
 }
 
 function renderEliminationTree(
@@ -655,6 +662,13 @@ function renderEliminationTree(
   // chave de perdedores nem grande final). Nesse caso, rotulamos a seção como
   // "Mata-mata" em vez de "Chave de vencedores", que só faz sentido quando
   // existe a contraparte de perdedores (dupla eliminação).
+  // Com semifinais cruzadas, o lado "grande-final" tem semifinais e final.
+  for (const sec of secoes) {
+    if (sec.side === "grande-final" && sec.rodadas.length > 1) {
+      sec.titulo = "Semifinais e final";
+    }
+  }
+
   const chaveUnica =
     secoes.length === 1 && secoes[0]?.side === "upper";
   if (chaveUnica) {
@@ -674,11 +688,13 @@ function renderEliminationTree(
             filhos: secao.rodadas.map((rodada) =>
               el("div", {
                 classes: ["elim-tree__rodada"],
-                attrs: { "aria-label": rotuloRodada(secao.side, rodada.numero) },
+                attrs: {
+                  "aria-label": rotuloRodada(secao.side, rodada.numero, secao.rodadas.length),
+                },
                 filhos: [
                   el("h5", {
                     classes: ["elim-tree__rodada-titulo"],
-                    texto: rotuloRodada(secao.side, rodada.numero),
+                    texto: rotuloRodada(secao.side, rodada.numero, secao.rodadas.length),
                   }),
                   el("ul", {
                     classes: ["elim-tree__lista"],

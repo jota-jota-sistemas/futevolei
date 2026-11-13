@@ -54,5 +54,7 @@ export function rotuloOrigem(origem: OrigemSlot): string {
   const papel = origem.tipo === "vencedor" ? "Vencedor" : "Perdedor";
   const j = origem.jogo;
   if (j.ordemDisputa !== null) return `${papel} do jogo ${j.ordemDisputa}`;
+  // Jogo do lado "grande final" que alimenta outro é uma semifinal.
+  if (j.side === "grande-final") return `${papel} da semifinal ${j.ordem + 1}`;
   return `${papel} da ${NOME_SIDE[j.side]}, rodada ${j.rodada}, jogo ${j.ordem + 1}`;
 }

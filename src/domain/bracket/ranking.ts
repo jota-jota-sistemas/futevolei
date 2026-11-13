@@ -15,7 +15,8 @@
 //   - perdeu a final: (rodada da última disputa) + 1; campeã: +1 sobre isso.
 //   Na dupla eliminação quem cai na chave de vencedores vai para a de
 //   perdedores e só é eliminada ao perder lá, então o que conta é a rodada da
-//   chave de perdedores (e a grande final acima de todas).
+//   chave de perdedores; acima dela vêm as semifinais (quando existem), o vice
+//   e a campeã.
 //
 // O ranking só existe quando o campeonato terminou (a final foi decidida);
 // antes disso devolve `null`.
@@ -35,7 +36,9 @@ export interface LinhaRanking {
 
 /** A final do campeonato: grande final, ou a final da chave única. */
 function acharFinal(matches: ReadonlyArray<Match>): Match | undefined {
-  const gf = matches.find((m) => m.side === "grande-final");
+  // Grande final = a que não avança (com semifinais cruzadas há mais de um
+  // jogo nesse lado: as semifinais avançam para a final).
+  const gf = matches.find((m) => m.side === "grande-final" && !m.avancaVencedorPara);
   if (gf) return gf;
   const uppers = matches.filter(
     (m) => m.side === "upper" && !m.avancaVencedorPara && !m.encaminhaPerdedorPara,
@@ -63,7 +66,7 @@ export function rankingFinal(bracket: Bracket): LinhaRanking[] | null {
 
   /** `fase` de quem perde `m` e fica eliminada ali. */
   const faseDeQuemCai = (m: Match): number =>
-    m.side === "grande-final" ? ultimaLower + 1 : m.rodada;
+    m.side === "grande-final" ? ultimaLower + m.rodada : m.rodada;
 
   const fase = new Map<PairId, number>();
   const etapa = new Map<PairId, string>();
@@ -95,9 +98,11 @@ export function rankingFinal(bracket: Bracket): LinhaRanking[] | null {
       perdedor,
       ehFinal
         ? "Vice-campeã"
-        : m.side === "lower"
-          ? `Eliminada na rodada ${m.rodada} da chave de perdedores`
-          : etapaEliminadaNaChaveUnica(m.rodada, ultimaUpper),
+        : m.side === "grande-final"
+          ? "Eliminada na semifinal"
+          : m.side === "lower"
+            ? `Eliminada na rodada ${m.rodada} da chave de perdedores`
+            : etapaEliminadaNaChaveUnica(m.rodada, ultimaUpper),
     );
   }
 

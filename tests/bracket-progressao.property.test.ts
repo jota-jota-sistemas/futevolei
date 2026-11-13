@@ -494,8 +494,10 @@ describe("Feature: criar-chaveamento-campeonato, Property 28: A campeã é a ven
         const inicial = gerarBracketDuplaEliminacao(m);
         const { final } = jogarBracket(inicial, escolhas);
 
+        // A final é a grande final que não avança (com semifinais cruzadas há
+        // outros jogos de side "grande-final" antes dela).
         const grandeFinal = final.matches.find(
-          (j) => j.side === "grande-final",
+          (j) => j.side === "grande-final" && !j.avancaVencedorPara,
         );
         expect(grandeFinal).toBeDefined();
         const gf = grandeFinal as Match;

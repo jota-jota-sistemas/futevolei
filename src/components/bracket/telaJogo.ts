@@ -52,7 +52,13 @@ function contextoDe(bracket: Bracket, m: Match): string {
     const grupo = bracket.grupos.find((g) => g.id === m.grupoId);
     return grupo ? `Fase de grupos · Grupo ${grupo.indice + 1}` : "Fase de grupos";
   }
-  if (m.side === "grande-final") return "Grande final";
+  if (m.side === "grande-final") {
+    // Com semifinais cruzadas há jogos do mesmo lado em rodadas posteriores.
+    const haFinalDepois = bracket.matches.some(
+      (x) => x.side === "grande-final" && x.rodada > m.rodada,
+    );
+    return haFinalDepois ? "Semifinal" : "Grande final";
+  }
   const unica = bracket.formato !== "dupla eliminação";
   const fase = unica
     ? "Mata-mata"
