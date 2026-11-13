@@ -35,6 +35,7 @@ import type {
   Participant,
 } from "../../domain/bracket/types";
 import { rotuloDupla } from "../../domain/pairs/nome";
+import { rankingFinal, type LinhaRanking } from "../../domain/bracket/ranking";
 import { classificarGrupo } from "../../domain/bracket/standings";
 import {
   chaveSlot,
@@ -717,6 +718,74 @@ function comLinhas(container: HTMLElement, jogos: Match[]): HTMLElement {
  *
  * Retorna um único elemento pronto para substituir o placeholder da categoria.
  */
+// ---------------------------------------------------------------------------
+// Ranking final (aparece embaixo do chaveamento quando o campeonato termina)
+// ---------------------------------------------------------------------------
+
+function renderRanking(
+  linhas: LinhaRanking[],
+  duplasPorId: DuplasPorId,
+): HTMLElement {
+  const nome = (pairId: string): string => {
+    const d = duplasPorId[pairId];
+    return d ? rotuloDupla(d) : pairId;
+  };
+  const cab = (classe: string, texto: string, titulo?: string): HTMLElement =>
+    el("th", {
+      classes: [classe],
+      attrs: { scope: "col", ...(titulo ? { title: titulo } : {}) },
+      texto,
+    });
+
+  return el("section", {
+    classes: ["bracket-view__fase", "ranking-final"],
+    attrs: { "aria-label": "Ranking final" },
+    filhos: [
+      el("h3", { classes: ["bracket-view__fase-titulo"], texto: "Ranking final" }),
+      el("table", {
+        classes: ["ranking-final__tabela"],
+        filhos: [
+          el("caption", {
+            classes: ["ranking-final__legenda"],
+            texto:
+              "Ordem: quem foi mais longe no chaveamento; depois vitórias e pontos feitos.",
+          }),
+          el("thead", {
+            filhos: [
+              el("tr", {
+                filhos: [
+                  cab("ranking-final__pos", "#", "Posição"),
+                  cab("ranking-final__dupla", "Dupla"),
+                  cab("ranking-final__etapa", "Resultado"),
+                  cab("ranking-final__num", "V", "Vitórias"),
+                  cab("ranking-final__num", "Pontos", "Pontos feitos"),
+                ],
+              }),
+            ],
+          }),
+          el("tbody", {
+            filhos: linhas.map((l) =>
+              el("tr", {
+                classes: [
+                  "ranking-final__linha",
+                  l.posicao <= 3 && `ranking-final__linha--p${l.posicao}`,
+                ],
+                filhos: [
+                  el("td", { classes: ["ranking-final__pos"], texto: `${l.posicao}º` }),
+                  el("td", { classes: ["ranking-final__dupla"], texto: nome(l.pairId) }),
+                  el("td", { classes: ["ranking-final__etapa"], texto: l.etapa }),
+                  el("td", { classes: ["ranking-final__num"], texto: String(l.vitorias) }),
+                  el("td", { classes: ["ranking-final__num"], texto: String(l.pontosPro) }),
+                ],
+              }),
+            ),
+          }),
+        ],
+      }),
+    ],
+  });
+}
+
 export function renderBracketClient(
   bracket: Bracket,
   opcoes?: RenderOpcoes,
@@ -819,6 +888,10 @@ export function renderBracketClient(
       }),
     );
   }
+
+  // Ranking final: só quando o campeonato terminou (a final foi decidida).
+  const ranking = rankingFinal(bracket);
+  if (ranking) filhos.push(renderRanking(ranking, duplasPorId));
 
   return el("div", { classes: ["bracket-view"], filhos });
 }
