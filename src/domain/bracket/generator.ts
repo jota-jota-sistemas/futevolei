@@ -158,10 +158,18 @@ function indefinido(): Participant {
  *  - Chave de perdedores (lower): recebe os perdedores da upper. Estrutura
  *    padrão com rodadas "menores" (recebem quedas da upper) e "maiores"
  *    (consolidam os sobreviventes da lower).
- *  - Grande final: jogo único entre o campeão da upper e o campeão da lower.
+ *  - Grande final: jogo único entre o campeão da upper e o campeão da lower
+ *    (chaves de até 4 posições, ou seja, até 4 duplas).
+ *  - A partir de 8 posições (5+ duplas), quando as duas chaves chegam às suas
+ *    finais, ocorrem SEMIFINAIS CRUZADAS (G1 × P2 e G2 × P1: finalista da
+ *    chave de vencedores × sobrevivente da chave de perdedores da metade
+ *    oposta) e depois a grande final. Não existem a final da upper nem as duas
+ *    últimas rodadas da lower.
  *
- * Jogos decisivos (R4.7): exatamente 2M−2 = (M−1) na upper + (M−2) na lower
- * + 1 na grande final. Jogos cujo confronto é dupla×bye NÃO são decisivos e
+ * Jogos decisivos (R4.7), até 4 posições: exatamente 2M−2 = (M−1) na upper +
+ * (M−2) na lower + 1 na grande final. Com semifinais cruzadas (8+ posições) o
+ * total é 2M−3: some a final da upper e as duas últimas da lower (−3) e entram
+ * as 2 semifinais (+2). Jogos cujo confronto é dupla×bye NÃO são decisivos e
  * não entram nessa contagem.
  */
 function gerarDuplaEliminacao(input: GeneratorInput): GeneratorResult {
@@ -332,36 +340,68 @@ function gerarDuplaEliminacao(input: GeneratorInput): GeneratorResult {
   }
 
   // --- Grande final --------------------------------------------------------
-  const grandeFinal: Match = {
-    id: matchId("grande-final", 1, 0),
+  // Para S ≥ 8 (k ≥ 3) as duas chaves chegam às suas finais ao mesmo tempo:
+  //   - chave de vencedores: dois finalistas G1 e G2 (vencedores da penúltima
+  //     rodada da upper, antes da "final da chave");
+  //   - chave de perdedores: dois sobreviventes P1 e P2 (vencedores da rodada
+  //     da lower com 2 jogos), um de cada metade (P1 vem da metade de G1).
+  // Em vez de G1×G2 e P1×P2, as SEMIFINAIS do campeonato cruzam as chaves, com
+  // as metades opostas: G1 × P2 e G2 × P1. Os vencedores jogam a grande final;
+  // quem perde a semifinal está eliminado. Isso substitui a final da upper e as
+  // duas últimas rodadas da lower. Para S ≤ 4 (poucos jogos) a estrutura
+  // clássica é mantida.
+  const cruzarSemifinais = k >= 3;
+  const jogosFinais: Match[] = [];
+
+  const novoJogoFinal = (rodada: number, ordem: number): Match => ({
+    id: matchId("grande-final", rodada, ordem),
     side: "grande-final",
-    rodada: 1,
-    ordem: 0,
-    a: indefinido(), // campeão da upper
-    b: indefinido(), // campeão da lower
+    rodada,
+    ordem,
+    a: indefinido(),
+    b: indefinido(),
     vencedorId: null,
     registradoEm: null,
     ordemDisputa: null,
     placarA: null,
     placarB: null,
-  };
+  });
 
-  // Campeão da upper → slot "a" da grande final.
-  const ultimaUpper = upperPorRodada[upperPorRodada.length - 1][0];
-  ultimaUpper.avancaVencedorPara = { matchId: grandeFinal.id, slot: "a" };
-
-  // Campeão da lower → slot "b" da grande final.
-  if (lowerPorRodada.length > 0) {
-    const ultimaLower = lowerPorRodada[lowerPorRodada.length - 1][0];
-    ultimaLower.avancaVencedorPara = { matchId: grandeFinal.id, slot: "b" };
+  if (cruzarSemifinais) {
+    // Tira a final da upper e as duas últimas rodadas da lower.
+    upperPorRodada.pop();
+    lowerPorRodada.pop();
+    lowerPorRodada.pop();
+    const penultimaUpper = upperPorRodada[upperPorRodada.length - 1]; // G1, G2
+    const ultimaLowerDe2 = lowerPorRodada[lowerPorRodada.length - 1]; // P1, P2
+    const semiA = novoJogoFinal(1, 0); // G1 × P2
+    const semiB = novoJogoFinal(1, 1); // G2 × P1
+    const final = novoJogoFinal(2, 0);
+    penultimaUpper[0].avancaVencedorPara = { matchId: semiA.id, slot: "a" };
+    ultimaLowerDe2[1].avancaVencedorPara = { matchId: semiA.id, slot: "b" };
+    penultimaUpper[1].avancaVencedorPara = { matchId: semiB.id, slot: "a" };
+    ultimaLowerDe2[0].avancaVencedorPara = { matchId: semiB.id, slot: "b" };
+    semiA.avancaVencedorPara = { matchId: final.id, slot: "a" };
+    semiB.avancaVencedorPara = { matchId: final.id, slot: "b" };
+    jogosFinais.push(semiA, semiB, final);
   } else {
-    // Caso-base M=2 (S=2): não há chave de perdedores. O perdedor da final da
-    // upper É o finalista da lower (com 0 jogos na lower), portanto é
-    // ENCAMINHADO diretamente ao slot "b" da grande final, tornando-a
-    // decidível. Preserva a semântica R6.4 (perdedor da upper vai para a chave
-    // de perdedores — aqui, degenerada à própria grande final) e a contagem de
-    // decisivos 2M−2 (upper R1 + grande final).
-    ultimaUpper.encaminhaPerdedorPara = { matchId: grandeFinal.id, slot: "b" };
+    const grandeFinal = novoJogoFinal(1, 0);
+    // Campeão da upper → slot "a" da grande final.
+    const ultimaUpper = upperPorRodada[upperPorRodada.length - 1][0];
+    ultimaUpper.avancaVencedorPara = { matchId: grandeFinal.id, slot: "a" };
+    // Campeão da lower → slot "b" da grande final.
+    if (lowerPorRodada.length > 0) {
+      const ultimaLower = lowerPorRodada[lowerPorRodada.length - 1][0];
+      ultimaLower.avancaVencedorPara = { matchId: grandeFinal.id, slot: "b" };
+    } else {
+      // Caso-base M=2 (S=2): não há chave de perdedores. O perdedor da final da
+      // upper É o finalista da lower (com 0 jogos na lower), portanto é
+      // ENCAMINHADO diretamente ao slot "b" da grande final, tornando-a
+      // decidível. Preserva a semântica R6.4 (perdedor da upper vai para a
+      // chave de perdedores — aqui, degenerada à própria grande final).
+      ultimaUpper.encaminhaPerdedorPara = { matchId: grandeFinal.id, slot: "b" };
+    }
+    jogosFinais.push(grandeFinal);
   }
 
   // --- Encaminhamento de perdedores da upper para a lower ------------------
@@ -369,7 +409,7 @@ function gerarDuplaEliminacao(input: GeneratorInput): GeneratorResult {
   // Perdedores da upper URr (r≥2) → lower na rodada "maior" correspondente,
   // ocupando o slot "b" (o slot "a" veio do vencedor da lower anterior).
   if (lowerPorRodada.length > 0) {
-    ligarPerdedoresUpper(upperPorRodada, lowerPorRodada, s);
+    ligarPerdedoresUpper(upperPorRodada, lowerPorRodada);
   }
 
   // Lista ordenada de todos os jogos, em ordem topológica de avanço: upper por
@@ -377,7 +417,7 @@ function gerarDuplaEliminacao(input: GeneratorInput): GeneratorResult {
   const todosOsJogos: Match[] = [
     ...upperPorRodada.flat(),
     ...lowerPorRodada.flat(),
-    grandeFinal,
+    ...jogosFinais,
   ];
 
   // --- Propagação de byes --------------------------------------------------
@@ -654,7 +694,6 @@ function resolverWalkoversUpper(jogos: ReadonlyArray<Match>): void {
 function ligarPerdedoresUpper(
   upperPorRodada: Match[][],
   lowerPorRodada: Match[][],
-  s: number,
 ): void {
   // UR1 → LR1 (índice 0 da lower), 2:1.
   const ur1 = upperPorRodada[0];
@@ -668,7 +707,9 @@ function ligarPerdedoresUpper(
   });
 
   // URr (r≥2) → rodada "maior" da lower, slot "b", 1:1.
-  const k = Math.log2(s);
+  // Usa o número REAL de rodadas da upper (na versão com semifinais cruzadas a
+  // final da upper não existe e seu perdedor não é encaminhado).
+  const k = upperPorRodada.length;
   for (let r = 2; r <= k; r++) {
     const ur = upperPorRodada[r - 1]; // 0-based
     const indiceLowerMaior = 2 * (r - 1) - 1; // 1,3,5,...

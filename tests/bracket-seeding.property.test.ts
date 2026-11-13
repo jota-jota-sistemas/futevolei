@@ -667,6 +667,19 @@ describe("Feature: criar-chaveamento-campeonato, Property 12: Cabeças 1 e 2 em 
           return;
         }
 
+        // Semifinais cruzadas (5+ duplas): não existe final da upper. Os caminhos
+        // das cabeças 1 e 2 nem se cruzam na upper e só se encontram na FINAL
+        // do campeonato (cada uma vai para uma semifinal diferente).
+        if (m >= 5) {
+          expect(comuns.length).toBe(0);
+          const emComum = caminho1.filter((id) => caminho2.includes(id));
+          expect(emComum).toHaveLength(1);
+          const final = porId.get(emComum[0])!;
+          expect(final.side).toBe("grande-final");
+          expect(final.avancaVencedorPara).toBeUndefined();
+          return;
+        }
+
         // Convergem em exatamente um jogo de upper: a FINAL da upper (maior rodada).
         expect(comuns.length).toBe(1);
         const jogoComum = porId.get(comuns[0])!;

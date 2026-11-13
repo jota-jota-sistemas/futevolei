@@ -74,7 +74,10 @@ describe("ranking final", () => {
     expect(new Set(rk.map((l) => l.pairId)).size).toBe(6);
     expect(rk[0]).toMatchObject({ posicao: 1, etapa: "Campeã", pairId: fim.campeaId });
     expect(rk[1]).toMatchObject({ posicao: 2, etapa: "Vice-campeã" });
-    expect(rk[2].etapa).toMatch(/chave de perdedores/);
+    // 6 duplas têm semifinais cruzadas: os dois eliminados nelas dividem o 3º lugar.
+    expect(rk[2]).toMatchObject({ posicao: 3, etapa: "Eliminada na semifinal" });
+    expect(rk[3]).toMatchObject({ posicao: 3, etapa: "Eliminada na semifinal" });
+    expect(rk[4].etapa).toMatch(/chave de perdedores/);
     // Posições nunca diminuem ao longo da lista.
     for (let i = 1; i < rk.length; i++) expect(rk[i].posicao).toBeGreaterThanOrEqual(rk[i - 1].posicao);
   });
@@ -132,5 +135,77 @@ describe("ranking final na tela", () => {
     expect(linhas[0].querySelector(".ranking-final__pos")?.textContent).toBe("1º");
     expect(linhas[0].querySelector(".ranking-final__etapa")?.textContent).toBe("Campeã");
     expect(linhas[0].querySelector(".ranking-final__dupla")?.textContent).toMatch(/ & /);
+  });
+});
+
+describe("dupla eliminação: semifinais cruzadas (5+ duplas)", () => {
+  const b = gerar(8, { formato: "dupla eliminação" });
+  const porId = new Map(b.matches.map((m) => [m.id, m]));
+  const fontesDe = (id: string) =>
+    b.matches.filter((m) => m.avancaVencedorPara?.matchId === id);
+
+  it("as semifinais cruzam as chaves em metades opostas: G1 × P2 e G2 × P1", () => {
+    const semis = b.matches.filter((m) => m.side === "grande-final" && m.rodada === 1);
+    expect(semis).toHaveLength(2);
+
+    const [semiA, semiB] = semis.sort((x, y) => x.ordem - y.ordem);
+    const dados = (semi: typeof semiA) => {
+      const g = fontesDe(semi.id).find((m) => m.side === "upper")!;
+      const p = fontesDe(semi.id).find((m) => m.side === "lower")!;
+      return { g, p };
+    };
+    const A = dados(semiA);
+    const B = dados(semiB);
+    // Cada semifinal junta UM finalista da chave de vencedores e UM sobrevivente da de perdedores.
+    expect(A.g.id).not.toBe(B.g.id);
+    expect(A.p.id).not.toBe(B.p.id);
+    // Metades opostas: o sobrevivente de perdedores de cada semifinal vem da metade do OUTRO G.
+    // (ordem 0 da penúltima rodada de cada chave = metade 0; ordem 1 = metade 1)
+    expect(A.g.ordem).toBe(0);
+    expect(A.p.ordem).toBe(1);
+    expect(B.g.ordem).toBe(1);
+    expect(B.p.ordem).toBe(0);
+    // Os dois vencedores vão para a grande final.
+    expect(semiA.avancaVencedorPara?.matchId).toBe(semiB.avancaVencedorPara?.matchId);
+    const final = porId.get(semiA.avancaVencedorPara!.matchId)!;
+    expect(final.rodada).toBe(2);
+    expect(final.avancaVencedorPara).toBeUndefined();
+  });
+
+  it("não existe final da chave de vencedores nem as duas últimas rodadas da de perdedores", () => {
+    const ultimaUpper = Math.max(...b.matches.filter((m) => m.side === "upper").map((m) => m.rodada));
+    expect(ultimaUpper).toBe(2); // 8 duplas: U1 e U2 (a U3 que seria a final não existe)
+    const ultimaLower = Math.max(...b.matches.filter((m) => m.side === "lower").map((m) => m.rodada));
+    expect(ultimaLower).toBe(2); // L1 e L2 (L3 e L4 viraram semifinais)
+  });
+
+  it("para qualquer tamanho de 2 a 40 duplas o campeonato termina com campeã e ranking", () => {
+    for (let n = 2; n <= 40; n++) {
+      const fim = jogarTudo(gerar(n, { formato: "dupla eliminação" }));
+      expect(fim.campeaId, `n=${n}`).not.toBeNull();
+      const rk = rankingFinal(fim)!;
+      expect(rk, `n=${n}`).not.toBeNull();
+      expect(rk).toHaveLength(n);
+      expect(rk[0]).toMatchObject({ posicao: 1, etapa: "Campeã", pairId: fim.campeaId });
+      expect(rk[1].etapa).toBe("Vice-campeã");
+    }
+  });
+
+  it("semifinal não define campeã: só a final", () => {
+    let atual = gerar(8, { formato: "dupla eliminação" });
+    // Joga tudo menos a final.
+    for (let g = 0; g < 100; g++) {
+      const m = atual.matches.find(
+        (x) => x.vencedorId === null && x.a.pairId && x.b.pairId && !(x.side === "grande-final" && x.rodada === 2),
+      );
+      if (!m) break;
+      const r = registrarPlacar(atual, m.id, 15, 10, AGORA);
+      if (!r.ok) throw new Error(r.erro.code);
+      atual = r.bracket;
+    }
+    const semis = atual.matches.filter((x) => x.side === "grande-final" && x.rodada === 1);
+    expect(semis.every((s) => s.vencedorId !== null)).toBe(true);
+    expect(atual.campeaId).toBeNull();
+    expect(rankingFinal(atual)).toBeNull();
   });
 });

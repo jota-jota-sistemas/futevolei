@@ -123,8 +123,7 @@ export function registrarVencedor(
     // resultado ser aplicado logo abaixo. Isso vale para a grande final (dupla
     // eliminação) e para a final da chave única (eliminação simples: side
     // "upper" sem avanço).
-    const corrigindoTitulo =
-      jogo.side === "grande-final" || ehFinalDeChaveUnica(jogo);
+    const corrigindoTitulo = ehFinalDoCampeonato(jogo);
     if (corrigindoTitulo) {
       proximo.campeaId = null;
     }
@@ -164,7 +163,7 @@ export function registrarVencedor(
   //    a FINAL da chave única — o jogo de side "upper" que não avança para lugar
   //    nenhum (sem `avancaVencedorPara`). Nesse formato o perdedor é eliminado
   //    (não há `encaminhaPerdedorPara`), coerente com a estrutura gerada.
-  if (jogo.side === "grande-final" || ehFinalDeChaveUnica(jogo)) {
+  if (ehFinalDoCampeonato(jogo)) {
     proximo.campeaId = vencedorId;
   }
 
@@ -275,6 +274,19 @@ function ehFinalDeChaveUnica(jogo: Match): boolean {
     !jogo.encaminhaPerdedorPara
   );
 }
+
+/**
+ * Final do campeonato: a grande final que não avança para lugar nenhum (na
+ * dupla eliminação com semifinais cruzadas, as semifinais também têm
+ * `side: "grande-final"` mas avançam para a final, então não definem a campeã)
+ * ou a final de uma chave única.
+ */
+function ehFinalDoCampeonato(jogo: Match): boolean {
+  return (
+    (jogo.side === "grande-final" && !jogo.avancaVencedorPara) ||
+    ehFinalDeChaveUnica(jogo)
+  );
+}
 // ---------------------------------------------------------------------------
 
 /**
@@ -314,7 +326,7 @@ function colocarEmSlot(
     destino.vencedorId = pairId;
     // Grande final resolvida por walkover (ex.: finalista da lower é um bye)
     // também define a campeã.
-    if (destino.side === "grande-final") {
+    if (ehFinalDoCampeonato(destino)) {
       bracket.campeaId = pairId;
     }
     if (destino.avancaVencedorPara) {
@@ -370,7 +382,7 @@ function invalidarCascata(
   destino.registradoEm = null;
   destino.placarA = null;
   destino.placarB = null;
-  if (destino.side === "grande-final" || ehFinalDeChaveUnica(destino)) {
+  if (ehFinalDoCampeonato(destino)) {
     bracket.campeaId = null;
   }
 
