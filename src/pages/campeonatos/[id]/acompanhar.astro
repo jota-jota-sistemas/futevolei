@@ -65,7 +65,19 @@ const categorias = (campeonato.categorias ?? [])
               data-categoria
               data-categoria-nome={nome}
             >
-              <h3 class="categoria__nome">{nome}</h3>
+              <div class="categoria__cabecalho">
+                <h3 class="categoria__nome">{nome}</h3>
+                {/* Aparece quando o chaveamento carrega. */}
+                <button
+                  type="button"
+                  class="categoria__tela-cheia"
+                  data-tela-cheia
+                  hidden
+                  aria-label={`Ver o chaveamento de ${nome} em tela cheia`}
+                >
+                  <span aria-hidden="true">⛶</span> Tela cheia
+                </button>
+              </div>
               {/* Container do chaveamento. Começa com o indicador de carregamento;
                   o script client-side troca pelo chaveamento, ou pela indicação
                   de indisponibilidade (R8.4/R8.7) se não houver bracket. */}
@@ -98,6 +110,10 @@ const categorias = (campeonato.categorias ?? [])
   import { criarBracketStoreBrowser } from "../../../store/bracketStore";
   import { renderBracketClient } from "../../../components/bracket/renderBracketClient";
   import { abrirTelaJogo, type TelaJogo } from "../../../components/bracket/telaJogo";
+  import {
+    abrirTelaChaveamento,
+    type TelaChaveamento,
+  } from "../../../components/bracket/telaChaveamento";
   import type { SupabaseClient } from "@supabase/supabase-js";
 
   const INDISPONIVEL = "Chaveamento ainda não disponível";
@@ -197,20 +213,48 @@ const categorias = (campeonato.categorias ?? [])
       // houver), que acompanha as atualizações em tempo real.
       let atual = resultado.valor;
       let tela: TelaJogo | null = null;
-      const desenhar = (): HTMLElement =>
-        renderBracketClient(atual, {
-          aoAbrirJogo: (matchId) => {
-            tela?.fechar();
-            tela = abrirTelaJogo({
-              bracket: atual,
-              matchId,
-              categoria: nome,
-              aoFechar: () => {
-                tela = null;
-              },
-            });
+      let telaBracket: TelaChaveamento | null = null;
+
+      // Abre a tela cheia de um jogo. Quando vem do chaveamento em tela cheia,
+      // abre DENTRO dele (senão o navegador a esconderia).
+      const abrirJogo = (
+        matchId: string,
+        contexto?: { dentroDe: HTMLElement; aoFecharJogo: () => void },
+      ): void => {
+        tela?.fechar();
+        tela = abrirTelaJogo({
+          bracket: atual,
+          matchId,
+          categoria: nome,
+          dentroDe: contexto?.dentroDe,
+          aoFechar: () => {
+            tela = null;
+            contexto?.aoFecharJogo();
           },
         });
+      };
+
+      const desenhar = (): HTMLElement =>
+        renderBracketClient(atual, {
+          aoAbrirJogo: (matchId) => abrirJogo(matchId),
+        });
+
+      // Botão "Tela cheia": o chaveamento completo, atualizado em tempo real.
+      const botaoTelaCheia = artigo.querySelector<HTMLButtonElement>("[data-tela-cheia]");
+      if (botaoTelaCheia) {
+        botaoTelaCheia.hidden = false;
+        botaoTelaCheia.addEventListener("click", () => {
+          telaBracket?.fechar();
+          telaBracket = abrirTelaChaveamento({
+            bracket: atual,
+            categoria: nome,
+            aoAbrirJogo: abrirJogo,
+            aoFechar: () => {
+              telaBracket = null;
+            },
+          });
+        });
+      }
 
       slot.replaceChildren(desenhar());
       slot.removeAttribute("aria-busy");
@@ -228,6 +272,7 @@ const categorias = (campeonato.categorias ?? [])
           atual = novo.valor;
           slot.replaceChildren(desenhar());
           tela?.atualizar(atual);
+          telaBracket?.atualizar(atual);
         }, 300);
       });
     } catch {
@@ -305,6 +350,35 @@ const categorias = (campeonato.categorias ?? [])
     border-radius: var(--raio-card);
     padding: 1.2rem 1.3rem 1.4rem;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+
+  .categoria__cabecalho {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+  }
+
+  .categoria__tela-cheia {
+    flex: 0 0 auto;
+    padding: 0.35rem 0.8rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 999px;
+    background: var(--cor-superficie);
+    color: var(--cor-texto);
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .categoria__tela-cheia:hover {
+    border-color: var(--cor-destaque);
+  }
+
+  .categoria__tela-cheia:focus-visible {
+    outline: 2px solid var(--cor-destaque);
+    outline-offset: 2px;
   }
 
   .categoria__nome {
@@ -748,6 +822,72 @@ const categorias = (campeonato.categorias ?? [])
   .match-card__acompanhar:focus-visible {
     outline: 2px solid var(--cor-destaque);
     outline-offset: 2px;
+  }
+
+  /* ---- Tela cheia do chaveamento completo ---- */
+  .tela-chaveamento {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    display: flex;
+    flex-direction: column;
+    background: var(--cor-fundo, #f4f7fa);
+    color: var(--cor-texto);
+  }
+
+  .tela-chaveamento__topo {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.8rem clamp(1rem, 3vw, 2rem);
+    border-bottom: 1px solid var(--cor-borda);
+    background: var(--cor-superficie, #fff);
+  }
+
+  .tela-chaveamento__titulo {
+    margin: 0;
+    font-size: clamp(1.1rem, 2.4vw, 1.6rem);
+  }
+
+  .tela-chaveamento__fechar {
+    padding: 0.45rem 1.1rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 999px;
+    background: var(--cor-superficie, #fff);
+    color: var(--cor-texto);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .tela-chaveamento__fechar:hover {
+    border-color: var(--cor-destaque);
+  }
+
+  .tela-chaveamento__fechar:focus-visible {
+    outline: 3px solid var(--cor-destaque);
+    outline-offset: 2px;
+  }
+
+  /* O chaveamento ocupa o tamanho que precisa e a área rola nos dois sentidos
+     (em vez de cada seção rolar sozinha). */
+  .tela-chaveamento__corpo {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: clamp(1rem, 2vw, 1.6rem);
+  }
+
+  .tela-chaveamento__corpo .bracket-view,
+  .tela-chaveamento__corpo .elim-tree {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .tela-chaveamento__corpo .elim-tree__rodadas {
+    overflow: visible;
   }
 
   /* ---- Tela cheia de um jogo ---- */
