@@ -1261,16 +1261,22 @@ const { campeonato, categoriaNome } = Astro.props;
   // --------------------------------------------------------------------
   // TELA DE PLACAR (ao vivo)
   // --------------------------------------------------------------------
-  let telaPlacarAberta = false;
+  // A tela de placar está aberta? Verifica no DOM: se ela estava dentro de uma
+  // tela cheia que foi fechada, o diálogo some junto e não há evento "close".
+  const telaPlacarAberta = (): boolean => document.querySelector(".placar-tela") !== null;
 
-  function abrirTelaPlacar(ctx: Ctx, matchId: string): void {
+  /**
+   * Abre a tela de placar do jogo. Em tela cheia, `dentroDe` é o elemento em
+   * tela cheia: o navegador só mostra o que está dentro dele, então o diálogo
+   * precisa ser criado ali.
+   */
+  function abrirTelaPlacar(ctx: Ctx, matchId: string, dentroDe?: HTMLElement): void {
     const bracket = ctx.bracket;
     const jogo = bracket?.matches.find((m) => m.id === matchId);
-    if (!bracket || !jogo || telaPlacarAberta) return;
+    if (!bracket || !jogo || telaPlacarAberta()) return;
     const duplaA = jogo.a.pairId ? bracket.duplas.find((d) => d.id === jogo.a.pairId) : undefined;
     const duplaB = jogo.b.pairId ? bracket.duplas.find((d) => d.id === jogo.b.pairId) : undefined;
     if (!duplaA || !duplaB) return;
-    telaPlacarAberta = true;
 
     // Jogo já encerrado: modo CORREÇÃO (nada é gravado até confirmar). Em
     // andamento: modo AO VIVO (cada toque grava).
@@ -1390,10 +1396,9 @@ const { campeonato, categoriaNome } = Astro.props;
     acoes.append(encerrar, fechar);
 
     dialog.append(titulo, subtitulo, lados, msg, acoes);
-    document.body.append(dialog);
+    (dentroDe ?? document.body).append(dialog);
 
     const limpar = (): void => {
-      telaPlacarAberta = false;
       dialog.remove();
     };
     dialog.addEventListener("close", limpar);
@@ -1481,7 +1486,7 @@ const { campeonato, categoriaNome } = Astro.props;
   // --------------------------------------------------------------------
   // Ligação de handlers
   // --------------------------------------------------------------------
-  /** "Tela cheia": o chaveamento completo (só visualização), em tempo real. */
+  /** "Tela cheia": o chaveamento completo, em tempo real (com lançamento de placar). */
   function ligarTelaCheia(ctx: Ctx): void {
     const categoria = ctx.secao.dataset.categoriaNome ?? "Chaveamento";
     const abrirJogo = (
@@ -1508,6 +1513,9 @@ const { campeonato, categoriaNome } = Astro.props;
         bracket: ctx.bracket,
         categoria,
         aoAbrirJogo: abrirJogo,
+        // Lançar placar também funciona em tela cheia: a janela abre dentro dela.
+        aoAbrirPlacar: (matchId, contexto) =>
+          abrirTelaPlacar(ctx, matchId, contexto.dentroDe),
         aoFechar: () => {
           ctx.telaChaveamento = null;
         },
