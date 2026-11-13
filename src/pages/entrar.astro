@@ -7,12 +7,12 @@ import { comBase } from "../utils/url";
 
 <Layout
   titulo="Entrar — Pingo Futevôlei"
-  descricao="Entre com Google ou receba um link de acesso por e-mail."
+  descricao="Receba um link de acesso por e-mail para entrar."
   noindex
 >
   <PaginaTopo
     titulo="Entrar"
-    subtitulo="Use sua conta Google ou receba um link por e-mail."
+    subtitulo="Informe seu e-mail e receba um link de acesso."
     voltarHref={comBase("/")}
     voltarTexto="Voltar aos eventos"
   />
@@ -22,12 +22,9 @@ import { comBase } from "../utils/url";
       <p class="entrar__estado" data-entrar-estado role="status">Verificando sua sessão…</p>
 
       <div data-entrar-formulario hidden>
-        <button type="button" class="entrar__google" data-google>
-          <span aria-hidden="true">G</span> Entrar com Google
-        </button>
-
-        <p class="entrar__ou" aria-hidden="true">ou</p>
-
+        {/* Login com Google desativado por ora (a configuração do provedor não
+            ficou pronta). Para reativar: devolver o botão com `data-google`; o
+            script e a store já tratam o clique. */}
         <form class="entrar__form" data-form-link novalidate>
           <label for="email-entrar">E-mail para receber o link</label>
           <input
@@ -72,39 +69,11 @@ import { comBase } from "../utils/url";
     padding: 1.5rem 1rem 1rem;
   }
 
-  .entrar__estado,
-  .entrar__ou {
+  .entrar__estado {
     margin: 0;
     color: var(--cor-texto-suave);
   }
 
-  .entrar__ou {
-    text-align: center;
-    margin: 1rem 0;
-  }
-
-  .entrar__google {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.6rem;
-    width: 100%;
-    min-height: 44px;
-    padding: 0.6rem 1rem;
-    font: inherit;
-    font-weight: 700;
-    color: var(--cor-texto);
-    background: var(--cor-superficie);
-    border: 1px solid var(--cor-texto-suave);
-    border-radius: 12px;
-    cursor: pointer;
-  }
-
-  .entrar__google:hover:not(:disabled) {
-    background: var(--cor-destaque-suave);
-  }
-
-  .entrar__google:disabled,
   .entrar__enviar:disabled {
     opacity: 0.6;
     cursor: wait;

@@ -295,7 +295,7 @@ Cadastro de atletas, base para um futuro ranking de jogadores. Há duas áreas:
 
 ## Login e administradores (Supabase Auth)
 
-O site continua **estático**. O login usa o Supabase Auth direto no navegador, com **Google** e **link mágico** por e-mail.
+O site continua **estático**. O login usa o Supabase Auth direto no navegador, hoje só com **link mágico** por e-mail. O login com **Google** está implementado na store mas **desativado na tela** (falta configurar o provedor); para reativar, devolva o botão `data-google` em `src/pages/entrar.astro`.
 
 | Página | Acesso |
 |---|---|
