@@ -30,6 +30,11 @@ export interface OpcoesTelaChaveamento {
     matchId: string,
     contexto: { dentroDe: HTMLElement; aoFecharJogo: () => void },
   ) => void;
+  /**
+   * Quando fornecido (organização), cada jogo pronto ganha o botão de placar.
+   * A janela de placar deve abrir DENTRO de `dentroDe` (a raiz em tela cheia).
+   */
+  aoAbrirPlacar?: (matchId: string, contexto: { dentroDe: HTMLElement }) => void;
   aoFechar?: () => void;
 }
 
@@ -67,6 +72,9 @@ export function abrirTelaChaveamento(opcoes: OpcoesTelaChaveamento): TelaChaveam
     const { scrollLeft, scrollTop } = corpo;
     corpo.replaceChildren(
       renderBracketClient(bracket, {
+        aoAbrirPlacar: opcoes.aoAbrirPlacar
+          ? (matchId) => opcoes.aoAbrirPlacar?.(matchId, { dentroDe: raiz })
+          : undefined,
         aoAbrirJogo: opcoes.aoAbrirJogo
           ? (matchId) => {
               jogoAberto = true;
@@ -89,8 +97,10 @@ export function abrirTelaChaveamento(opcoes: OpcoesTelaChaveamento): TelaChaveam
     if (emTelaCheia && document.fullscreenElement !== raiz) fecharTela();
   };
   const aoTeclar = (e: KeyboardEvent): void => {
-    // Com a tela de um jogo por cima, o Esc é dela.
-    if (e.key === "Escape" && !jogoAberto) fecharTela();
+    // Com a tela de um jogo ou a janela de placar por cima, o Esc é delas.
+    if (e.key === "Escape" && !jogoAberto && !raiz.querySelector("dialog[open]")) {
+      fecharTela();
+    }
   };
 
   function fecharTela(): void {

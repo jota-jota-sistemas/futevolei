@@ -88,4 +88,42 @@ describe("tela cheia do chaveamento completo", () => {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     expect(document.querySelector(".tela-chaveamento")).toBeNull();
   });
+
+  it("na organização, lançar placar funciona em tela cheia: a janela abre DENTRO dela e o Esc é da janela", () => {
+    const b = inicial();
+    let recebido: HTMLElement | null = null;
+    const tela = abrirTelaChaveamento({
+      bracket: b,
+      categoria: "X",
+      aoAbrirPlacar: (matchId, ctx) => {
+        recebido = ctx.dentroDe;
+        // Como a página faz: cria o diálogo dentro do elemento em tela cheia.
+        const dialog = document.createElement("dialog");
+        dialog.className = "placar-tela";
+        dialog.dataset.jogo = matchId;
+        dialog.setAttribute("open", "");
+        ctx.dentroDe.append(dialog);
+      },
+    });
+
+    const botao = document.querySelector<HTMLButtonElement>(".tela-chaveamento .match-card__salvar");
+    expect(botao?.textContent).toBe("Marcar placar");
+    botao!.click();
+    expect(recebido).toBe(tela.raiz);
+    expect(tela.raiz.querySelector(".placar-tela")).not.toBeNull();
+
+    // Esc com a janela de placar aberta não fecha o chaveamento.
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    expect(document.querySelector(".tela-chaveamento")).not.toBeNull();
+
+    // Sem a janela, o Esc volta a fechar a tela cheia.
+    tela.raiz.querySelector(".placar-tela")!.remove();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    expect(document.querySelector(".tela-chaveamento")).toBeNull();
+  });
+
+  it("sem aoAbrirPlacar (página pública) os cards não têm botão de placar", () => {
+    abrirTelaChaveamento({ bracket: inicial(), categoria: "X" });
+    expect(document.querySelector(".tela-chaveamento .match-card__salvar")).toBeNull();
+  });
 });
