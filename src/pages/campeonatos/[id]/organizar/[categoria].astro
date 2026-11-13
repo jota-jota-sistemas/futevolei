@@ -236,13 +236,22 @@ const { campeonato, categoriaNome } = Astro.props;
       <section class="org__bloco" aria-labelledby="titulo-seeding">
         <h2 class="org__bloco-titulo" id="titulo-seeding">Nivelador</h2>
         <p class="org__ajuda">
-          Ordene as duplas da mais forte (topo) para a mais fraca. O nivelador
-          equilibra grupos e chaves, evitando que as melhores duplas se
-          enfrentem cedo. Já vem preenchido em ordem alfabética: arraste os
-          cards para reordenar (ou use as setas) e clique em salvar.
+          O nivelador equilibra grupos e chaves, evitando que as melhores
+          duplas se enfrentem cedo. Se você não quiser usar, as duplas entram
+          em ordem aleatória a cada vez que o chaveamento é gerado.
         </p>
 
-        <form class="org__form" data-form-seeding novalidate>
+        <label class="org__opcao">
+          <input type="checkbox" data-usar-nivelador />
+          Quero definir o nivelador (ordem de força das duplas)
+        </label>
+
+        <form class="org__form" data-form-seeding data-nivelador-conteudo hidden novalidate>
+          <p class="org__ajuda">
+            Ordene da dupla mais forte (topo) para a mais fraca. Já vem em ordem
+            alfabética: arraste os cards para reordenar (ou use as setas) e
+            clique em salvar.
+          </p>
           <ol class="org__nivelador" data-lista-seeding></ol>
           <button class="org__botao" type="submit" data-salvar-seeding>
             Salvar nivelador
@@ -343,6 +352,7 @@ const { campeonato, categoriaNome } = Astro.props;
   import {
     validarSeeding,
     seedingPadrao,
+    seedingAleatorio,
     type SeedAssignment,
   } from "../../../../domain/bracket/seeding";
   import {
@@ -516,6 +526,12 @@ const { campeonato, categoriaNome } = Astro.props;
 
     // Carrega o estado inicial (duplas + chaveamento) antes de exibir a UI.
     await carregarEstado(ctx);
+
+    // Se já existe um nivelador salvo, a caixa começa marcada; senão, desmarcada.
+    const usarNivelador = q<HTMLInputElement>(secao, "[data-usar-nivelador]");
+    if (usarNivelador) usarNivelador.checked = temSeedingSalvo(ctx);
+    atualizarVisibilidadeNivelador(ctx);
+    usarNivelador?.addEventListener("change", () => atualizarVisibilidadeNivelador(ctx));
 
     // Tempo real: placares lançados por outras pessoas aparecem sem recarregar.
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -768,6 +784,27 @@ const { campeonato, categoriaNome } = Astro.props;
     );
   }
 
+  /** O organizador marcou "Quero definir o nivelador"? */
+  function niveladorLigado(ctx: Ctx): boolean {
+    return q<HTMLInputElement>(ctx.secao, "[data-usar-nivelador]")?.checked === true;
+  }
+
+  /** Mostra ou esconde a lista do nivelador conforme a caixa de seleção. */
+  function atualizarVisibilidadeNivelador(ctx: Ctx): void {
+    const conteudo = q<HTMLElement>(ctx.secao, "[data-nivelador-conteudo]");
+    if (conteudo) conteudo.hidden = !niveladorLigado(ctx);
+  }
+
+  /** Há seeding completo salvo (1..N sem repetição) vindo de um nivelador anterior? */
+  function temSeedingSalvo(ctx: Ctx): boolean {
+    const n = ctx.duplas.length;
+    return (
+      n > 0 &&
+      ctx.duplas.every((d) => Number.isInteger(d.seed) && d.seed >= 1 && d.seed <= n) &&
+      new Set(ctx.duplas.map((d) => d.seed)).size === n
+    );
+  }
+
   /** Ids das duplas na ordem atual mostrada na lista (ou null se não há lista). */
   function ordemAtualDoNivelador(ctx: Ctx): string[] | null {
     const itens = Array.from(
@@ -905,7 +942,14 @@ const { campeonato, categoriaNome } = Astro.props;
    * a partir da ordem do nivelador exibida (inicialmente salva ou alfabética).
    */
   function duplasComSeeding(ctx: Ctx): Pair[] {
-    // O que o organizador vê na lista do nivelador é o que vale (mesmo sem salvar).
+    // Sem nivelador: ordem aleatória (sorteada na borda; o gerador segue puro).
+    if (!niveladorLigado(ctx)) {
+      const sorteio = new Map(
+        seedingAleatorio(ctx.duplas).map((s) => [s.pairId, s.posicao]),
+      );
+      return ctx.duplas.map((d) => ({ ...d, seed: sorteio.get(d.id) ?? d.seed }));
+    }
+    // Com nivelador, o que o organizador vê na lista é o que vale (mesmo sem salvar).
     const ordem = ordemAtualDoNivelador(ctx);
     if (ordem) {
       const posicaoPorId = new Map(ordem.map((id, i) => [id, i + 1]));
@@ -1857,6 +1901,21 @@ const { campeonato, categoriaNome } = Astro.props;
   [id].astro faz para manter a visualização coerente.
 -->
 <style is:global>
+  .org__opcao {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0.2rem 0 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .org__opcao input {
+    width: 1.15rem;
+    height: 1.15rem;
+    accent-color: var(--cor-destaque);
+  }
+
   /* Tela de placar ao vivo (dialog) */
   .placar-tela {
     width: min(92vw, 560px);
