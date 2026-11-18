@@ -2,6 +2,7 @@
 import Layout from "../../../layouts/Layout.astro";
 import { comBase } from "../../../utils/url";
 import { carregarEventos, type EventoCarregado } from "../../../utils/eventos-db";
+import { CACHE_PAGINAS } from "../../../utils/cache-http";
 
 /**
  * "Acompanhar partidas": visualização PÚBLICA (somente leitura) dos grupos e
@@ -9,23 +10,17 @@ import { carregarEventos, type EventoCarregado } from "../../../utils/eventos-db
  * quando alguém registra um placar (Supabase Realtime).
  *
  * Existe para os eventos listados que têm ao menos uma categoria no banco
- * (tabela `categorias`, consultada no build). O botão no detalhe aponta para cá.
+ * (tabela `categorias`). O botão no detalhe aponta para cá. Página sob demanda.
  */
-export async function getStaticPaths() {
-  const eventos = await carregarEventos();
-  return eventos
-    .filter((c) => c.categoriasBanco.length > 0)
-    .map((campeonato) => ({
-      params: { id: campeonato.id },
-      props: { campeonato },
-    }));
-}
+export const prerender = false;
 
-interface Props {
-  campeonato: EventoCarregado;
-}
-
-const { campeonato } = Astro.props;
+const eventos = await carregarEventos({ escopo: "listados" });
+const encontrado = eventos.find(
+  (e) => e.id === (Astro.params.id ?? "") && e.categoriasBanco.length > 0,
+);
+if (!encontrado) return Astro.rewrite("/404");
+const campeonato: EventoCarregado = encontrado;
+Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
 
 // Apenas NOMES, exatamente como estão no banco; o uuid de cada categoria é
 // resolvido no cliente por (campeonato_id, nome). Ver o <script> abaixo.

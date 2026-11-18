@@ -4,10 +4,14 @@ import PaginaTopo from "../../components/PaginaTopo.astro";
 import JogadorPerfil from "../../components/JogadorPerfil.astro";
 import GuardaAcesso from "../../components/GuardaAcesso.astro";
 import { comBase } from "../../utils/url";
+import { CACHE_PAGINAS } from "../../utils/cache-http";
 
 // Edição de UM jogador (?id=…) na área de gerenciamento: editar dados, arquivar
 // ou reativar e excluir. Mesmo controle de acesso de /gerenciar_jogadores:
-// só administradores logados (guarda de interface + RLS).
+// só administradores logados (guarda de interface + RLS). Sob demanda: a lista
+// de eventos com detalhe vem do banco a cada acesso, com cache curto.
+export const prerender = false;
+Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
 ---
 
 <Layout

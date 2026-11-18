@@ -1,6 +1,7 @@
 ---
 import Layout from "../../layouts/Layout.astro";
 import { carregarEventos, type EventoCarregado } from "../../utils/eventos-db";
+import { CACHE_PAGINAS } from "../../utils/cache-http";
 import { badge, cidadeDoLocal } from "../../utils/eventos";
 import {
   comBase,
@@ -9,44 +10,25 @@ import {
   formatarPeriodo,
 } from "../../utils/url";
 
-// Gera uma página estática para cada evento listado na tabela `campeonatos`
-// (consultada no build), usando o `id` na URL.
-//
-// Eventos que já existiam no formato antigo têm um `id` curto e guardam em
-// `id_origem` o id longo que o coletor gera. Para os links antigos não
-// quebrarem, cada `id_origem` diferente de `id` ganha uma página que só
-// redireciona para o endereço novo.
-export async function getStaticPaths() {
-  const eventos = await carregarEventos();
-  const ocupados = new Set(eventos.map((e) => e.id));
-  const caminhos: {
-    params: { id: string };
-    props: { campeonato: EventoCarregado; redirecionarPara?: string };
-  }[] = [];
-  for (const campeonato of eventos) {
-    caminhos.push({ params: { id: campeonato.id }, props: { campeonato } });
-    const antigo = campeonato.idOrigem;
-    if (antigo && antigo !== campeonato.id && !ocupados.has(antigo)) {
-      caminhos.push({
-        params: { id: antigo },
-        props: { campeonato, redirecionarPara: campeonato.id },
-      });
-    }
-  }
-  return caminhos;
-}
+// Página sob demanda: lê o evento no banco a cada acesso (com cache curto no
+// CDN). Eventos que já existiam no formato antigo têm um `id` curto e guardam em
+// `id_origem` o id longo que o coletor gera; para os links antigos não
+// quebrarem, esse endereço redireciona para o definitivo.
+export const prerender = false;
 
-interface Props {
-  campeonato: EventoCarregado;
-  redirecionarPara?: string;
+const idPedido = Astro.params.id ?? "";
+// Eventos listados, de qualquer data: o resultado e o ranking seguem acessíveis
+// depois que o evento termina.
+const eventos = await carregarEventos({ escopo: "listados" });
+const encontrado = eventos.find((e) => e.id === idPedido);
+if (!encontrado) {
+  const atual = eventos.find((e) => e.idOrigem === idPedido && e.id !== idPedido);
+  if (atual) return Astro.redirect(comBase(`/campeonatos/${atual.id}`), 301);
+  return Astro.rewrite("/404");
 }
+const campeonato: EventoCarregado = encontrado;
+Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
 
-const { campeonato, redirecionarPara } = Astro.props;
-
-// Endereço antigo (id do coletor): leva ao endereço definitivo do evento.
-if (redirecionarPara) {
-  return Astro.redirect(comBase(`/campeonatos/${redirecionarPara}`), 301);
-}
 const instagram = instagramUrl(campeonato.instagram);
 const inscricao = inscricaoUrl(campeonato.inscricao);
 const temFoto = campeonato.foto?.trim();

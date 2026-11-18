@@ -17,7 +17,7 @@ interface Props {
 const { gerenciar = false } = Astro.props;
 
 // Eventos que têm página de detalhe: só eles viram link no histórico de duplas.
-const eventosComDetalhe = (await carregarEventos()).map((c) => c.id);
+const eventosComDetalhe = (await carregarEventos({ escopo: "listados" })).map((c) => c.id);
 ---
 
 <div
