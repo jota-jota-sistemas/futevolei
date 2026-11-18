@@ -34,7 +34,7 @@ describe("schema.sql: RLS com autenticação", () => {
   });
 
   it("escrita das tabelas de organização usa eh_admin()", () => {
-    for (const t of ["categorias", "duplas", "chaveamentos", "grupos", "grupo_duplas", "jogos", "jogadores"]) {
+    for (const t of ["categorias", "duplas", "chaveamentos", "grupos", "grupo_duplas", "jogos", "jogadores", "campeonatos"]) {
       const p = policies.find((x) => x.includes(`create policy ${t}_escrita_admin`));
       expect(p, t).toBeTruthy();
       expect(p).toMatch(/using \(public\.eh_admin\(\)\)/);

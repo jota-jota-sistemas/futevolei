@@ -8,8 +8,11 @@ const PAGES = join(__dirname, "..", "src", "pages");
 const ler = (rel: string) => readFileSync(join(PAGES, rel), "utf8");
 
 const PROTEGIDAS = [
+  "gerenciar/index.astro",
   "gerenciar_jogadores/index.astro",
   "gerenciar_jogadores/editar.astro",
+  "gerenciar_campeonatos/index.astro",
+  "gerenciar_campeonatos/editar.astro",
   "campeonatos/[id]/organizar/index.astro",
   "campeonatos/[id]/organizar/[categoria].astro",
 ];
@@ -32,12 +35,29 @@ describe("páginas de gerenciamento", () => {
   }
 
   it("as telas com iniciadores só os chamam depois de liberado", () => {
-    for (const rel of ["gerenciar_jogadores/index.astro", "gerenciar_jogadores/editar.astro"]) {
+    for (const rel of [
+      "gerenciar_jogadores/index.astro",
+      "gerenciar_jogadores/editar.astro",
+      "gerenciar_campeonatos/index.astro",
+      "gerenciar_campeonatos/editar.astro",
+    ]) {
       const f = ler(rel);
       expect(f).toMatch(/guardarAcesso\(.*\)\.then\(\(liberado\) => \{\s*if \(!liberado\) return;/);
     }
     const cat = ler("campeonatos/[id]/organizar/[categoria].astro");
     expect(cat).toMatch(/if \(!\(await guardarAcesso\(/);
+  });
+});
+
+describe("gerenciar campeonatos", () => {
+  it("só importa o cliente público (nunca o do servidor) e não mostra o campo de foto", () => {
+    const fontes = [
+      "gerenciar_campeonatos/index.astro",
+      "gerenciar_campeonatos/editar.astro",
+    ].map(ler);
+    for (const f of fontes) expect(f).not.toMatch(/supabase\.server/);
+    const form = readFileSync(join(PAGES, "..", "components", "CampeonatoForm.astro"), "utf8");
+    expect(form).not.toMatch(/name="foto"/);
   });
 });
 

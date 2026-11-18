@@ -1,0 +1,46 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import PaginaTopo from "../../components/PaginaTopo.astro";
+import CampeonatoPerfil from "../../components/CampeonatoPerfil.astro";
+import GuardaAcesso from "../../components/GuardaAcesso.astro";
+import { comBase } from "../../utils/url";
+
+// Edição de UM campeonato (?id=…) na área de gerenciamento: editar dados, arquivar
+// ou reativar e excluir. Mesmo controle de acesso de /gerenciar_campeonatos:
+// só administradores logados (guarda de interface + RLS).
+---
+
+<Layout
+  titulo="Editar campeonato — Pingo Futevôlei"
+  descricao="Área de gerenciamento de campeonatos."
+  noindex
+>
+  <GuardaAcesso>
+  <PaginaTopo
+    titulo="Editar campeonato"
+    voltarHref={comBase("/gerenciar_campeonatos")}
+    voltarTexto="Voltar ao gerenciamento"
+  />
+
+  <CampeonatoPerfil />
+  </GuardaAcesso>
+</Layout>
+
+<script>
+  import { iniciarEdicao } from "../../scripts/campeonato-editar";
+  import { criarCampeonatoStoreBrowser } from "../../store/campeonatoStore";
+  import { irParaGerenciarCampeonatos } from "../../scripts/rotas-gerenciar";
+  import { guardarAcesso } from "../../scripts/guarda";
+  import { criarAuthStoreBrowser } from "../../store/authStore";
+
+  // A edição só inicia depois que a guarda libera o acesso (administrador).
+  void guardarAcesso({ store: criarAuthStoreBrowser() }).then((liberado) => {
+    if (!liberado) return;
+    void iniciarEdicao({
+      store: criarCampeonatoStoreBrowser(),
+      id: new URLSearchParams(window.location.search).get("id"),
+      // Depois de excluir de vez, volta para a lista de GERENCIAMENTO.
+      irParaLista: irParaGerenciarCampeonatos,
+    });
+  });
+</script>

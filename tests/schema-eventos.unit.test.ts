@@ -9,7 +9,14 @@ const schema = ler("schema.sql");
 const migracao = ler("migracao-eventos.sql");
 
 const marca = "-- EVENTOS (formato do torneios.json)";
-const bloco = (texto: string) => texto.slice(texto.indexOf(marca)).trim();
+const marcaGerenciar = "-- GERENCIAR CAMPEONATOS";
+// Do marcador de eventos até o bloco seguinte (gerenciar campeonatos), se houver.
+const bloco = (texto: string) => {
+  const ini = texto.indexOf(marca);
+  const prox = texto.indexOf(marcaGerenciar);
+  const fim = prox > ini ? prox : texto.length;
+  return texto.slice(ini, fim).replace(/\n-- -+\s*$/, "").trim();
+};
 const semComentarios = (texto: string) =>
   texto
     .split("\n")
@@ -58,6 +65,34 @@ describe("formato de eventos", () => {
 
   it("não cria policy de escrita para campeonatos", () => {
     expect(sql).not.toMatch(/create policy \w+ on campeonatos\s+for (all|insert|update|delete)/);
+  });
+});
+
+describe("gerenciar campeonatos (escrita por administradores)", () => {
+  const blocoGerenciar = (texto: string) =>
+    texto.slice(texto.indexOf(marcaGerenciar)).trim();
+  const sql = semComentarios(blocoGerenciar(schema));
+  const migracaoGerenciar = ler("migracao-gerenciar-campeonatos.sql");
+
+  it("admin lê todos os eventos (inclusive arquivados) e escreve", () => {
+    expect(sql).toMatch(
+      /create policy campeonatos_select_admin on campeonatos\s+for select to authenticated using \(public\.eh_admin\(\)\)/
+    );
+    expect(sql).toMatch(
+      /create policy campeonatos_escrita_admin on campeonatos\s+for all to authenticated using \(public\.eh_admin\(\)\) with check \(public\.eh_admin\(\)\)/
+    );
+  });
+
+  it("nenhuma policy de campeonatos dá escrita a anon", () => {
+    expect(sql).not.toMatch(/to anon/);
+  });
+
+  it("a migração repete exatamente o bloco do schema.sql e é idempotente", () => {
+    expect(blocoGerenciar(migracaoGerenciar)).toBe(blocoGerenciar(schema));
+    const codigo = semComentarios(migracaoGerenciar);
+    // Cada create policy é precedido do respectivo drop policy if exists.
+    expect(codigo.match(/drop policy if exists/g)).toHaveLength(2);
+    expect(codigo.match(/create policy/g)).toHaveLength(2);
   });
 });
 

@@ -34,7 +34,7 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
   import { iniciarPerfil } from "../../scripts/jogador-perfil";
   import { lerEventosComDetalhe } from "../../scripts/eventos-detalhe";
   import { criarJogadorStoreBrowser } from "../../store/jogadorStore";
-  import { hrefGerenciarJogador, irParaGerenciar } from "../../scripts/rotas-gerenciar";
+  import { hrefGerenciarJogador, irParaGerenciarJogadores } from "../../scripts/rotas-gerenciar";
   import { guardarAcesso } from "../../scripts/guarda";
   import { criarAuthStoreBrowser } from "../../store/authStore";
 
@@ -48,7 +48,7 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
       hrefPerfil: hrefGerenciarJogador,
       eventosComDetalhe: lerEventosComDetalhe(),
       // Depois de excluir de vez, volta para a lista de GERENCIAMENTO.
-      irParaLista: irParaGerenciar,
+      irParaLista: irParaGerenciarJogadores,
     });
   });
 </script>

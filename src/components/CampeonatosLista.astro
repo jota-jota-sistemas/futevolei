@@ -1,0 +1,202 @@
+---
+// Lista de campeonatos (marcação + estilos) da área de GERENCIAMENTO
+// (/gerenciar_campeonatos): busca, filtro de arquivados e formulário de cadastro.
+// O comportamento é ligado pelo script da página (ver scripts/campeonatos-lista.ts).
+import Cartao from "./Cartao.astro";
+import CampeonatoForm from "./CampeonatoForm.astro";
+---
+
+<div class="campeonatos">
+  <Cartao titulo="Todos os campeonatos" id="lista-campeonatos">
+    <div class="campeonatos__controles">
+      <div class="campeonatos__busca">
+        <label for="busca-campeonato">Buscar campeonato</label>
+        <input
+          id="busca-campeonato"
+          type="search"
+          data-busca
+          placeholder="Nome, cidade, UF ou endereço"
+          autocomplete="off"
+        />
+      </div>
+      <label class="campeonatos__arquivados">
+        <input type="checkbox" data-mostrar-arquivados />
+        Mostrar arquivados
+      </label>
+    </div>
+
+    <p class="campeonatos__contador" data-contador-campeonatos aria-live="polite"></p>
+    <p class="campeonatos__estado" data-estado-lista role="status">Carregando campeonatos…</p>
+    <ul class="cl" data-lista aria-label="Lista de campeonatos"></ul>
+  </Cartao>
+
+  <Cartao titulo="Novo campeonato" id="novo-campeonato">
+    <CampeonatoForm prefixo="novo" rotuloEnvio="Criar campeonato" />
+  </Cartao>
+</div>
+
+<style>
+  .campeonatos {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 1.25rem;
+    max-width: var(--largura-conteudo);
+    margin: 0 auto;
+    padding: 1.25rem 1rem 3rem;
+  }
+
+  .campeonatos__controles {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem 1.25rem;
+    margin-bottom: 0.9rem;
+  }
+
+  .campeonatos__busca {
+    flex: 1 1 220px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .campeonatos__busca label {
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  .campeonatos__busca input {
+    width: 100%;
+    padding: 0.65rem 0.8rem;
+    border: 1px solid var(--cor-texto-suave);
+    border-radius: 12px;
+    background: var(--cor-superficie);
+    color: var(--cor-texto);
+    font-family: inherit;
+    font-size: 1rem;
+  }
+
+  .campeonatos__arquivados {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .campeonatos__arquivados input {
+    width: 1.1rem;
+    height: 1.1rem;
+    accent-color: var(--cor-destaque-texto);
+  }
+
+  .campeonatos__contador {
+    margin: 0 0 0.6rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--cor-texto-suave);
+  }
+
+  .campeonatos__estado {
+    margin: 0;
+    padding: 1.25rem 0;
+    text-align: center;
+    color: var(--cor-texto-suave);
+  }
+
+  @media (min-width: 900px) {
+    .campeonatos {
+      grid-template-columns: minmax(0, 1fr) 420px;
+      gap: 1.5rem;
+      padding: 2rem 1.5rem 4rem;
+    }
+
+    /* O cadastro acompanha a rolagem da lista (abaixo do header fixo). */
+    .campeonatos > :global(#novo-campeonato) {
+      position: sticky;
+      top: 5.5rem;
+      max-height: calc(100vh - 6.5rem);
+      overflow-y: auto;
+    }
+  }
+</style>
+
+<!-- Itens criados em runtime pelo script: CSS global com prefixo `cl-`. -->
+<style is:global>
+  .cl {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .cl-item {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 14px;
+    background: var(--cor-superficie);
+    color: var(--cor-texto);
+    text-decoration: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .cl-item:hover {
+    border-color: var(--cor-destaque);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  .cl-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .cl-nome {
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  .cl-sub {
+    font-size: 0.85rem;
+    color: var(--cor-texto-suave);
+    overflow-wrap: anywhere;
+  }
+
+  .cl-chips {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.3rem;
+  }
+
+  .cl-chip {
+    padding: 0.3rem 0.55rem;
+    border-radius: 999px;
+    background: var(--cor-borda);
+    color: var(--cor-texto);
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  .cl-retentar {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--cor-destaque-texto);
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+</style>
