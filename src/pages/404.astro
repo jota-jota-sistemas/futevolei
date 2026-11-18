@@ -1,0 +1,17 @@
+---
+import Layout from "../layouts/Layout.astro";
+import PaginaTopo from "../components/PaginaTopo.astro";
+import { comBase } from "../utils/url";
+---
+<Layout
+  titulo="Página não encontrada — Pingo Futevôlei"
+  descricao="A página que você procura não existe."
+  noindex
+>
+  <PaginaTopo
+    titulo="Página não encontrada"
+    subtitulo="O endereço não existe ou o evento não está mais disponível."
+    voltarHref={comBase("/")}
+    voltarTexto="Voltar aos eventos"
+  />
+</Layout>

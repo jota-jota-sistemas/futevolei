@@ -3,6 +3,7 @@ import Layout from "../../../../layouts/Layout.astro";
 import GuardaAcesso from "../../../../components/GuardaAcesso.astro";
 import { comBase, slugCategoria } from "../../../../utils/url";
 import { carregarEventos, type EventoCarregado } from "../../../../utils/eventos-db";
+import { CACHE_PAGINAS } from "../../../../utils/cache-http";
 
 /**
  * Página de ORGANIZAÇÃO de UMA categoria (R9.1): gerencia duplas, configura o
@@ -44,37 +45,19 @@ import { carregarEventos, type EventoCarregado } from "../../../../utils/eventos
  * mata-mata", que usa `selecionarClassificados` + `posicionarClassificadosNoMataMata`
  * e re-salva o chaveamento (mantendo o fluxo simples e explícito).
  */
-export async function getStaticPaths() {
-  const lista = await carregarEventos({ escopo: "todos" });
-  const paths: Array<{
-    params: { id: string; categoria: string };
-    props: { campeonato: EventoCarregado; categoriaNome: string };
-  }> = [];
+export const prerender = false;
 
-  for (const campeonato of lista) {
-    // Nomes exatamente como no banco: a página localiza a categoria por eles.
-    const usados = new Set<string>();
-    for (const categoriaNome of campeonato.categoriasBanco) {
-      const slug = slugCategoria(categoriaNome);
-      // Dois nomes com o mesmo slug (ex.: só muda a caixa) disputariam a rota.
-      if (usados.has(slug)) continue;
-      usados.add(slug);
-      paths.push({
-        params: { id: campeonato.id, categoria: slug },
-        props: { campeonato, categoriaNome },
-      });
-    }
-  }
-
-  return paths;
-}
-
-interface Props {
-  campeonato: EventoCarregado;
-  categoriaNome: string;
-}
-
-const { campeonato, categoriaNome } = Astro.props;
+const lista = await carregarEventos({ escopo: "todos" });
+const encontrado = lista.find((e) => e.id === (Astro.params.id ?? ""));
+// Nomes exatamente como no banco: a página localiza a categoria por eles. Dois
+// nomes com o mesmo slug (ex.: só muda a caixa) disputariam a rota: vale o primeiro.
+const nomeCategoria = encontrado?.categoriasBanco.find(
+  (nome) => slugCategoria(nome) === (Astro.params.categoria ?? ""),
+);
+if (!encontrado || !nomeCategoria) return Astro.rewrite("/404");
+const campeonato: EventoCarregado = encontrado;
+const categoriaNome: string = nomeCategoria;
+Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
 ---
 
 <Layout

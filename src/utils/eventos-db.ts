@@ -4,12 +4,12 @@ import { chaveTexto } from "./texto";
 import { torneioParaCampeonato } from "./torneios";
 
 /**
- * Leitura dos eventos na tabela `campeonatos` do Supabase, NO BUILD.
+ * Leitura dos eventos na tabela `campeonatos` do Supabase, A CADA ACESSO (SSR).
  *
- * O site continua estático: home, lista, detalhe, organizar e acompanhar são
- * geradas a partir do que o banco devolve na hora do build. Mudou algo no banco?
- * Só aparece no próximo deploy. Se a consulta falhar, o build FALHA com uma
- * mensagem clara (melhor do que publicar um site sem eventos).
+ * Home, detalhe, organizar, acompanhar e perfil de jogador são páginas sob
+ * demanda (`prerender = false`) que leem o banco na hora do acesso. Mudou algo no
+ * banco? Aparece em até ~1 minuto (cache do CDN), sem novo deploy. Se a consulta
+ * falhar, a requisição falha com uma mensagem clara.
  *
  * O restante do site só conhece o tipo `Campeonato`; esta camada converte a
  * linha do banco (formato do `torneios.json`) nele, reaproveitando as mesmas
@@ -125,8 +125,10 @@ export function eventosFuturos<T extends Campeonato>(eventos: T[], hoje: string)
 }
 
 export type EscopoEventos =
-  /** Home, detalhe e perfil de jogador: só listados e que ainda não terminaram. */
+  /** Home: só listados e que ainda não terminaram. */
   | "publico"
+  /** Detalhe, acompanhar e perfil de jogador: listados, de qualquer data (o placar e o ranking seguem acessíveis depois do evento). */
+  | "listados"
   /** Organizar e acompanhar: todos os ativos, listados ou não, de qualquer data. */
   | "todos";
 
@@ -138,8 +140,12 @@ export interface OpcoesCarregar {
   hoje?: string;
 }
 
-// Um build gera ~140 páginas no mesmo processo: consulta uma vez só por escopo.
-const cache = new Map<string, Promise<EventoCarregado[]>>();
+// As páginas são geradas a cada acesso (SSR): uma mesma requisição consulta os
+// eventos várias vezes (página + componentes) e picos de acesso repetem a
+// consulta. Guarda o resultado por pouco tempo, por escopo. A validade é curta
+// de propósito: o banco manda, o cache só evita consultas em rajada.
+const VALIDADE_CACHE_MS = 15_000;
+const cache = new Map<string, { expira: number; promessa: Promise<EventoCarregado[]> }>();
 
 /** Esvazia o cache (usado nos testes). */
 export function limparCacheEventos(): void {
@@ -163,7 +169,7 @@ async function consultar(opcoes: OpcoesCarregar): Promise<EventoCarregado[]> {
   const client = opcoes.client ?? (await clientePublicoPadrao());
 
   let consulta = client.from("campeonatos").select(COLUNAS).eq("ativo", true);
-  if (escopo === "publico") consulta = consulta.eq("listado", true);
+  if (escopo === "publico" || escopo === "listados") consulta = consulta.eq("listado", true);
   const { data, error } = await consulta.order("data", { ascending: true }).order("id", { ascending: true });
 
   if (error) {
@@ -180,17 +186,19 @@ async function consultar(opcoes: OpcoesCarregar): Promise<EventoCarregado[]> {
 
 /**
  * Carrega os eventos do banco, ordenados por data e id. Lança se a consulta
- * falhar. Com o cliente padrão o resultado é guardado em cache durante o build.
+ * falhar. Com o cliente padrão o resultado fica em cache por alguns segundos.
  */
 export function carregarEventos(opcoes: OpcoesCarregar = {}): Promise<EventoCarregado[]> {
   if (opcoes.client) return consultar(opcoes);
   const chave = `${opcoes.escopo ?? "publico"}|${opcoes.hoje ?? ""}`;
-  let promessa = cache.get(chave);
-  if (!promessa) {
-    promessa = consultar(opcoes);
-    cache.set(chave, promessa);
-    // Falha não fica em cache: a próxima chamada tenta de novo.
-    promessa.catch(() => cache.delete(chave));
-  }
+  const agora = Date.now();
+  const guardado = cache.get(chave);
+  if (guardado && guardado.expira > agora) return guardado.promessa;
+  const promessa = consultar(opcoes);
+  cache.set(chave, { expira: agora + VALIDADE_CACHE_MS, promessa });
+  // Falha não fica em cache: a próxima chamada tenta de novo.
+  promessa.catch(() => {
+    if (cache.get(chave)?.promessa === promessa) cache.delete(chave);
+  });
   return promessa;
 }

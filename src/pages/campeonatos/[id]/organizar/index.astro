@@ -3,6 +3,7 @@ import Layout from "../../../../layouts/Layout.astro";
 import GuardaAcesso from "../../../../components/GuardaAcesso.astro";
 import { comBase, slugCategoria } from "../../../../utils/url";
 import { carregarEventos, type EventoCarregado } from "../../../../utils/eventos-db";
+import { CACHE_PAGINAS } from "../../../../utils/cache-http";
 
 /**
  * Área de ORGANIZAÇÃO (R9.1) de um campeonato: lista as categorias do
@@ -14,24 +15,17 @@ import { carregarEventos, type EventoCarregado } from "../../../../utils/eventos
  * Esta rota NÃO é linkada publicamente e só administradores logados a usam
  * (GuardaAcesso + RLS com eh_admin()). A visualização pública (R9.2) continua na página `/campeonatos/[id]`.
  *
- * Fonte no estático: a tabela `campeonatos` (e `categorias`) do Supabase,
- * consultada no build, para gerar as rotas e a lista (todos os eventos ativos,
- * listados ou não). No RUNTIME, a organização lê/grava duplas e chaveamentos
- * via Bracket_Store/Supabase.
+ * Página sob demanda: lê a tabela `campeonatos` (e `categorias`) do Supabase a
+ * cada acesso (todos os eventos ativos, listados ou não). No navegador, a
+ * organização lê/grava duplas e chaveamentos via Bracket_Store/Supabase.
  */
-export async function getStaticPaths() {
-  const lista = await carregarEventos({ escopo: "todos" });
-  return lista.map((campeonato) => ({
-    params: { id: campeonato.id },
-    props: { campeonato },
-  }));
-}
+export const prerender = false;
 
-interface Props {
-  campeonato: EventoCarregado;
-}
-
-const { campeonato } = Astro.props;
+const lista = await carregarEventos({ escopo: "todos" });
+const encontrado = lista.find((e) => e.id === (Astro.params.id ?? ""));
+if (!encontrado) return Astro.rewrite("/404");
+const campeonato: EventoCarregado = encontrado;
+Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
 
 // Nomes das categorias como estão no banco; sem categorias => lista vazia.
 const categorias = campeonato.categoriasBanco;

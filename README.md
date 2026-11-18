@@ -258,11 +258,11 @@ campeonatos.json  →  Feed.astro  →  CampeonatoCard.astro  →  HTML na tela
 
 ## Eventos no banco de dados
 
-A **home, a lista, o detalhe, o perfil de jogador, o organizar e o acompanhar** leem os eventos da tabela `campeonatos` (e `categorias`) do Supabase. A consulta acontece **no build** (`src/utils/eventos-db.ts`): o site continua estático, com HTML pronto por evento.
+A **home, a lista, o detalhe, o perfil de jogador, o organizar e o acompanhar** leem os eventos da tabela `campeonatos` (e `categorias`) do Supabase. A consulta acontece **a cada acesso** (`src/utils/eventos-db.ts`): essas páginas são **sob demanda** (`export const prerender = false`, com o adaptador `@astrojs/vercel`) e o CDN da Vercel as guarda por ~60 s (`src/utils/cache-http.ts`). Só as páginas sem dados de eventos continuam estáticas.
 
 ```
 coletar:torneios  →  src/data/torneios.json  ┐
-                                              ├→  gerar:seed-eventos  →  supabase/seed-eventos.sql  →  SQL Editor  →  banco  →  build  →  site
+                                              ├→  gerar:seed-eventos  →  supabase/seed-eventos.sql  →  SQL Editor  →  banco  →  site (lido a cada acesso)
 src/data/campeonatos.json (formato antigo)   ┘
 ```
 
@@ -272,7 +272,7 @@ npm run gerar:mapa-ids-eventos # (só se mudou o conjunto de eventos) refaz scri
 npm run gerar:seed-eventos     # gera supabase/seed-eventos.sql a partir dos JSON e do mapa de ids
 ```
 
-**Para publicar eventos novos:** colete, gere o seed, rode `supabase/seed-eventos.sql` no SQL Editor e faça um novo deploy.
+**Para publicar eventos novos:** colete, gere o seed e rode `supabase/seed-eventos.sql` no SQL Editor. Não precisa de deploy: o evento aparece em até ~1 minuto.
 
 ### Banco
 
@@ -284,13 +284,13 @@ npm run gerar:seed-eventos     # gera supabase/seed-eventos.sql a partir dos JSO
 
 ### Atenção (impactos)
 
-1. **O build depende do Supabase.** Exige `PUBLIC_SUPABASE_URL` e `PUBLIC_SUPABASE_ANON_KEY` no ambiente do build (inclusive na Vercel) e o banco acessível. Se a consulta falhar, o build **falha com mensagem clara**, em vez de publicar um site sem eventos.
-2. **Mudou no banco, só aparece no próximo deploy.**
-3. **Ordem de entrega:** aplicar `migracao-eventos.sql`, rodar `seed-eventos.sql` e só então fazer o deploy.
-4. **Links antigos:** nos eventos que já existiam no formato antigo o detalhe passa a usar o id curto (por exemplo `/campeonatos/261113_ibitinga_posto016`). O build gera um redirecionamento do id longo do coletor (`id_origem`) para o novo endereço.
-5. **Botão "Acompanhar partidas":** aparece quando o evento tem algum chaveamento gerado no banco no momento do build (um chaveamento criado depois só ganha o botão no próximo deploy). A página de acompanhar existe para todo evento listado que tenha categorias.
+1. **O site depende do Supabase em tempo de execução, não mais no build.** Exige `PUBLIC_SUPABASE_URL` e `PUBLIC_SUPABASE_ANON_KEY` nas variáveis do projeto na Vercel. Se a consulta falhar, a página responde com erro (o build não é afetado). Com o CDN, uma falha curta do banco não derruba páginas já em cache.
+2. **Mudou no banco, aparece em até ~1 minuto** (cache `s-maxage=60`, com `stale-while-revalidate` de 5 min), sem novo deploy.
+3. **Ordem de entrega:** aplicar `migracao-eventos.sql` e rodar `seed-eventos.sql` antes de publicar o código que lê a tabela.
+4. **Links antigos:** nos eventos que já existiam no formato antigo o detalhe passa a usar o id curto (por exemplo `/campeonatos/261113_ibitinga_posto016`). A página redireciona (301) o id longo do coletor (`id_origem`) para o novo endereço.
+5. **Botão "Acompanhar partidas":** aparece quando o evento tem algum chaveamento gerado no banco (vale em até ~1 minuto). A página de acompanhar existe para todo evento listado que tenha categorias, de qualquer data.
 6. **Organizar e acompanhar** agora também leem o banco: todos os eventos ativos têm organizar (inclusive os 15 que só existiam no calendário), com as categorias da tabela `categorias`. As categorias aparecem em ordem alfabética.
-7. **Eventos passados** saem da home e do detalhe no build seguinte à data de término (`data_fim` ou `data`, no fuso de São Paulo). O organizar não filtra por data.
+7. **Eventos passados** saem da **home** depois da data de término (`data_fim` ou `data`, no fuso de São Paulo), mas o **detalhe e o acompanhar continuam acessíveis** (placar e ranking seguem visíveis). O organizar não filtra por data.
 8. Os 10 eventos só do formato antigo ficam `ativo` e `listado = false`, como já não apareciam na home.
 9. As categorias do calendário são texto livre; num evento que já tinha categorias curadas, o seed acrescenta as do calendário que ainda faltarem, e pode sobrar uma parecida (por exemplo "Open" e "Open Masculino"). A limpeza é manual no banco.
 

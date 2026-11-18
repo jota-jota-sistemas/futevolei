@@ -3,10 +3,14 @@ import Layout from "../../layouts/Layout.astro";
 import PaginaTopo from "../../components/PaginaTopo.astro";
 import JogadorPerfil from "../../components/JogadorPerfil.astro";
 import { comBase } from "../../utils/url";
+import { CACHE_PAGINAS } from "../../utils/cache-http";
 
 // Perfil PÚBLICO de um jogador (?id=…): resumo e histórico de duplas, somente
 // leitura. O site é estático e os jogadores existem só em runtime, então o id vai
-// na query string de uma única página.
+// na query string de uma única página. Sob demanda: a lista de eventos com
+// detalhe (links do histórico) vem do banco a cada acesso, com cache curto.
+export const prerender = false;
+Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
 ---
 
 <Layout
