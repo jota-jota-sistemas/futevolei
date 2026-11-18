@@ -144,7 +144,9 @@ const caminho = Astro.url.pathname;
     background: var(--cor-destaque);
   }
 
-  /* Telas muito estreitas (ex.: 320px): aperta um pouco para tudo caber. */
+  /* Telas muito estreitas (ex.: 320px): aperta um pouco para tudo caber, com
+     folga (o item ativo fica em negrito e é mais largo; em /jogadores ele
+     passava 1px da borda). */
   @media (max-width: 359px) {
     .header__conteudo {
       padding: 0.75rem 0.75rem;
@@ -152,11 +154,22 @@ const caminho = Astro.url.pathname;
     }
 
     .header__nav {
-      gap: 0.5rem;
+      gap: 0.3rem;
     }
 
     .header__link {
-      font-size: 0.9rem;
+      font-size: 0.85rem;
+    }
+  }
+
+  /* Abaixo de 320px (aparelhos antigos, janelas estreitas): logo e margens menores. */
+  @media (max-width: 319px) {
+    .header__conteudo {
+      padding: 0.5rem;
+    }
+
+    .header :global(.marca__img) {
+      height: 28px;
     }
   }
 
