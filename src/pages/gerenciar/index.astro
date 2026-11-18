@@ -1,0 +1,80 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import PaginaTopo from "../../components/PaginaTopo.astro";
+import GuardaAcesso from "../../components/GuardaAcesso.astro";
+import Cartao from "../../components/Cartao.astro";
+import { comBase } from "../../utils/url";
+
+// PAINEL DE GERENCIAMENTO: porta de entrada para as áreas de administração
+// (jogadores e campeonatos). Só administradores logados usam estas áreas: o
+// conteúdo fica atrás de GuardaAcesso (revelado por scripts/guarda.ts) e a
+// escrita no banco exige eh_admin() no RLS. A guarda da tela é só de interface.
+---
+
+<Layout
+  titulo="Gerenciar — Pingo Futevôlei"
+  descricao="Painel de gerenciamento."
+  noindex
+>
+  <GuardaAcesso>
+  <PaginaTopo
+    titulo="Gerenciar"
+    subtitulo="Escolha o que você quer administrar."
+    voltarHref={comBase("/")}
+    voltarTexto="Voltar ao início"
+  />
+
+  <div class="painel">
+    <a class="painel__item" href={comBase("/gerenciar_campeonatos")}>
+      <Cartao titulo="Campeonatos" id="painel-campeonatos">
+        <p>Cadastro, edição, arquivamento e exclusão de eventos.</p>
+      </Cartao>
+    </a>
+    <a class="painel__item" href={comBase("/gerenciar_jogadores")}>
+      <Cartao titulo="Jogadores" id="painel-jogadores">
+        <p>Cadastro, edição e exclusão de perfis de jogadores.</p>
+      </Cartao>
+    </a>
+  </div>
+  </GuardaAcesso>
+</Layout>
+
+<style>
+  .painel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.25rem;
+    max-width: var(--largura-conteudo);
+    margin: 0 auto;
+    padding: 1.25rem 1rem 3rem;
+  }
+
+  .painel__item {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .painel__item p {
+    margin: 0;
+    color: var(--cor-texto-suave);
+  }
+
+  .painel__item:hover :global(.cartao),
+  .painel__item:focus-visible :global(.cartao) {
+    border-color: var(--cor-destaque);
+  }
+
+  @media (min-width: 700px) {
+    .painel {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      padding: 2rem 1.5rem 4rem;
+    }
+  }
+</style>
+
+<script>
+  import { guardarAcesso } from "../../scripts/guarda";
+  import { criarAuthStoreBrowser } from "../../store/authStore";
+
+  void guardarAcesso({ store: criarAuthStoreBrowser() });
+</script>

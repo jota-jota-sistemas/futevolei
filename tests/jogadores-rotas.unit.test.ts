@@ -1,7 +1,8 @@
 // tests/jogadores-rotas.unit.test.ts
 //
-// Separação entre a CONSULTA PÚBLICA de jogadores (/jogadores) e a ÁREA DE
-// GERENCIAMENTO (/gerenciar_jogadores), restrita a administradores logados.
+// Separação entre a CONSULTA PÚBLICA de jogadores (/jogadores) e as ÁREAS DE
+// GERENCIAMENTO (/gerenciar, /gerenciar_jogadores e /gerenciar_campeonatos),
+// restritas a administradores logados.
 //
 // A guarda de código abaixo impede que o caminho de gerenciamento apareça, como
 // string literal, em qualquer arquivo fora da própria área: assim ele não vira
@@ -11,7 +12,13 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
-import { hrefGerenciar, hrefGerenciarJogador } from "../src/scripts/rotas-gerenciar";
+import {
+  hrefGerenciar,
+  hrefGerenciarCampeonato,
+  hrefGerenciarCampeonatos,
+  hrefGerenciarJogador,
+  hrefGerenciarJogadores,
+} from "../src/scripts/rotas-gerenciar";
 import { hrefPerfilJogador } from "../src/utils/url";
 import { ITENS_MENU } from "../src/utils/menu";
 
@@ -27,12 +34,19 @@ function arquivos(dir: string): string[] {
 describe("rotas de jogadores", () => {
   it("o perfil público e a edição do gerenciamento são caminhos diferentes", () => {
     expect(hrefPerfilJogador("abc")).toBe("/jogadores/perfil?id=abc");
-    expect(hrefGerenciar()).toBe("/gerenciar_jogadores");
+    expect(hrefGerenciarJogadores()).toBe("/gerenciar_jogadores");
     expect(hrefGerenciarJogador("abc")).toBe("/gerenciar_jogadores/editar?id=abc");
+  });
+
+  it("o painel e as áreas de gerenciamento têm caminhos próprios", () => {
+    expect(hrefGerenciar()).toBe("/gerenciar");
+    expect(hrefGerenciarCampeonatos()).toBe("/gerenciar_campeonatos");
+    expect(hrefGerenciarCampeonato("copa-2026")).toBe("/gerenciar_campeonatos/editar?id=copa-2026");
   });
 
   it("o id é escapado na query string (nunca vira outro parâmetro)", () => {
     expect(hrefGerenciarJogador("a&b=c")).toBe("/gerenciar_jogadores/editar?id=a%26b%3Dc");
+    expect(hrefGerenciarCampeonato("a&b=c")).toBe("/gerenciar_campeonatos/editar?id=a%26b%3Dc");
     expect(hrefPerfilJogador("a&b=c")).toBe("/jogadores/perfil?id=a%26b%3Dc");
   });
 
@@ -43,14 +57,16 @@ describe("rotas de jogadores", () => {
 });
 
 describe("guarda: o caminho de gerenciamento fica restrito à própria área", () => {
-  // Arquivos autorizados a citar o caminho: as páginas de gerenciamento e o módulo
+  // Arquivos autorizados a citar os caminhos: as páginas de gerenciamento e o módulo
   // de rotas que só elas importam.
+  const AREAS = ["gerenciar", "gerenciar_jogadores", "gerenciar_campeonatos"];
   const permitido = (rel: string) =>
-    rel.startsWith(`pages${sep}gerenciar_jogadores${sep}`) || rel === `scripts${sep}rotas-gerenciar.ts`;
+    AREAS.some((area) => rel.startsWith(`pages${sep}${area}${sep}`)) ||
+    rel === `scripts${sep}rotas-gerenciar.ts`;
 
   // Procura o caminho como STRING LITERAL (aspas ou crase logo antes). Menções
   // em comentários não contam: não chegam ao resultado do build.
-  const comoLiteral = /["'`]\/?gerenciar_jogadores/;
+  const comoLiteral = /["'`]\/?gerenciar_(jogadores|campeonatos)|["'`]\/gerenciar(?=["'`/?#])/;
 
   it("nenhum outro arquivo de src cita o caminho como string de código", () => {
     const infratores = arquivos(RAIZ)
@@ -70,6 +86,9 @@ describe("guarda: o caminho de gerenciamento fica restrito à própria área", (
       const fonte = readFileSync(join(RAIZ, "pages", "gerenciar_jogadores", pagina), "utf8");
       expect(fonte).toMatch(/\bnoindex\b/);
       expect(fonte).toMatch(/gerenciar/); // usam o modo de gerenciamento
+    }
+    for (const rel of ["gerenciar/index.astro", "gerenciar_campeonatos/index.astro", "gerenciar_campeonatos/editar.astro"]) {
+      expect(readFileSync(join(RAIZ, "pages", rel), "utf8"), rel).toMatch(/\bnoindex\b/);
     }
   });
 

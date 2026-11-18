@@ -1,0 +1,263 @@
+---
+// Edição de UM campeonato na área de gerenciamento (/gerenciar_campeonatos/editar):
+// resumo, categorias (somente leitura, com o caminho para organizar), edição dos
+// dados, arquivar/reativar e excluir. O comportamento é ligado pelo script da
+// página (ver scripts/campeonato-editar.ts).
+import Cartao from "./Cartao.astro";
+import CampeonatoForm from "./CampeonatoForm.astro";
+---
+
+<div class="perfil">
+  <p class="perfil__estado" data-estado-perfil role="status">Carregando campeonato…</p>
+
+  <div class="perfil__conteudo" data-perfil hidden>
+    <div class="perfil__coluna">
+      <Cartao titulo="Campeonato" id="resumo">
+        <p class="resumo__nome" data-perfil-nome></p>
+        <p class="resumo__linha" data-perfil-periodo></p>
+        <p class="resumo__linha" data-perfil-local hidden></p>
+        <div class="pf-chips" data-perfil-chips></div>
+      </Cartao>
+
+      <Cartao titulo="Categorias" id="categorias">
+        <p class="categorias__estado" data-categorias-estado role="status"></p>
+        <ul class="pf-categorias" data-categorias-lista aria-label="Categorias do campeonato"></ul>
+        <p class="categorias__ajuda">
+          As categorias, as duplas e os chaveamentos são criados na organização do evento.
+          A página de organização só existe para este campeonato depois do próximo deploy.
+        </p>
+        <a class="gerenciar__botao categorias__link" data-organizar-link href="#">
+          Ir para organizar
+        </a>
+      </Cartao>
+
+      <Cartao titulo="Gerenciar" id="gerenciar">
+        <div class="gerenciar__acoes">
+          <button type="button" class="gerenciar__botao" data-arquivar>
+            Arquivar campeonato
+          </button>
+          <button type="button" class="gerenciar__botao gerenciar__botao--perigo" data-excluir>
+            Excluir campeonato
+          </button>
+        </div>
+
+        <div class="confirmacao" data-confirmacao-exclusao role="alert" hidden>
+          <p class="confirmacao__texto" data-confirmacao-texto></p>
+          <div class="confirmacao__acoes">
+            <button
+              type="button"
+              class="gerenciar__botao gerenciar__botao--perigo"
+              data-confirmar-exclusao
+            >
+              Excluir de vez
+            </button>
+            <button type="button" class="gerenciar__botao" data-cancelar-exclusao>
+              Cancelar
+            </button>
+          </div>
+        </div>
+
+        <p class="gerenciar__status" data-acoes-status role="status" aria-live="polite" hidden></p>
+      </Cartao>
+    </div>
+
+    <Cartao titulo="Editar dados" id="editar">
+      <CampeonatoForm prefixo="editar" rotuloEnvio="Salvar alterações" />
+    </Cartao>
+  </div>
+</div>
+
+<style>
+  .perfil {
+    max-width: var(--largura-conteudo);
+    margin: 0 auto;
+    padding: 1.25rem 1rem 3rem;
+  }
+
+  .perfil__estado {
+    margin: 0;
+    padding: 2rem 0;
+    text-align: center;
+    color: var(--cor-texto-suave);
+  }
+
+  .perfil__conteudo {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 1.25rem;
+  }
+
+  .perfil__conteudo[hidden],
+  .resumo__linha[hidden],
+  .confirmacao[hidden],
+  .gerenciar__status[hidden],
+  .categorias__estado[hidden] {
+    display: none;
+  }
+
+  .perfil__coluna {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    min-width: 0;
+  }
+
+  /* ---- Resumo ---- */
+  .resumo__nome {
+    margin: 0;
+    font-size: 1.4rem;
+    font-weight: 800;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+
+  .resumo__linha {
+    margin: 0.3rem 0 0;
+    color: var(--cor-texto-suave);
+    overflow-wrap: anywhere;
+  }
+
+  /* ---- Categorias ---- */
+  .categorias__estado,
+  .categorias__ajuda {
+    margin: 0 0 0.8rem;
+    font-size: 0.9rem;
+    color: var(--cor-texto-suave);
+  }
+
+  .categorias__link {
+    display: inline-block;
+    text-decoration: none;
+  }
+
+  /* ---- Gerenciar ---- */
+  .gerenciar__acoes,
+  .confirmacao__acoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .gerenciar__botao {
+    padding: 0.65rem 1.2rem;
+    border: 1.5px solid var(--cor-escuro);
+    border-radius: 999px;
+    background: none;
+    color: var(--cor-texto);
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .gerenciar__botao:hover {
+    background: var(--cor-escuro);
+    color: var(--cor-texto-claro);
+  }
+
+  .gerenciar__botao--perigo {
+    border-color: var(--cor-erro);
+    color: var(--cor-erro);
+  }
+
+  .gerenciar__botao--perigo:hover {
+    background: var(--cor-erro);
+    color: #ffffff;
+  }
+
+  .gerenciar__botao[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .confirmacao {
+    margin-top: 1rem;
+    padding: 0.9rem 1rem;
+    border: 1.5px solid var(--cor-erro);
+    border-radius: 12px;
+  }
+
+  .confirmacao__texto {
+    margin: 0 0 0.8rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+
+  .gerenciar__status {
+    margin: 1rem 0 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--cor-destaque-texto);
+  }
+
+  .gerenciar__status[data-tipo="erro"] {
+    color: var(--cor-erro);
+  }
+
+  @media (min-width: 900px) {
+    .perfil {
+      padding: 2rem 1.5rem 4rem;
+    }
+
+    .perfil__conteudo {
+      grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+      gap: 1.5rem;
+    }
+  }
+</style>
+
+<!-- Elementos criados em runtime pelo script: CSS global com prefixo `pf-`. -->
+<style is:global>
+  .pf-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 1rem;
+  }
+
+  .pf-chip {
+    padding: 0.4rem 0.7rem;
+    border-radius: 999px;
+    background: var(--cor-destaque-suave);
+    color: var(--cor-destaque-texto);
+    font-size: 0.8rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .pf-chip--arquivado {
+    background: var(--cor-borda);
+    color: var(--cor-texto);
+  }
+
+  .pf-categorias {
+    list-style: none;
+    margin: 0 0 0.8rem;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .pf-categoria {
+    padding: 0.4rem 0.7rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 999px;
+    background: var(--cor-superficie);
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .pf-retentar {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--cor-destaque-texto);
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+</style>

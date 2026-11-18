@@ -225,9 +225,9 @@ create index if not exists duplas_jogador_b_idx on duplas (jogador_b_id);
 --     escrita anônima.
 --   * Um usuário vinculado a um jogador edita só o próprio registro.
 --   * `perfis` e `administradores` não têm leitura pública.
---   * `campeonatos` NÃO recebe escrita pela API: é populada pelo script de
---     migração idempotente usando o cliente admin (service role), que
---     contorna RLS.
+--   * `campeonatos` recebe escrita pela API só de administradores (bloco
+--     "GERENCIAR CAMPEONATOS" no fim deste arquivo); o script de carga continua
+--     usando o cliente admin (service role), que contorna RLS.
 -- =============================================================================
 
 -- Habilita RLS por tabela.
@@ -476,3 +476,16 @@ end $$;
 drop policy if exists campeonatos_select_publico on campeonatos;
 create policy campeonatos_select_publico on campeonatos
   for select using (ativo);
+
+-- -----------------------------------------------------------------------------
+-- GERENCIAR CAMPEONATOS (escrita por administradores)
+-- -----------------------------------------------------------------------------
+-- A leitura pública (campeonatos_select_publico) segue mostrando só `ativo`.
+-- Políticas permissivas se somam (OR): o admin lê também os arquivados.
+drop policy if exists campeonatos_select_admin on campeonatos;
+create policy campeonatos_select_admin on campeonatos
+  for select to authenticated using (public.eh_admin());
+
+drop policy if exists campeonatos_escrita_admin on campeonatos;
+create policy campeonatos_escrita_admin on campeonatos
+  for all to authenticated using (public.eh_admin()) with check (public.eh_admin());
