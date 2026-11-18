@@ -1,40 +1,35 @@
 ---
-import type { Campeonato } from "../../../types";
-import campeonatosData from "../../../data/campeonatos.json";
 import Layout from "../../../layouts/Layout.astro";
 import { comBase } from "../../../utils/url";
-import { carregarCampeonatos } from "../../../utils/torneios";
+import { carregarEventos, type EventoCarregado } from "../../../utils/eventos-db";
 
 /**
  * "Acompanhar partidas": visualização PÚBLICA (somente leitura) dos grupos e
  * chaveamentos que o organizador montou, por categoria. Atualiza sozinha
  * quando alguém registra um placar (Supabase Realtime).
  *
- * Só existe para eventos organizáveis (src/data/campeonatos.json), que são
- * os que têm chaveamento no Supabase. O botão no detalhe aponta para cá.
+ * Existe para os eventos listados que têm ao menos uma categoria no banco
+ * (tabela `categorias`, consultada no build). O botão no detalhe aponta para cá.
  */
-export function getStaticPaths() {
-  // Só eventos que também têm página de detalhe (de onde vem o botão).
-  const comDetalhe = new Set(carregarCampeonatos().map((c) => c.id));
-  return (campeonatosData as Campeonato[])
-    .filter((c) => comDetalhe.has(c.id))
+export async function getStaticPaths() {
+  const eventos = await carregarEventos();
+  return eventos
+    .filter((c) => c.categoriasBanco.length > 0)
     .map((campeonato) => ({
-    params: { id: campeonato.id },
-    props: { campeonato },
-  }));
+      params: { id: campeonato.id },
+      props: { campeonato },
+    }));
 }
 
 interface Props {
-  campeonato: Campeonato;
+  campeonato: EventoCarregado;
 }
 
 const { campeonato } = Astro.props;
 
-// Apenas NOMES; o uuid de cada categoria é resolvido no cliente por
-// (campeonato_id, nome). Ver o <script> abaixo.
-const categorias = (campeonato.categorias ?? [])
-  .map((c) => c?.trim())
-  .filter((c): c is string => Boolean(c));
+// Apenas NOMES, exatamente como estão no banco; o uuid de cada categoria é
+// resolvido no cliente por (campeonato_id, nome). Ver o <script> abaixo.
+const categorias = campeonato.categoriasBanco;
 
 ---
 <Layout

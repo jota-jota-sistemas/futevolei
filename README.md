@@ -86,6 +86,8 @@ Registro das decisões discutidas, com a data e o porquê.
 
 **Fonte dos dados:** um arquivo `campeonatos.json` no projeto. Atualizar um campeonato = editar o arquivo e publicar.
 
+> **Histórico:** esta seção descreve a Fase 1. Hoje os eventos vêm da tabela `campeonatos` do Supabase, consultada no build (veja "Eventos no banco de dados" mais abaixo).
+
 **Modelo de dados de um campeonato (rascunho):**
 
 ```json
@@ -245,7 +247,7 @@ campeonatos.json  →  Feed.astro  →  CampeonatoCard.astro  →  HTML na tela
 
 | Você quer... | Mexe em... |
 |--------------|-----------|
-| Adicionar/editar/remover um campeonato | `src/data/campeonatos.json` |
+| Adicionar/editar/remover um campeonato | tabela `campeonatos` (via `supabase/seed-eventos.sql`; ver "Eventos no banco de dados") |
 | Mudar a aparência dos cards | `src/components/CampeonatoCard.astro` |
 | Mudar a página de detalhe do campeonato | `src/pages/campeonatos/[id].astro` |
 | Mudar a ordem ou filtrar a lista | `src/components/Feed.astro` |
@@ -254,21 +256,52 @@ campeonatos.json  →  Feed.astro  →  CampeonatoCard.astro  →  HTML na tela
 
 > Esses padrões (componente, props, template, fonte da verdade única) são reconhecidos no mercado e aparecem em praticamente todo framework moderno (React, Vue, Svelte).
 
-## Fonte atual dos eventos: `torneios.json`
+## Eventos no banco de dados
 
-A **lista da home e a página de detalhe** passaram a ler `src/data/torneios.json`, coletado do calendário público [torneios-ftv.com](https://torneios-ftv.com) (estado SP, de hoje em diante). As seções abaixo que falam de `campeonatos.json` descrevem o formato antigo, que agora só alimenta a área de organização (`/campeonatos/[id]/organizar`) e o script `migrar:campeonatos`.
+A **home, a lista, o detalhe, o perfil de jogador, o organizar e o acompanhar** leem os eventos da tabela `campeonatos` (e `categorias`) do Supabase. A consulta acontece **no build** (`src/utils/eventos-db.ts`): o site continua estático, com HTML pronto por evento.
 
-```bash
-npm run coletar:torneios   # reabre o calendário com Playwright e sobrescreve src/data/torneios.json
+```
+coletar:torneios  →  src/data/torneios.json  ┐
+                                              ├→  gerar:seed-eventos  →  supabase/seed-eventos.sql  →  SQL Editor  →  banco  →  build  →  site
+src/data/campeonatos.json (formato antigo)   ┘
 ```
 
-- O coletor só lê páginas públicas, sem login. O link de inscrição **não é coletado** (o site exige conta para liberar o contato do organizador), então o botão "Inscreva-se" não aparece nesses eventos.
-- `src/utils/torneios.ts` converte cada torneio no modelo `Campeonato` usado pelo site e padroniza a caixa de cidades e categorias. O JSON coletado fica intacto.
+```bash
+npm run coletar:torneios       # reabre o calendário com Playwright e sobrescreve src/data/torneios.json
+npm run gerar:mapa-ids-eventos # (só se mudou o conjunto de eventos) refaz scripts/mapa-ids-eventos.json
+npm run gerar:seed-eventos     # gera supabase/seed-eventos.sql a partir dos JSON e do mapa de ids
+```
+
+**Para publicar eventos novos:** colete, gere o seed, rode `supabase/seed-eventos.sql` no SQL Editor e faça um novo deploy.
+
+### Banco
+
+- `supabase/migracao-eventos.sql` (idempotente; o mesmo bloco está no fim de `schema.sql`) deixa a tabela `campeonatos` no formato do `torneios.json`: `data_fim`, `cidade`, `uf`, `endereco`, `preco`, `preco_texto`, `inscricao`, `fonte`, `id_origem`, `ativo`, `listado` e `atualizado_em`. `local`, `foto` e `descricao` deixam de ser obrigatórios, e `local` fica só como texto de apoio de linhas antigas.
+- `ativo = false` arquiva o evento (some de tudo). `listado = false` mantém o evento ativo, mas fora da home e sem página de detalhe: é o caso dos eventos organizados à mão que não vêm do calendário (têm só organizar e acompanhar).
+- A leitura pública mostra só eventos `ativo`. Não há política de escrita para `campeonatos`: o conteúdo entra pelo seed (SQL Editor).
+- `supabase/seed-eventos.sql` é **gerado, não edite à mão**. Reexecutá-lo sobrescreve os dados do evento pelos do `torneios.json`; as categorias existentes não são tocadas (só entram as que ainda faltam, sem diferenciar maiúsculas).
+- **Ids:** evento que existe nas duas fontes (formato antigo e `torneios.json`) usa o id do `campeonatos.json`, porque categorias e chaveamentos já criados apontam para ele; o id que o coletor gera fica em `id_origem`. Evento só do `torneios.json` mantém o id do coletor (`AAMMDD_cidade_nome`). O pareamento está em `scripts/mapa-ids-eventos.json` (32 pares, 10 eventos só do formato antigo) e um teste confere que ele bate com o cálculo.
+
+### Atenção (impactos)
+
+1. **O build depende do Supabase.** Exige `PUBLIC_SUPABASE_URL` e `PUBLIC_SUPABASE_ANON_KEY` no ambiente do build (inclusive na Vercel) e o banco acessível. Se a consulta falhar, o build **falha com mensagem clara**, em vez de publicar um site sem eventos.
+2. **Mudou no banco, só aparece no próximo deploy.**
+3. **Ordem de entrega:** aplicar `migracao-eventos.sql`, rodar `seed-eventos.sql` e só então fazer o deploy.
+4. **Links antigos:** nos eventos que já existiam no formato antigo o detalhe passa a usar o id curto (por exemplo `/campeonatos/261113_ibitinga_posto016`). O build gera um redirecionamento do id longo do coletor (`id_origem`) para o novo endereço.
+5. **Botão "Acompanhar partidas":** aparece quando o evento tem algum chaveamento gerado no banco no momento do build (um chaveamento criado depois só ganha o botão no próximo deploy). A página de acompanhar existe para todo evento listado que tenha categorias.
+6. **Organizar e acompanhar** agora também leem o banco: todos os eventos ativos têm organizar (inclusive os 15 que só existiam no calendário), com as categorias da tabela `categorias`. As categorias aparecem em ordem alfabética.
+7. **Eventos passados** saem da home e do detalhe no build seguinte à data de término (`data_fim` ou `data`, no fuso de São Paulo). O organizar não filtra por data.
+8. Os 10 eventos só do formato antigo ficam `ativo` e `listado = false`, como já não apareciam na home.
+9. As categorias do calendário são texto livre; num evento que já tinha categorias curadas, o seed acrescenta as do calendário que ainda faltarem, e pode sobrar uma parecida (por exemplo "Open" e "Open Masculino"). A limpeza é manual no banco.
+
+### Coletor
+
+- O coletor só lê páginas públicas, sem login, e **ainda grava só o `torneios.json`** (não escreve no banco). O link de inscrição **não é coletado** (o site exige conta para liberar o contato do organizador), então o botão "Inscreva-se" não aparece nesses eventos.
+- `src/utils/torneios.ts` converte cada registro no modelo `Campeonato` usado pelo site e padroniza a caixa de cidades e categorias; `src/utils/eventos-db.ts` faz o mesmo com a linha do banco.
 - A origem não traz foto nem descrição: nos eventos coletados o card mostra só data, local e nome, e o detalhe não exibe imagem.
 - **Eventos manuais:** um registro com `"fonte": "manual"` pode ter também `foto` (caminho em `public/`) e `descricao`. O coletor **preserva** esses registros ao regravar o arquivo; os demais são substituídos a cada coleta.
 - O link do Instagram aponta para o **post** de origem (um carrossel pode listar vários torneios); `?img_index=N` indica o slide do torneio.
 - **Filtro de categorias:** as categorias são texto livre (114 grafias distintas), então o filtro usa **Nível** (select) e **Gênero** (chips), derivados do texto por `src/utils/categorias.ts`. Cada variante de nível é uma opção própria (Estreante, Principiante, Aprendiz, Iniciante, "Iniciante + C", Intermediário, Amador, Bronze, Master, Open, Outros). Categoria sem gênero escrito é **Masculino** por padrão, exceto as de "Outros". Nível e gênero casam na **mesma categoria** do evento. O texto original continua no detalhe.
-- A seção "Chaveamentos" do detalhe está desligada (`EXIBIR_CHAVEAMENTOS` em `src/pages/campeonatos/[id].astro`), porque esses eventos não têm chaveamento associado.
 
 ## Jogadores (perfil e CRUD)
 
@@ -326,25 +359,11 @@ O site continua **estático**. O login usa o Supabase Auth direto no navegador, 
 
 O menu (cabeçalho e rodapé) vem de `src/utils/menu.ts` e só lista destinos reais e globais: **Eventos** (a lista na home) e **Jogadores**. Os itens de conta (Entrar, Minha conta, Gerenciar) são trocados por `src/scripts/menu-conta.ts` conforme o login. Ele fica na própria barra do topo em qualquer largura, sem hambúrguer. "Acompanhar partidas" e "Organizar" são por evento e continuam sendo alcançados a partir da página do evento. Para adicionar um item, inclua-o em `ITENS_MENU`; se a lista passar de 3 ou 4 itens, vale um menu recolhível.
 
-## Como adicionar/editar um campeonato (Fase 1)
+## Como adicionar/editar um campeonato
 
-1. Coloque a foto em `public/campeonatos/` (ex.: `public/campeonatos/meu-torneio.jpg`). Proporção recomendada: retrato (4:5), estilo Instagram.
-2. Adicione um objeto em `src/data/campeonatos.json`:
-   ```json
-   {
-     "id": "meu-torneio-2026",
-     "nome": "Meu Torneio 2026",
-     "data": "2026-12-20",
-     "local": "Praia X, Cidade Y",
-     "foto": "/campeonatos/meu-torneio.jpg",
-     "descricao": "Descrição curta do campeonato.",
-     "instagram": "@perfil_do_evento",
-     "categorias": ["Masculino Estreante", "Misto Iniciante"],
-     "inscricao": "https://pagina-de-inscricao.com/"
-   }
-   ```
-   Os campos `instagram`, `categorias` e `inscricao` são opcionais — pode omitir quando o evento não tiver. Se não houver foto, deixe `"foto": ""` e o detalhe simplesmente não exibe imagem.
-3. Pronto — o feed ordena automaticamente por data (os próximos aparecem primeiro).
+Os eventos vivem no banco. Para um evento que **não vem do calendário**, o caminho hoje é editar o `torneios.json` com um registro `"fonte": "manual"` (com `foto` em `public/campeonatos/` e `descricao`, se houver) e regenerar o seed, como descrito em "Eventos no banco de dados". Uma tela de gerenciamento de eventos fica para uma próxima entrega.
+
+Se a foto existir, coloque o arquivo em `public/campeonatos/` (proporção recomendada: retrato, 4:5). Sem foto, deixe `"foto"` vazio e o detalhe simplesmente não exibe imagem.
 
 > A home exibe **8 eventos** inicialmente (para carregar leve); o botão "Ver todos os eventos" revela o restante na própria página. Ao filtrar, todos os eventos correspondentes aparecem, independentemente desse limite.
 

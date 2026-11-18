@@ -1,8 +1,6 @@
 ---
-import type { Campeonato } from "../../types";
-import campeonatosOrganizaveis from "../../data/campeonatos.json";
 import Layout from "../../layouts/Layout.astro";
-import { carregarCampeonatos } from "../../utils/torneios";
+import { carregarEventos, type EventoCarregado } from "../../utils/eventos-db";
 import { badge, cidadeDoLocal } from "../../utils/eventos";
 import {
   comBase,
@@ -11,20 +9,44 @@ import {
   formatarPeriodo,
 } from "../../utils/url";
 
-// Gera uma página estática para cada evento de src/data/torneios.json
-// (coletado de torneios-ftv.com), usando o `id` na URL.
-export function getStaticPaths() {
-  return carregarCampeonatos().map((campeonato) => ({
-    params: { id: campeonato.id },
-    props: { campeonato },
-  }));
+// Gera uma página estática para cada evento listado na tabela `campeonatos`
+// (consultada no build), usando o `id` na URL.
+//
+// Eventos que já existiam no formato antigo têm um `id` curto e guardam em
+// `id_origem` o id longo que o coletor gera. Para os links antigos não
+// quebrarem, cada `id_origem` diferente de `id` ganha uma página que só
+// redireciona para o endereço novo.
+export async function getStaticPaths() {
+  const eventos = await carregarEventos();
+  const ocupados = new Set(eventos.map((e) => e.id));
+  const caminhos: {
+    params: { id: string };
+    props: { campeonato: EventoCarregado; redirecionarPara?: string };
+  }[] = [];
+  for (const campeonato of eventos) {
+    caminhos.push({ params: { id: campeonato.id }, props: { campeonato } });
+    const antigo = campeonato.idOrigem;
+    if (antigo && antigo !== campeonato.id && !ocupados.has(antigo)) {
+      caminhos.push({
+        params: { id: antigo },
+        props: { campeonato, redirecionarPara: campeonato.id },
+      });
+    }
+  }
+  return caminhos;
 }
 
 interface Props {
-  campeonato: Campeonato;
+  campeonato: EventoCarregado;
+  redirecionarPara?: string;
 }
 
-const { campeonato } = Astro.props;
+const { campeonato, redirecionarPara } = Astro.props;
+
+// Endereço antigo (id do coletor): leva ao endereço definitivo do evento.
+if (redirecionarPara) {
+  return Astro.redirect(comBase(`/campeonatos/${redirecionarPara}`), 301);
+}
 const instagram = instagramUrl(campeonato.instagram);
 const inscricao = inscricaoUrl(campeonato.inscricao);
 const temFoto = campeonato.foto?.trim();
@@ -37,12 +59,10 @@ const categorias = (campeonato.categorias ?? [])
   .map((c) => c?.trim())
   .filter((c): c is string => Boolean(c));
 
-// "Acompanhar partidas" só existe para eventos com chaveamento no Supabase:
-// os organizáveis (src/data/campeonatos.json). Os demais eventos coletados de
-// torneios-ftv.com não têm grupos nem chaves para mostrar.
-const temChaveamento = (campeonatosOrganizaveis as Campeonato[]).some(
-  (c) => c.id === campeonato.id && (c.categorias ?? []).length > 0,
-);
+// "Acompanhar partidas" só aparece para eventos que já têm algum chaveamento
+// gerado no banco (conferido no build: um chaveamento criado depois só ganha o
+// botão no próximo deploy; a página de acompanhar existe de qualquer forma).
+const temChaveamento = campeonato.temChaveamento;
 
 const periodo = formatarPeriodo(campeonato.data, campeonato.dataFim);
 
