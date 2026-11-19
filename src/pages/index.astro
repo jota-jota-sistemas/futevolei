@@ -48,3 +48,11 @@ const presetsMes = opcoesPresetsMes(campeonatos);
   />
   <EventsSection />
 </Layout>
+
+<script>
+  import { iniciarAtalhosHome } from "../scripts/atalhos-home";
+
+  // Gestores logados (administrador e organizador) ganham o atalho "Organizar" nos
+  // cards; visitantes não carregam nada a mais.
+  void iniciarAtalhosHome();
+</script>

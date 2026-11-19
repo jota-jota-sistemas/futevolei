@@ -282,6 +282,26 @@ describe("lista de campeonatos (área de gerenciamento)", () => {
     expect(acai.querySelector(".cl-sub")!.textContent).toMatch(/01 a 03 de outubro de 2026/);
   });
 
+  it("cada campeonato ativo tem o atalho 'Organizar' (ao lado do link de edição); arquivado não tem", async () => {
+    await iniciarLista({ store });
+    const linhas = todos(".cl-linha");
+    expect(linhas).toHaveLength(3);
+    const copa = linhas.find((li) => li.textContent?.includes("Copa"))!;
+    const organizar = copa.querySelector<HTMLAnchorElement>(".cl-organizar")!;
+    expect(organizar.getAttribute("href")).toBe("/campeonatos/copa-2026/organizar");
+    expect(organizar.textContent).toBe("Organizar");
+    expect(organizar.getAttribute("aria-label")).toBe("Organizar Copa Cabeça");
+    // O link principal continua levando à edição, e não há link dentro de link.
+    expect(copa.querySelector(".cl-item")!.getAttribute("href")).toContain("/gerenciar_campeonatos/editar?id=copa-2026");
+    expect(copa.querySelector(".cl-item .cl-organizar")).toBeNull();
+
+    const check = $<HTMLInputElement>("[data-mostrar-arquivados]");
+    check.checked = true;
+    check.dispatchEvent(new Event("change"));
+    const antigo = todos(".cl-linha").find((li) => li.textContent?.includes("Antigo"))!;
+    expect(antigo.querySelector(".cl-organizar")).toBeNull();
+  });
+
   it("marca os ocultos na home e, ao pedir, mostra os arquivados com a marca", async () => {
     await iniciarLista({ store });
     const oculto = todos(".cl-item").find((a) => a.textContent?.includes("Oculto"))!;
@@ -400,6 +420,11 @@ describe("lista de campeonatos (área de gerenciamento)", () => {
       expect(campo("listado").checked).toBe(true);
       expect(status().hidden).toBe(false);
       expect(status().textContent).toContain("Copa Nova foi cadastrado");
+      // Segue em um clique: "Editar" e "Organizar" do campeonato recém-criado.
+      const links = Array.from(status().querySelectorAll<HTMLAnchorElement>("a"));
+      expect(links.map((a) => a.textContent)).toEqual(["Editar", "Organizar"]);
+      expect(links[0].getAttribute("href")).toContain("/gerenciar_campeonatos/editar?id=novo-");
+      expect(links[1].getAttribute("href")).toMatch(/^\/campeonatos\/novo-\d+\/organizar$/);
       expect(store.listar).toHaveBeenCalledTimes(1); // sem nova leitura
     });
 

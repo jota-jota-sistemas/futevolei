@@ -31,6 +31,7 @@ const dataCategorias = (campeonato.categorias ?? []).join("|");
 <article
   class="event-card"
   data-evento
+  data-id={campeonato.id}
   data-nome={campeonato.nome}
   data-local={campeonato.local}
   data-data={campeonato.data}
@@ -165,5 +166,31 @@ const dataCategorias = (campeonato.categorias ?? []).join("|");
   .event-card__cta {
     margin-top: 1rem;
     align-self: stretch;
+  }
+</style>
+
+<!-- Atalho criado em runtime pelo script (gestores logados): CSS global com
+     prefixo do card. Mobile-first: botão de largura total e alvo de toque de 44px. -->
+<style is:global>
+  .event-card__organizar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: stretch;
+    min-height: 44px;
+    margin-top: 0.5rem;
+    padding: 0.5rem 1.3rem;
+    border: 1.5px solid var(--cor-escuro);
+    border-radius: 999px;
+    color: var(--cor-texto);
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+
+  .event-card__organizar:hover {
+    background: var(--cor-escuro);
+    color: var(--cor-texto-claro);
   }
 </style>

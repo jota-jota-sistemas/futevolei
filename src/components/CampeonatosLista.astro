@@ -135,7 +135,16 @@ import CampeonatoForm from "./CampeonatoForm.astro";
     gap: 0.5rem;
   }
 
+  /* Mobile-first: o link principal (editar) e o atalho "Organizar" empilham em
+     telas estreitas; lado a lado a partir de 560px. */
+  .cl-linha {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
   .cl-item {
+    flex: 1;
     display: flex;
     align-items: center;
     gap: 0.85rem;
@@ -169,6 +178,38 @@ import CampeonatoForm from "./CampeonatoForm.astro";
     font-size: 0.85rem;
     color: var(--cor-texto-suave);
     overflow-wrap: anywhere;
+  }
+
+  .cl-organizar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px; /* alvo de toque confortável */
+    padding: 0.5rem 1.1rem;
+    border: 1.5px solid var(--cor-escuro);
+    border-radius: 999px;
+    color: var(--cor-texto);
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+
+  .cl-organizar:hover {
+    background: var(--cor-escuro);
+    color: var(--cor-texto-claro);
+  }
+
+  @media (min-width: 560px) {
+    .cl-linha {
+      flex-direction: row;
+      align-items: stretch;
+      gap: 0.5rem;
+    }
+
+    .cl-organizar {
+      align-self: center;
+    }
   }
 
   .cl-chips {

@@ -80,6 +80,13 @@ describe("organizar: organizador só nos eventos dele", () => {
   });
 });
 
+describe("lista de campeonatos: voltar do organizador", () => {
+  it("o organizador volta ao início (não ao painel, que ele não usa)", () => {
+    const f = ler("gerenciar_campeonatos/index.astro");
+    expect(f).toMatch(/papel === "organizador"\) trocarVoltar\(document, comBase\("\/"\)/);
+  });
+});
+
 describe("gerenciar campeonatos: organizador", () => {
   it("a lista e a edição aceitam admin e organizador e repassam o papel às telas", () => {
     const lista = ler("gerenciar_campeonatos/index.astro");

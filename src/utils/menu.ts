@@ -66,20 +66,28 @@ export interface ItemConta {
 export interface HrefsConta {
   entrar: string;
   conta: string;
+  /** Painel de gerenciamento (administrador: jogadores e campeonatos). */
   gerenciar: string;
+  /** Lista de campeonatos: o organizador só tem esta opção, então vai direto a ela. */
+  gerenciarCampeonatos: string;
 }
 
 /**
  * Itens de conta para o estado dado: visitante vê "Entrar"; logado vê "Minha
- * conta"; administrador e organizador veem também o link de gerenciamento (o
- * painel mostra a cada um só o que pode gerenciar). Os itens públicos
+ * conta"; administrador e organizador veem também "Gerenciar": o administrador
+ * abre o painel (jogadores e campeonatos) e o organizador vai direto à lista de
+ * campeonatos, a única área dele. Os itens públicos
  * (ITENS_MENU) não mudam.
  */
 export function itensConta(estado: EstadoConta, hrefs: HrefsConta): ItemConta[] {
   if (estado === "visitante") return [{ rotulo: "Entrar", href: hrefs.entrar }];
   const conta: ItemConta = { rotulo: "Minha conta", href: hrefs.conta, rotuloCurto: "Conta" };
-  if (estado === "admin" || estado === "organizador") {
+  if (estado === "admin") {
     return [{ rotulo: "Gerenciar", href: hrefs.gerenciar, secundario: true }, conta];
+  }
+  // O organizador só gerencia campeonatos: pula o painel (um clique a menos).
+  if (estado === "organizador") {
+    return [{ rotulo: "Gerenciar", href: hrefs.gerenciarCampeonatos, secundario: true }, conta];
   }
   return [conta];
 }

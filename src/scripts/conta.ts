@@ -9,7 +9,7 @@ import type { Jogador } from "../domain/jogadores/types";
 import type { Perfil } from "../domain/auth/types";
 import { mensagemAuth } from "../domain/auth/mensagens";
 import { hrefEntrar, hrefConta } from "./rotas-auth";
-import { hrefGerenciar } from "./rotas-gerenciar";
+import { hrefGerenciar, hrefGerenciarCampeonatos } from "./rotas-gerenciar";
 import { comBase, hrefPerfilJogador } from "../utils/url";
 
 export interface OpcoesConta {
@@ -94,7 +94,8 @@ export async function iniciarConta(opcoes: OpcoesConta): Promise<void> {
 
   const desenharOrganizador = () => {
     if (linkGerenciar) {
-      linkGerenciar.href = hrefGerenciar();
+      // Administrador: painel (jogadores e campeonatos). Organizador: direto aos campeonatos.
+      linkGerenciar.href = admin ? hrefGerenciar() : hrefGerenciarCampeonatos();
       linkGerenciar.hidden = !(admin || organizador);
     }
     if (cartaoOrganizador) cartaoOrganizador.hidden = admin;

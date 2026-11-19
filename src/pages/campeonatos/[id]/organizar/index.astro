@@ -1,6 +1,7 @@
 ---
 import Layout from "../../../../layouts/Layout.astro";
 import GuardaAcesso from "../../../../components/GuardaAcesso.astro";
+import OrganizarAtalhos from "../../../../components/OrganizarAtalhos.astro";
 import { comBase, slugCategoria } from "../../../../utils/url";
 import { carregarEventos, type EventoCarregado } from "../../../../utils/eventos-db";
 import { CACHE_PAGINAS } from "../../../../utils/cache-http";
@@ -61,6 +62,13 @@ const itens = categorias.map((nome) => ({
         resultados. Cada categoria tem um chaveamento independente.
       </p>
     </header>
+
+    {/* Atalhos: editar o campeonato, ver a página pública e acompanhar partidas. */}
+    <OrganizarAtalhos
+      campeonatoId={campeonato.id}
+      listado={campeonato.listado}
+      temCategorias={itens.length > 0}
+    />
 
     <p class="organizar__aviso" role="note">
       Área restrita a administradores e aos organizadores deste campeonato.
