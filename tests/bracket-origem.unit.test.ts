@@ -53,6 +53,17 @@ describe("origem das vagas indefinidas", () => {
   });
 });
 
+describe("chaveamento antigo (jogos futuros sem número)", () => {
+  it("a visualização numera em memória e não mostra o texto longo", () => {
+    const r = gerarChaveamento({ duplas: duplas(11), config: { formato: "dupla eliminação" } });
+    if (!r.ok) throw new Error(r.erro.code);
+    // r.bracket nunca passou por numerarJogos: todos os jogos estão sem número.
+    const texto = renderBracketClient(r.bracket).textContent ?? "";
+    expect(texto).not.toMatch(/rodada \d+, jogo \d+/);
+    expect(texto).toMatch(/Vencedor do jogo \d+/);
+    expect(texto).toMatch(/Perdedor do jogo \d+/);
+  });
+});
 describe("linhas de ligação do mata-mata", () => {
   const r = gerarChaveamento({ duplas: duplas(8), config: { formato: "eliminação simples" } });
   if (!r.ok) throw new Error(r.erro.code);

@@ -37,6 +37,7 @@ import type {
 import { rotuloDupla } from "../../domain/pairs/nome";
 import { rankingFinal, type LinhaRanking } from "../../domain/bracket/ranking";
 import { classificarGrupo } from "../../domain/bracket/standings";
+import { numerarJogos } from "../../domain/bracket/ordenacao";
 import {
   chaveSlot,
   origemDosSlots,
@@ -809,9 +810,14 @@ function renderRanking(
 }
 
 export function renderBracketClient(
-  bracket: Bracket,
+  bracketOriginal: Bracket,
   opcoes?: RenderOpcoes,
 ): HTMLElement {
+  // Chaveamentos gerados antes da numeração fixa têm jogos futuros sem número.
+  // Numerar aqui (função pura, em memória) mostra "Vencedor do jogo N" em vez do
+  // texto longo. É o mesmo resultado que será gravado no próximo placar, pois a
+  // numeração depende só da estrutura e dos números já existentes.
+  const bracket = numerarJogos(bracketOriginal);
   const duplasPorId: DuplasPorId = Object.fromEntries(
     bracket.duplas.map((d) => [d.id, d]),
   );
