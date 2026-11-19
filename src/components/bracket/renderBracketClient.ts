@@ -262,12 +262,31 @@ function renderMatchCard(
     );
   }
 
-  filhos.push(
-    el("ul", {
-      classes: ["match-card__slots"],
-      filhos: [slotLi(slotA, "a"), slotLi(slotB, "b")],
-    }),
-  );
+  // Confronto clicável: tocar no card (em qualquer dupla) abre a tela do jogo.
+  const abreJogo =
+    typeof opcoes?.aoAbrirJogo === "function" && ambasDefinidas;
+  const slots = el("ul", {
+    classes: ["match-card__slots", abreJogo && "match-card__slots--clicavel"],
+    attrs: abreJogo
+      ? {
+          role: "button",
+          tabindex: "0",
+          "aria-label": `${aoVivo ? "Acompanhar ao vivo" : "Ver jogo"}: ${slotA.rotulo} contra ${slotB.rotulo}`,
+        }
+      : undefined,
+    filhos: [slotLi(slotA, "a"), slotLi(slotB, "b")],
+  });
+  if (abreJogo) {
+    const abrir = (): void => opcoes!.aoAbrirJogo!(match.id);
+    slots.addEventListener("click", abrir);
+    slots.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        abrir();
+      }
+    });
+  }
+  filhos.push(slots);
 
   if (editavel) {
     const rotulo = temVencedor
@@ -284,18 +303,6 @@ function renderMatchCard(
     filhos.push(botao);
   }
 
-  if (typeof opcoes?.aoAbrirJogo === "function" && ambasDefinidas) {
-    const acompanhar = el("button", {
-      classes: ["match-card__acompanhar"],
-      attrs: {
-        type: "button",
-        "aria-label": `Acompanhar jogo: ${slotA.rotulo} contra ${slotB.rotulo}`,
-      },
-      texto: aoVivo ? "Acompanhar ao vivo" : "Ver jogo",
-    });
-    acompanhar.addEventListener("click", () => opcoes!.aoAbrirJogo!(match.id));
-    filhos.push(acompanhar);
-  }
 
   if (aoVivo) {
     filhos.push(

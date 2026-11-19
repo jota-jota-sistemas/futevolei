@@ -94,8 +94,23 @@
   gap: 0;
   border-radius: 4px;
   overflow: hidden;
-  border: 1px solid var(--cor-borda);
+  /* Contorno e sombra visíveis sobre o fundo areia (no celular o card se
+     confundia com o fundo). */
+  border: 1px solid rgba(16, 42, 67, 0.3);
+  box-shadow: 0 1px 3px rgba(16, 42, 67, 0.16);
   background: var(--cor-superficie);
+}
+/* Confronto clicável (mata-mata e grupos): abre a tela do jogo. */
+.match-card__slots--clicavel {
+  cursor: pointer;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.match-card__slots--clicavel:hover {
+  border-color: var(--cor-destaque);
+}
+.match-card__slots--clicavel:focus-visible {
+  outline: 2px solid var(--cor-destaque);
+  outline-offset: 2px;
 }
 .elim-tree .match-card__slot {
   gap: 0;
@@ -106,7 +121,7 @@
   background: var(--cor-superficie);
 }
 .elim-tree .match-card__slot + .match-card__slot {
-  border-top: 1px solid var(--cor-borda);
+  border-top: 1px solid rgba(16, 42, 67, 0.16);
 }
 
 /* Vencedor: nome em negrito, sem barra lateral e sem o ✓ (a caixa do placar
@@ -141,14 +156,13 @@
   color: var(--cor-destaque-contraste);
 }
 
-/* Botões ("Ver jogo", "Marcar placar") fora do fluxo: aparecem sobre o card ao
-   passar o mouse ou focar. Em telas de toque (sem hover) ficam sempre visíveis,
-   abaixo do card. */
-.elim-tree .match-card__acompanhar,
+/* "Marcar placar" (organização) fora do fluxo: aparece sobre o card ao passar
+   o mouse ou focar. Em telas de toque (sem hover) fica sempre visível, abaixo
+   do card. "Ver jogo" não tem botão: o próprio confronto é clicável. */
 .elim-tree .match-card__salvar {
   position: absolute;
   top: 100%;
-  left: 0;
+  right: 0;
   z-index: 3;
   width: auto;
   margin: 0;
@@ -157,19 +171,12 @@
   opacity: 0;
   pointer-events: none;
 }
-.elim-tree .match-card__salvar {
-  left: auto;
-  right: 0;
-}
-.elim-tree .match-card:hover .match-card__acompanhar,
 .elim-tree .match-card:hover .match-card__salvar,
-.elim-tree .match-card:focus-within .match-card__acompanhar,
 .elim-tree .match-card:focus-within .match-card__salvar {
   opacity: 1;
   pointer-events: auto;
 }
 @media (hover: none) {
-  .elim-tree .match-card__acompanhar,
   .elim-tree .match-card__salvar {
     position: static;
     opacity: 1;
