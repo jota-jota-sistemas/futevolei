@@ -6,9 +6,11 @@ import Cartao from "../../components/Cartao.astro";
 import { comBase } from "../../utils/url";
 
 // PAINEL DE GERENCIAMENTO: porta de entrada para as áreas de administração
-// (jogadores e campeonatos). Só administradores logados usam estas áreas: o
-// conteúdo fica atrás de GuardaAcesso (revelado por scripts/guarda.ts) e a
-// escrita no banco exige eh_admin() no RLS. A guarda da tela é só de interface.
+// (jogadores e campeonatos). Administradores e organizadores logados entram; o
+// organizador vê só "Campeonatos" (e, lá, apenas os eventos dele). O conteúdo
+// fica atrás de GuardaAcesso (revelado por scripts/guarda.ts) e a escrita no
+// banco exige eh_admin() ou ser dono do evento (RLS). A guarda da tela é só de
+// interface.
 ---
 
 <Layout
@@ -30,7 +32,7 @@ import { comBase } from "../../utils/url";
         <p>Cadastro, edição, arquivamento e exclusão de eventos.</p>
       </Cartao>
     </a>
-    <a class="painel__item" href={comBase("/gerenciar_jogadores")}>
+    <a class="painel__item" data-painel-jogadores href={comBase("/gerenciar_jogadores")}>
       <Cartao titulo="Jogadores" id="painel-jogadores">
         <p>Cadastro, edição e exclusão de perfis de jogadores.</p>
       </Cartao>
@@ -52,6 +54,10 @@ import { comBase } from "../../utils/url";
   .painel__item {
     color: inherit;
     text-decoration: none;
+  }
+
+  .painel__item[hidden] {
+    display: none;
   }
 
   .painel__item p {
@@ -76,5 +82,14 @@ import { comBase } from "../../utils/url";
   import { guardarAcesso } from "../../scripts/guarda";
   import { criarAuthStoreBrowser } from "../../store/authStore";
 
-  void guardarAcesso({ store: criarAuthStoreBrowser() });
+  // Administradores e organizadores entram no painel. Jogadores é só do admin
+  // (a página /gerenciar_jogadores continua barrando o organizador).
+  void guardarAcesso({
+    store: criarAuthStoreBrowser(),
+    permitir: ["admin", "organizador"],
+    aoLiberar: (papel) => {
+      const jogadores = document.querySelector<HTMLElement>("[data-painel-jogadores]");
+      if (jogadores) jogadores.hidden = papel !== "admin";
+    },
+  });
 </script>

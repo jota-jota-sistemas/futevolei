@@ -12,8 +12,9 @@ import { CACHE_PAGINAS } from "../../../../utils/cache-http";
  * organização opera POR CATEGORIA — cada categoria tem um chaveamento
  * independente.
  *
- * Esta rota NÃO é linkada publicamente e só administradores logados a usam
- * (GuardaAcesso + RLS com eh_admin()). A visualização pública (R9.2) continua na página `/campeonatos/[id]`.
+ * Esta rota NÃO é linkada publicamente. Administradores logados usam qualquer
+ * evento; organizadores logados, só os eventos em que são donos (GuardaAcesso +
+ * posse conferida no banco + RLS). A visualização pública (R9.2) continua na página `/campeonatos/[id]`.
  *
  * Página sob demanda: lê a tabela `campeonatos` (e `categorias`) do Supabase a
  * cada acesso (todos os eventos ativos, listados ou não). No navegador, a
@@ -47,7 +48,7 @@ const itens = categorias.map((nome) => ({
   noindex
 >
   <GuardaAcesso>
-  <section class="organizar">
+  <section class="organizar" data-campeonato-id={campeonato.id}>
     <a class="organizar__voltar" href={hrefVoltar}>
       <span aria-hidden="true">←</span> {campeonato.listado ? "Voltar ao campeonato" : "Voltar ao início"}
     </a>
@@ -62,7 +63,7 @@ const itens = categorias.map((nome) => ({
     </header>
 
     <p class="organizar__aviso" role="note">
-      Área restrita a administradores.
+      Área restrita a administradores e aos organizadores deste campeonato.
     </p>
 
     {
@@ -92,8 +93,16 @@ const itens = categorias.map((nome) => ({
 <script>
   import { guardarAcesso } from "../../../../scripts/guarda";
   import { criarAuthStoreBrowser } from "../../../../store/authStore";
+  import { criarCampeonatoStoreBrowser } from "../../../../store/campeonatoStore";
+  import { verificarPosseDoEvento } from "../../../../scripts/posse-evento";
 
-  void guardarAcesso({ store: criarAuthStoreBrowser() });
+  // Administrador: qualquer evento. Organizador: só os dele (o banco confere).
+  const campeonatoId = document.querySelector<HTMLElement>("[data-campeonato-id]")?.dataset.campeonatoId;
+  void guardarAcesso({
+    store: criarAuthStoreBrowser(),
+    permitir: ["admin", "organizador"],
+    verificar: verificarPosseDoEvento(criarCampeonatoStoreBrowser(), campeonatoId),
+  });
 </script>
 
 <style>

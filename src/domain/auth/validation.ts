@@ -23,12 +23,18 @@ export function validarEmail(texto: string): string | null {
 }
 
 /**
- * Decide o acesso à área de gerenciamento. `admin` é o resultado da consulta
- * ao banco (eh_admin()); sem sessão ninguém é admin, mesmo que `admin` venha true.
+ * Decide o acesso à área de gerenciamento. `admin` e `organizador` são o
+ * resultado da consulta ao banco (eh_admin() e eh_organizador()); sem sessão
+ * ninguém tem papel, mesmo que venham true. O administrador tem precedência.
  */
-export function acessoGerenciar(sessao: Sessao | null, admin: boolean): AcessoGerenciar {
+export function acessoGerenciar(
+  sessao: Sessao | null,
+  admin: boolean,
+  organizador = false
+): AcessoGerenciar {
   if (sessao === null) return "visitante";
-  return admin ? "admin" : "sem_permissao";
+  if (admin) return "admin";
+  return organizador ? "organizador" : "sem_permissao";
 }
 
 /** Só administradores logados podem gerenciar. */

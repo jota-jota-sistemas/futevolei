@@ -36,6 +36,11 @@ export interface DepsLista {
   raiz?: ParentNode;
   /** Link da edição de cada campeonato. Padrão: a página de edição do gerenciamento. */
   hrefEditar?: (id: string) => string;
+  /**
+   * Lista só os campeonatos da conta como dona (organizador). Padrão `false`:
+   * administrador, que vê todos.
+   */
+  apenasMeus?: boolean;
 }
 
 function plural(n: number, singular: string, pluralTxt: string): string {
@@ -91,6 +96,7 @@ export async function iniciarLista({
   store,
   raiz = document,
   hrefEditar = hrefGerenciarCampeonato,
+  apenasMeus = false,
 }: DepsLista): Promise<void> {
   const q = <T extends Element>(seletor: string) => raiz.querySelector<T>(seletor);
   const lista = q<HTMLElement>("[data-lista]");
@@ -100,6 +106,12 @@ export async function iniciarLista({
   const contador = q<HTMLElement>("[data-contador-campeonatos]");
   const form = q<HTMLFormElement>("[data-campeonato-form]");
   if (!lista || !estado) return;
+
+  // O organizador vê só os dele: o título da lista acompanha.
+  if (apenasMeus) {
+    const titulo = q<HTMLElement>("#lista-campeonatos-titulo");
+    if (titulo) titulo.textContent = "Meus campeonatos";
+  }
 
   let todos: CampeonatoRegistro[] = [];
 
@@ -132,7 +144,11 @@ export async function iniciarLista({
     }
 
     if (todos.length === 0) {
-      mostrarEstado("Nenhum campeonato cadastrado ainda. Cadastre o primeiro ao lado.");
+      mostrarEstado(
+        apenasMeus
+          ? "Você ainda não tem campeonatos. Cadastre o primeiro ao lado."
+          : "Nenhum campeonato cadastrado ainda. Cadastre o primeiro ao lado."
+      );
     } else if (filtrados.length === 0) {
       mostrarEstado("Nenhum campeonato encontrado para os filtros atuais.");
     } else {
@@ -142,7 +158,9 @@ export async function iniciarLista({
 
   async function carregar(): Promise<void> {
     mostrarEstado("Carregando campeonatos…");
-    const r = await store.listar({ incluirArquivados: true });
+    const r = apenasMeus
+      ? await store.listarMeus({ incluirArquivados: true })
+      : await store.listar({ incluirArquivados: true });
     if (!r.ok) {
       lista!.textContent = "";
       mostrarEstado(mensagemDoErro(r.erro), true);

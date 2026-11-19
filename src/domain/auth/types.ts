@@ -38,4 +38,7 @@ export type ResultadoAuth<T> =
   | { ok: false; erro: AuthErro };
 
 /** Estado de acesso às telas de gerenciamento. */
-export type AcessoGerenciar = "visitante" | "sem_permissao" | "admin";
+export type AcessoGerenciar = "visitante" | "sem_permissao" | "organizador" | "admin";
+
+/** Papéis que podem entrar em uma tela de gerenciamento. */
+export type PapelGerenciar = "admin" | "organizador";

@@ -25,6 +25,9 @@ function fake(o: Opcoes = {}) {
     q.eq = (...a: unknown[]) => (reg(k + ".eq", a), q);
     q.select = (...a: unknown[]) => (reg(k + ".select", a), q);
     q.maybeSingle = () => Promise.resolve(res ?? { data: null, error: null });
+    // `await from(...).insert(...)` (sem encadear) resolve para o resultado.
+    q.then = (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) =>
+      Promise.resolve(res ?? { data: null, error: null }).then(ok, ko);
     return q;
   };
   const auth = {
@@ -116,6 +119,22 @@ describe("sessão e admin", () => {
     });
   });
 
+  it("eOrganizador: visitante é false sem consultar o banco; só true quando o banco responde true", async () => {
+    const visitante = store({ session: null, rpc: { data: true, error: null } });
+    expect(await visitante.s.eOrganizador()).toEqual({ ok: true, valor: false });
+    expect(visitante.raw.rpc).not.toHaveBeenCalled();
+
+    const sim = store({ rpc: { data: true, error: null } });
+    expect(await sim.s.eOrganizador()).toEqual({ ok: true, valor: true });
+    expect(sim.raw.rpc).toHaveBeenCalledWith("eh_organizador");
+    expect(await store({ rpc: { data: "true", error: null } }).s.eOrganizador()).toEqual({ ok: true, valor: false });
+    expect(await store({ rpc: { data: null, error: { message: "x" } } }).s.eOrganizador()).toEqual({
+      ok: false,
+      erro: { code: "FALHA_LEITURA" },
+    });
+    expect(await store({ lancar: true }).s.eOrganizador()).toEqual({ ok: false, erro: { code: "FALHA_LEITURA" } });
+  });
+
   it("eAdmin: exceção vira FALHA_LEITURA", async () => {
     expect(await store({ lancar: true }).s.eAdmin()).toEqual({ ok: false, erro: { code: "FALHA_LEITURA" } });
   });
@@ -183,5 +202,40 @@ describe("perfil e vínculo", () => {
     const { s, chamadas } = store({ update: { data: ROW, error: null } });
     expect((await s.desvincularJogador()).ok).toBe(true);
     expect(chamadas.update[0]).toMatchObject({ jogador_id: null });
+  });
+});
+
+describe("virarOrganizador", () => {
+  it("grava o e-mail da sessão (minúsculas) em organizadores", async () => {
+    const { s, chamadas, raw } = store();
+    expect(await s.virarOrganizador()).toEqual({ ok: true, valor: undefined });
+    expect(raw.from).toHaveBeenCalledWith("organizadores");
+    expect(chamadas.insert[0]).toEqual({ email: "ana@exemplo.com" });
+  });
+
+  it("é idempotente: quem já é organizador (23505) recebe sucesso", async () => {
+    const { s } = store({ insert: { data: null, error: { code: "23505" } } });
+    expect(await s.virarOrganizador()).toEqual({ ok: true, valor: undefined });
+  });
+
+  it("outro erro do banco vira FALHA_PERSISTENCIA", async () => {
+    const { s } = store({ insert: { data: null, error: { code: "42501" } } });
+    expect(await s.virarOrganizador()).toEqual({ ok: false, erro: { code: "FALHA_PERSISTENCIA" } });
+  });
+
+  it("sem login (ou sem e-mail) não escreve: NAO_AUTENTICADO", async () => {
+    const visitante = store({ session: null });
+    expect(await visitante.s.virarOrganizador()).toEqual({ ok: false, erro: { code: "NAO_AUTENTICADO" } });
+    expect(visitante.raw.from).not.toHaveBeenCalled();
+    const semEmail = store({ session: { user: { id: "u1" } } });
+    expect(await semEmail.s.virarOrganizador()).toEqual({ ok: false, erro: { code: "NAO_AUTENTICADO" } });
+    expect(semEmail.raw.from).not.toHaveBeenCalled();
+  });
+
+  it("exceção vira FALHA_PERSISTENCIA, sem lançar", async () => {
+    expect(await store({ lancar: true }).s.virarOrganizador()).toEqual({
+      ok: false,
+      erro: { code: "FALHA_PERSISTENCIA" },
+    });
   });
 });

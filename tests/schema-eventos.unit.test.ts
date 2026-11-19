@@ -69,8 +69,13 @@ describe("formato de eventos", () => {
 });
 
 describe("gerenciar campeonatos (escrita por administradores)", () => {
-  const blocoGerenciar = (texto: string) =>
-    texto.slice(texto.indexOf(marcaGerenciar)).trim();
+  // Do marcador até o bloco seguinte (organizadores), se houver.
+  const blocoGerenciar = (texto: string) => {
+    const ini = texto.indexOf(marcaGerenciar);
+    const prox = texto.indexOf("-- ORGANIZADORES (papel");
+    const fim = prox > ini ? prox : texto.length;
+    return texto.slice(ini, fim).replace(/\n-- -+\s*$/, "").trim();
+  };
   const sql = semComentarios(blocoGerenciar(schema));
   const migracaoGerenciar = ler("migracao-gerenciar-campeonatos.sql");
 

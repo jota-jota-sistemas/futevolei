@@ -73,6 +73,14 @@ export function mensagemDoErro(erro: CampeonatoErro): string {
       return "A descrição pode ter até 2000 caracteres.";
     case "CAMPEONATO_NAO_ENCONTRADO":
       return "Campeonato não encontrado.";
+    case "SEM_PERMISSAO":
+      return "Você não gerencia este campeonato.";
+    case "EMAIL_INVALIDO":
+      return "Informe um e-mail válido.";
+    case "NAO_ORGANIZADOR":
+      return "Essa pessoa precisa ser organizadora primeiro: em Minha conta, ela usa “Quero ser organizador”.";
+    case "ULTIMO_DONO":
+      return "O campeonato precisa de ao menos um organizador.";
     case "FALHA_PERSISTENCIA":
       return "Falha ao salvar. Tente novamente em instantes.";
     case "FALHA_LEITURA":

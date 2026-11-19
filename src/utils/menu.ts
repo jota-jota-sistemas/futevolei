@@ -51,7 +51,7 @@ export function itemAtivo(item: ItemMenu, pathname: string, base = "/"): boolean
 // "Entrar"; um script do cabeçalho troca pelos itens do estado real.
 // ---------------------------------------------------------------------------
 
-export type EstadoConta = "visitante" | "logado" | "admin";
+export type EstadoConta = "visitante" | "logado" | "organizador" | "admin";
 
 export interface ItemConta {
   rotulo: string;
@@ -71,13 +71,14 @@ export interface HrefsConta {
 
 /**
  * Itens de conta para o estado dado: visitante vê "Entrar"; logado vê "Minha
- * conta"; administrador vê também o link de gerenciamento. Os itens públicos
+ * conta"; administrador e organizador veem também o link de gerenciamento (o
+ * painel mostra a cada um só o que pode gerenciar). Os itens públicos
  * (ITENS_MENU) não mudam.
  */
 export function itensConta(estado: EstadoConta, hrefs: HrefsConta): ItemConta[] {
   if (estado === "visitante") return [{ rotulo: "Entrar", href: hrefs.entrar }];
   const conta: ItemConta = { rotulo: "Minha conta", href: hrefs.conta, rotuloCurto: "Conta" };
-  if (estado === "admin") {
+  if (estado === "admin" || estado === "organizador") {
     return [{ rotulo: "Gerenciar", href: hrefs.gerenciar, secundario: true }, conta];
   }
   return [conta];

@@ -15,6 +15,12 @@
 // duplas, chaveamentos e jogos junto). Por isso `excluir` só apaga o campeonato
 // quando ele NÃO tem categorias; com categorias, ARQUIVA.
 //
+// Organizadores: a escrita de um organizador só vale nos campeonatos em que ele
+// é dono (RLS + triggers no banco, ver bloco ORGANIZADORES do schema.sql). A
+// leitura pública mostra TODOS os ativos, então a lista do organizador vem de
+// `listarMeus` (join com os donos). `podeGerenciar` pergunta ao banco; as telas
+// só espelham a decisão.
+//
 // Não mexe em `foto`, `local`, `fonte` e `id_origem` ao editar. A foto não é
 // gerenciada aqui (a coluna usa o padrão do banco nas linhas novas).
 //
@@ -24,11 +30,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type {
   CampeonatoDetalhe,
+  CampeonatoDono,
   CampeonatoId,
   CampeonatoInput,
   CampeonatoRegistro,
   ResultadoCampeonato,
 } from "../domain/campeonatos/types";
+import { validarEmail } from "../domain/auth/validation";
 import {
   FONTE_MANUAL,
   baseDoId,
@@ -79,6 +87,8 @@ const TENTATIVAS_CRIAR = 3;
 /** Códigos do Postgres. */
 const PG_UNIQUE_VIOLATION = "23505";
 const PG_FK_VIOLATION = "23503";
+/** Violação de RLS/privilégio (a policy ou um trigger recusou a escrita). */
+const PG_INSUFFICIENT_PRIVILEGE = "42501";
 
 export function campeonatoRowParaRegistro(row: CampeonatoRow): CampeonatoRegistro {
   const preco = typeof row.preco === "string" ? Number(row.preco) : row.preco;
@@ -125,6 +135,26 @@ export type DestinoExclusaoCampeonato = "excluido" | "arquivado";
 export interface CampeonatoStore {
   /** Lista ordenada (data desc, nome, id). Por padrão só os ativos. */
   listar(opcoes?: { incluirArquivados?: boolean }): Promise<ResultadoCampeonato<CampeonatoRegistro[]>>;
+  /**
+   * Só os campeonatos que a conta gerencia como DONA (uso do organizador): join
+   * interno com `campeonato_organizadores`, cuja leitura o banco limita aos
+   * eventos da conta. Mesma ordem e filtro de arquivados de `listar`.
+   */
+  listarMeus(opcoes?: { incluirArquivados?: boolean }): Promise<ResultadoCampeonato<CampeonatoRegistro[]>>;
+  /** Donos (organizadores) do campeonato; o banco só mostra a quem gerencia o evento. */
+  listarDonos(id: CampeonatoId): Promise<ResultadoCampeonato<CampeonatoDono[]>>;
+  /**
+   * Adiciona um dono pelo e-mail. A pessoa precisa já ser organizadora
+   * (NAO_ORGANIZADOR). Idempotente: quem já é dono recebe sucesso.
+   */
+  adicionarDono(id: CampeonatoId, email: string): Promise<ResultadoCampeonato<CampeonatoDono>>;
+  /**
+   * Remove um dono. O organizador não remove o último dono (ULTIMO_DONO);
+   * o administrador pode.
+   */
+  removerDono(id: CampeonatoId, email: string): Promise<ResultadoCampeonato<void>>;
+  /** A conta é administradora ou dona deste campeonato? (pergunta ao banco) */
+  podeGerenciar(id: CampeonatoId): Promise<ResultadoCampeonato<boolean>>;
   /** Um campeonato com os nomes das categorias. */
   obter(id: CampeonatoId): Promise<ResultadoCampeonato<CampeonatoDetalhe>>;
   /** Cria um campeonato manual (`fonte = "manual"`, ativo) com id único gerado. */
@@ -157,6 +187,15 @@ function erroPersistencia(): ResultadoCampeonato<never> {
 
 function erroLeitura(): ResultadoCampeonato<never> {
   return { ok: false, erro: { code: "FALHA_LEITURA" } };
+}
+
+function semPermissao(): ResultadoCampeonato<never> {
+  return { ok: false, erro: { code: "SEM_PERMISSAO" } };
+}
+
+/** Erro de escrita: RLS/trigger recusando vira SEM_PERMISSAO; o resto, falha de persistência. */
+function erroDeEscrita(erro: unknown): ResultadoCampeonato<never> {
+  return codigoDe(erro) === PG_INSUFFICIENT_PRIVILEGE ? semPermissao() : erroPersistencia();
 }
 
 function naoEncontrado(): ResultadoCampeonato<never> {
@@ -204,7 +243,7 @@ export function criarCampeonatoStoreBrowser(client?: SupabaseClient): Campeonato
         .update({ ...campos, atualizado_em: agoraISO() })
         .eq("id", id)
         .select(COLUNAS);
-      if (error) return erroPersistencia();
+      if (error) return erroDeEscrita(error);
       const linha = (data as CampeonatoRow[] | null)?.[0];
       if (!linha) return naoEncontrado(); // id inexistente (ou sem permissão)
       return { ok: true, valor: campeonatoRowParaRegistro(linha) };
@@ -243,6 +282,103 @@ export function criarCampeonatoStoreBrowser(client?: SupabaseClient): Campeonato
         const lista = ((data ?? []) as CampeonatoRow[]).map(campeonatoRowParaRegistro);
         // A ordem do banco depende da collation; a final é a do domínio.
         return { ok: true, valor: ordenarCampeonatos(lista) };
+      } catch {
+        return erroLeitura();
+      }
+    },
+
+    async listarMeus(opcoes) {
+      try {
+        const c = await obterClient();
+        let consulta = c
+          .from("campeonatos")
+          .select(`${COLUNAS}, campeonato_organizadores!inner(email)`);
+        if (!opcoes?.incluirArquivados) consulta = consulta.eq("ativo", true);
+        const { data, error } = await consulta
+          .order("data", { ascending: false })
+          .range(0, LIMITE_LISTAGEM - 1);
+        if (error) return erroLeitura();
+        const lista = ((data ?? []) as unknown as CampeonatoRow[]).map(campeonatoRowParaRegistro);
+        return { ok: true, valor: ordenarCampeonatos(lista) };
+      } catch {
+        return erroLeitura();
+      }
+    },
+
+    async listarDonos(id) {
+      if (!idValido(id)) return naoEncontrado();
+      try {
+        const c = await obterClient();
+        const { data, error } = await c
+          .from("campeonato_organizadores")
+          .select("email, criado_em")
+          .eq("campeonato_id", id)
+          .order("criado_em", { ascending: true })
+          .order("email", { ascending: true });
+        if (error) return erroLeitura();
+        const donos = ((data ?? []) as { email: string; criado_em: string }[]).map((d) => ({
+          email: d.email,
+          criadoEm: d.criado_em,
+        }));
+        return { ok: true, valor: donos };
+      } catch {
+        return erroLeitura();
+      }
+    },
+
+    async adicionarDono(id, email) {
+      if (!idValido(id)) return naoEncontrado();
+      const valido = validarEmail(email);
+      if (valido === null) return { ok: false, erro: { code: "EMAIL_INVALIDO" } };
+      const dono: CampeonatoDono = { email: valido, criadoEm: agoraISO() };
+      try {
+        const c = await obterClient();
+        const { error } = await c
+          .from("campeonato_organizadores")
+          .insert({ campeonato_id: id, email: valido, criado_em: dono.criadoEm });
+        if (!error) return { ok: true, valor: dono };
+        const codigo = codigoDe(error);
+        if (codigo === PG_UNIQUE_VIOLATION) return { ok: true, valor: dono }; // já era dono
+        // A FK em `organizadores` recusa e-mail de quem ainda não é organizador.
+        if (codigo === PG_FK_VIOLATION) return { ok: false, erro: { code: "NAO_ORGANIZADOR" } };
+        return erroDeEscrita(error);
+      } catch {
+        return erroPersistencia();
+      }
+    },
+
+    async removerDono(id, email) {
+      if (!idValido(id)) return naoEncontrado();
+      const valido = validarEmail(email);
+      if (valido === null) return { ok: false, erro: { code: "EMAIL_INVALIDO" } };
+      try {
+        const c = await obterClient();
+        const { error } = await c
+          .from("campeonato_organizadores")
+          .delete()
+          .eq("campeonato_id", id)
+          .eq("email", valido)
+          .select("email");
+        if (error) {
+          // O trigger do banco recusa remover o último dono (para não-admin).
+          if (String((error as { message?: string }).message ?? "").includes("ULTIMO_DONO")) {
+            return { ok: false, erro: { code: "ULTIMO_DONO" } };
+          }
+          return erroDeEscrita(error);
+        }
+        return { ok: true, valor: undefined };
+      } catch {
+        return erroPersistencia();
+      }
+    },
+
+    async podeGerenciar(id) {
+      if (!idValido(id)) return { ok: true, valor: false };
+      try {
+        const c = await obterClient();
+        const { data, error } = await c.rpc("pode_gerenciar_campeonato", { p_id: id });
+        if (error) return erroLeitura();
+        return { ok: true, valor: data === true };
       } catch {
         return erroLeitura();
       }
@@ -308,7 +444,7 @@ export function criarCampeonatoStoreBrowser(client?: SupabaseClient): Campeonato
             tomados.add(id);
             continue;
           }
-          return erroPersistencia();
+          return erroDeEscrita(error);
         } catch {
           return erroPersistencia();
         }
@@ -379,7 +515,7 @@ export function criarCampeonatoStoreBrowser(client?: SupabaseClient): Campeonato
         if (error) {
           // Se o banco barrar por vínculo, preserva o histórico arquivando.
           if (codigoDe(error) === PG_FK_VIOLATION) return arquivar();
-          return erroPersistencia();
+          return erroDeEscrita(error);
         }
         // Nenhuma linha removida: id inexistente (ou sem permissão).
         if (!Array.isArray(data) || data.length === 0) return naoEncontrado();

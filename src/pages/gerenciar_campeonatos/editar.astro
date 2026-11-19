@@ -7,7 +7,8 @@ import { comBase } from "../../utils/url";
 
 // Edição de UM campeonato (?id=…) na área de gerenciamento: editar dados, arquivar
 // ou reativar e excluir. Mesmo controle de acesso de /gerenciar_campeonatos:
-// só administradores logados (guarda de interface + RLS).
+// administradores e organizadores logados (guarda de interface + RLS); o
+// organizador só edita campeonatos em que é dono.
 ---
 
 <Layout
@@ -33,12 +34,15 @@ import { comBase } from "../../utils/url";
   import { guardarAcesso } from "../../scripts/guarda";
   import { criarAuthStoreBrowser } from "../../store/authStore";
 
-  // A edição só inicia depois que a guarda libera o acesso (administrador).
-  void guardarAcesso({ store: criarAuthStoreBrowser() }).then((liberado) => {
+  // A edição só inicia depois que a guarda libera o acesso. Organizador: confere
+  // no banco se é dono deste campeonato antes de mostrar a edição.
+  let papel: "admin" | "organizador" = "admin";
+  void guardarAcesso({ store: criarAuthStoreBrowser(), permitir: ["admin", "organizador"], aoLiberar: (p) => { papel = p; } }).then((liberado) => {
     if (!liberado) return;
     void iniciarEdicao({
       store: criarCampeonatoStoreBrowser(),
       id: new URLSearchParams(window.location.search).get("id"),
+      verificarPosse: papel === "organizador",
       // Depois de excluir de vez, volta para a lista de GERENCIAMENTO.
       irParaLista: irParaGerenciarCampeonatos,
     });

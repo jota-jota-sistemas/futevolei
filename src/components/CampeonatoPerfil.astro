@@ -24,11 +24,34 @@ import CampeonatoForm from "./CampeonatoForm.astro";
         <ul class="pf-categorias" data-categorias-lista aria-label="Categorias do campeonato"></ul>
         <p class="categorias__ajuda">
           As categorias, as duplas e os chaveamentos são criados na organização do evento.
-          A página de organização só existe para este campeonato depois do próximo deploy.
         </p>
         <a class="gerenciar__botao categorias__link" data-organizar-link href="#">
           Ir para organizar
         </a>
+      </Cartao>
+
+      <Cartao titulo="Organizadores do evento" id="donos">
+        <p class="donos__estado" data-donos-estado role="status" hidden></p>
+        <ul class="pf-donos" data-donos-lista aria-label="Organizadores do evento"></ul>
+        <form class="donos__form" data-donos-form novalidate>
+          <label for="dono-email">Adicionar organizador (e-mail)</label>
+          <div class="donos__linha">
+            <input
+              id="dono-email"
+              name="email"
+              type="email"
+              maxlength="254"
+              autocomplete="off"
+              placeholder="pessoa@exemplo.com"
+              aria-describedby="dono-ajuda"
+            />
+            <button type="submit" class="btn-destaque" data-donos-adicionar>Adicionar</button>
+          </div>
+          <p class="donos__ajuda" id="dono-ajuda">
+            A pessoa precisa já ser organizadora: em Minha conta, “Quero ser organizador”.
+          </p>
+        </form>
+        <p class="donos__status" data-donos-status role="status" aria-live="polite" hidden></p>
       </Cartao>
 
       <Cartao titulo="Gerenciar" id="gerenciar">
@@ -129,6 +152,69 @@ import CampeonatoForm from "./CampeonatoForm.astro";
   .categorias__link {
     display: inline-block;
     text-decoration: none;
+  }
+
+  /* ---- Organizadores do evento ---- */
+  .donos__estado,
+  .donos__ajuda {
+    margin: 0 0 0.8rem;
+    font-size: 0.9rem;
+    color: var(--cor-texto-suave);
+  }
+
+  .donos__estado[hidden],
+  .donos__status[hidden] {
+    display: none;
+  }
+
+  .donos__form label {
+    display: block;
+    margin-bottom: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  .donos__linha {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .donos__linha input {
+    flex: 1 1 200px;
+    min-width: 0;
+    padding: 0.65rem 0.8rem;
+    border: 1px solid var(--cor-texto-suave);
+    border-radius: 12px;
+    background: var(--cor-superficie);
+    color: var(--cor-texto);
+    font-family: inherit;
+    font-size: 1rem;
+  }
+
+  .donos__linha input[aria-invalid="true"] {
+    border-color: var(--cor-erro);
+    border-width: 2px;
+  }
+
+  .donos__linha button[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .donos__ajuda {
+    margin: 0.5rem 0 0;
+  }
+
+  .donos__status {
+    margin: 0.8rem 0 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--cor-destaque-texto);
+  }
+
+  .donos__status[data-tipo="erro"] {
+    color: var(--cor-erro);
   }
 
   /* ---- Gerenciar ---- */
@@ -247,6 +333,55 @@ import CampeonatoForm from "./CampeonatoForm.astro";
     background: var(--cor-superficie);
     font-size: 0.85rem;
     font-weight: 600;
+  }
+
+  .pf-donos {
+    list-style: none;
+    margin: 0 0 1rem;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .pf-dono {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0.5rem 0.7rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 12px;
+    background: var(--cor-superficie);
+  }
+
+  .pf-dono__email {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-weight: 600;
+  }
+
+  .pf-dono__remover {
+    flex: none;
+    padding: 0.4rem 0.9rem;
+    border: 1.5px solid var(--cor-erro);
+    border-radius: 999px;
+    background: none;
+    color: var(--cor-erro);
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .pf-dono__remover:hover {
+    background: var(--cor-erro);
+    color: #ffffff;
+  }
+
+  .pf-dono__remover[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .pf-retentar {

@@ -31,6 +31,14 @@ export interface AuthStore {
   aoMudarSessao(ouvinte: (sessao: Sessao | null) => void): () => void;
   /** A conta logada é de um administrador? (consulta eh_admin() no banco) */
   eAdmin(): Promise<ResultadoAuth<boolean>>;
+  /** A conta logada é de um organizador? (consulta eh_organizador() no banco) */
+  eOrganizador(): Promise<ResultadoAuth<boolean>>;
+  /**
+   * Cadastra a conta logada como organizadora (qualquer conta logada pode, sem
+   * aprovação). O e-mail gravado é o da sessão; o banco confere com o do JWT.
+   * Idempotente: quem já é organizador recebe sucesso.
+   */
+  virarOrganizador(): Promise<ResultadoAuth<void>>;
   /** Perfil da conta logada (criado sob demanda se ainda não existir). */
   meuPerfil(): Promise<ResultadoAuth<Perfil | null>>;
   vincularJogador(jogadorId: string): Promise<ResultadoAuth<Perfil>>;
@@ -211,6 +219,33 @@ export function criarAuthStoreBrowser(
         return { ok: true, valor: data === true };
       } catch {
         return falha("FALHA_LEITURA");
+      }
+    },
+
+    async eOrganizador() {
+      try {
+        const c = await obterClient();
+        const sessao = await exigirSessao(c);
+        if (!sessao) return { ok: true, valor: false };
+        const { data, error } = await c.rpc("eh_organizador");
+        if (error) return falha("FALHA_LEITURA");
+        return { ok: true, valor: data === true };
+      } catch {
+        return falha("FALHA_LEITURA");
+      }
+    },
+
+    async virarOrganizador() {
+      try {
+        const c = await obterClient();
+        const sessao = await exigirSessao(c);
+        if (!sessao?.email) return falha("NAO_AUTENTICADO");
+        const { error } = await c.from("organizadores").insert({ email: sessao.email });
+        // Já era organizador: o resultado é o mesmo (idempotente).
+        if (error && !ehViolacaoUnicidade(error)) return falha("FALHA_PERSISTENCIA");
+        return { ok: true, valor: undefined };
+      } catch {
+        return falha("FALHA_PERSISTENCIA");
       }
     },
 
