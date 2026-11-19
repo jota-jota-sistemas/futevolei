@@ -377,10 +377,17 @@ function gerarDuplaEliminacao(input: GeneratorInput): GeneratorResult {
     const semiA = novoJogoFinal(1, 0); // G1 × P2
     const semiB = novoJogoFinal(1, 1); // G2 × P1
     const final = novoJogoFinal(2, 0);
+    // O sobrevivente da lower que G1 enfrenta é o do jogo que recebeu o
+    // perdedor de G2 (e vice-versa): ninguém reencontra, na semifinal, a dupla
+    // que acabou de eliminar. A posição da queda segue `posicaoDaQueda`.
+    const rUltima = upperPorRodada.length;
+    const quedaDeG1 = posicaoDaQueda(rUltima, 0, 2);
+    const p2 = ultimaLowerDe2[1 - quedaDeG1]; // recebeu o perdedor de G2
+    const p1 = ultimaLowerDe2[quedaDeG1]; // recebeu o perdedor de G1
     penultimaUpper[0].avancaVencedorPara = { matchId: semiA.id, slot: "a" };
-    ultimaLowerDe2[1].avancaVencedorPara = { matchId: semiA.id, slot: "b" };
+    p2.avancaVencedorPara = { matchId: semiA.id, slot: "b" };
     penultimaUpper[1].avancaVencedorPara = { matchId: semiB.id, slot: "a" };
-    ultimaLowerDe2[0].avancaVencedorPara = { matchId: semiB.id, slot: "b" };
+    p1.avancaVencedorPara = { matchId: semiB.id, slot: "b" };
     semiA.avancaVencedorPara = { matchId: final.id, slot: "a" };
     semiB.avancaVencedorPara = { matchId: final.id, slot: "b" };
     jogosFinais.push(semiA, semiB, final);
@@ -706,19 +713,33 @@ function ligarPerdedoresUpper(
     };
   });
 
-  // URr (r≥2) → rodada "maior" da lower, slot "b", 1:1.
-  // Usa o número REAL de rodadas da upper (na versão com semifinais cruzadas a
-  // final da upper não existe e seu perdedor não é encaminhado).
+  // URr (r≥2) → rodada "maior" da lower, slot "b", 1:1, em ordem CRUZADA (como
+  // o Challonge): quem perde na metade de cima da upper cai na metade de baixo
+  // da lower, e vice-versa, para adiar reencontros. Usa o número REAL de rodadas
+  // da upper (na versão com semifinais cruzadas a final da upper não existe e
+  // seu perdedor não é encaminhado).
   const k = upperPorRodada.length;
   for (let r = 2; r <= k; r++) {
     const ur = upperPorRodada[r - 1]; // 0-based
     const indiceLowerMaior = 2 * (r - 1) - 1; // 1,3,5,...
     const lowerMaior = lowerPorRodada[indiceLowerMaior];
     ur.forEach((jogo, idx) => {
-      const destino = lowerMaior[idx];
+      const destino = lowerMaior[posicaoDaQueda(r, idx, ur.length)];
       jogo.encaminhaPerdedorPara = { matchId: destino.id, slot: "b" };
     });
   }
+}
+
+/**
+ * Posição, na rodada "maior" da lower, do perdedor do jogo `idx` da rodada `r`
+ * (r ≥ 2) da upper, que tem `n` jogos. Alterna, como o Challonge:
+ *  - r par: ordem invertida (0↔n−1, 1↔n−2, …);
+ *  - r ímpar: troca de par em par (0↔1, 2↔3, …).
+ * Com n = 1 não há o que cruzar; com n = 2 as duas regras coincidem.
+ */
+export function posicaoDaQueda(r: number, idx: number, n: number): number {
+  if (n <= 1) return 0;
+  return r % 2 === 0 ? n - 1 - idx : idx ^ 1;
 }
 
 // ---------------------------------------------------------------------------
