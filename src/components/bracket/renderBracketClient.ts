@@ -42,6 +42,7 @@ import {
   chaveSlot,
   origemDosSlots,
   rotuloOrigem,
+  origemEfetiva,
   type OrigemSlot,
 } from "../../domain/bracket/origem";
 
@@ -166,14 +167,24 @@ function resolverSlot(
   };
 }
 
+/** Origem a exibir numa vaga, pulando jogos de BYE (ocultos e sem número). */
+function origemDoSlot(
+  matchId: string,
+  lado: "a" | "b",
+  origens?: Map<string, OrigemSlot>,
+): OrigemSlot | undefined {
+  const bruta = origens?.get(chaveSlot(matchId, lado));
+  if (!bruta || !origens) return bruta;
+  return origemEfetiva(bruta, origens) ?? undefined;
+}
 function renderMatchCard(
   match: Match,
   duplasPorId: DuplasPorId,
   opcoes?: RenderOpcoes,
   origens?: Map<string, OrigemSlot>,
 ): HTMLElement {
-  const slotA = resolverSlot(match.a, match, duplasPorId, origens?.get(chaveSlot(match.id, "a")));
-  const slotB = resolverSlot(match.b, match, duplasPorId, origens?.get(chaveSlot(match.id, "b")));
+  const slotA = resolverSlot(match.a, match, duplasPorId, origemDoSlot(match.id, "a", origens));
+  const slotB = resolverSlot(match.b, match, duplasPorId, origemDoSlot(match.id, "b", origens));
 
   const ambasDefinidas = slotA.pairId !== null && slotB.pairId !== null;
   const temVencedor = match.vencedorId !== null;

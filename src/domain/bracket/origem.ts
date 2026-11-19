@@ -58,3 +58,28 @@ export function rotuloOrigem(origem: OrigemSlot): string {
   if (j.side === "grande-final") return `${papel} da semifinal ${j.ordem + 1}`;
   return `${papel} da ${NOME_SIDE[j.side]}, rodada ${j.rodada}, jogo ${j.ordem + 1}`;
 }
+
+/**
+ * Origem EFETIVA de uma vaga: se a origem é o VENCEDOR de um jogo de BYE (não
+ * disputado, oculto e sem número), quem chega é a dupla do outro slot desse jogo.
+ * Segue essa cadeia até um jogo de verdade. Devolve `null` se o jogo de BYE não
+ * tiver de onde receber dupla (ambos os slots BYE).
+ */
+export function origemEfetiva(
+  origem: OrigemSlot,
+  origens: Map<string, OrigemSlot>,
+): OrigemSlot | null {
+  let atual = origem;
+  for (let i = 0; i < 64; i++) {
+    const j = atual.jogo;
+    const temBye = j.a.bye === true || j.b.bye === true;
+    if (atual.tipo !== "vencedor" || !temBye) return atual;
+    const lado: "a" | "b" | null =
+      j.a.bye !== true ? "a" : j.b.bye !== true ? "b" : null;
+    if (lado === null) return null;
+    const proxima = origens.get(chaveSlot(j.id, lado));
+    if (!proxima) return atual;
+    atual = proxima;
+  }
+  return atual;
+}
