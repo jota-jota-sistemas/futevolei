@@ -175,17 +175,20 @@ const FORM = `
   <form data-campeonato-form novalidate>
     ${campoTexto("nome")}
     <input name="data" type="date" /><p data-erro="data" hidden></p>
-    <input name="dataFim" type="date" /><p data-erro="dataFim" hidden></p>
-    ${campoTexto("cidade")}
-    <select name="uf"><option value="">—</option><option value="SP">SP</option><option value="RJ">RJ</option></select>
-    <p data-erro="uf" hidden></p>
-    ${campoTexto("endereco")}
-    ${campoTexto("preco")}
-    ${campoTexto("precoTexto")}
-    ${campoTexto("inscricao")}
-    ${campoTexto("instagram")}
-    <textarea name="descricao"></textarea><p data-erro="descricao" hidden></p>
-    <input type="checkbox" name="listado" checked />
+    <details data-detalhes>
+      <summary><span>Mais detalhes</span> <span data-detalhes-resumo></span></summary>
+      <input name="dataFim" type="date" /><p data-erro="dataFim" hidden></p>
+      ${campoTexto("cidade")}
+      <select name="uf"><option value="">—</option><option value="SP">SP</option><option value="RJ">RJ</option></select>
+      <p data-erro="uf" hidden></p>
+      ${campoTexto("endereco")}
+      ${campoTexto("preco")}
+      <input type="checkbox" name="precoAConfirmar" />
+      ${campoTexto("inscricao")}
+      ${campoTexto("instagram")}
+      <textarea name="descricao"></textarea><p data-erro="descricao" hidden></p>
+      <input type="checkbox" name="listado" checked />
+    </details>
     <p data-status hidden></p>
     <button type="submit" data-enviar>Enviar</button>
   </form>`;
@@ -193,7 +196,7 @@ const FORM = `
 const montarLista = () => {
   document.body.innerHTML = `
     <input type="search" data-busca />
-    <input type="checkbox" data-mostrar-arquivados />
+    <div data-filtros-estado></div>
     <p data-contador-campeonatos></p>
     <p data-estado-lista></p>
     <ul data-lista></ul>
@@ -206,7 +209,6 @@ const montarEdicao = () => {
     <div data-perfil hidden>
       <p data-perfil-nome></p><p data-perfil-periodo></p><p data-perfil-local hidden></p>
       <div data-perfil-chips></div>
-      <p data-categorias-estado></p><ul data-categorias-lista></ul>
       <p data-donos-estado hidden></p><ul data-donos-lista></ul>
       <form data-donos-form novalidate>
         <input name="email" type="email" /><button type="submit" data-donos-adicionar>Adicionar</button>
@@ -265,16 +267,23 @@ describe("lista de campeonatos (área de gerenciamento)", () => {
     ]);
   });
 
-  it("carrega todos (inclusive arquivados) e mostra só os ativos, mais recentes primeiro, com contador", async () => {
-    await iniciarLista({ store });
+  // "Hoje" fixo: tudo que é ativo está no futuro (Açaí 10/10, Oculto 01/11, Copa 05/12).
+  const HOJE = () => "2026-09-01";
+  const iniciarL = (extra: Partial<Parameters<typeof iniciarLista>[0]> = {}) =>
+    iniciarLista({ store, hoje: HOJE, armazenamento: null, ...extra });
+  const chipFiltro = (valor: string) => $<HTMLButtonElement>(`[data-filtros-estado] [data-filtro="${valor}"]`);
+  const escolherFiltro = (valor: string) => chipFiltro(valor).click();
+
+  it("carrega todos (inclusive arquivados) e mostra os próximos, do mais perto ao mais longe, com contador", async () => {
+    await iniciarL();
     expect(store.listar).toHaveBeenCalledWith({ incluirArquivados: true });
-    expect(nomesNaLista()).toEqual(["Copa Cabeça", "Evento Oculto", "Açaí Open"]);
+    expect(nomesNaLista()).toEqual(["Açaí Open", "Evento Oculto", "Copa Cabeça"]);
     expect($("[data-contador-campeonatos]").textContent).toBe("3 campeonatos");
     expect($("[data-estado-lista]").hidden).toBe(true);
   });
 
   it("cada item leva à edição pelo id e mostra período e cidade/UF", async () => {
-    await iniciarLista({ store });
+    await iniciarL();
     const copa = todos(".cl-item").find((a) => a.textContent?.includes("Copa"))!;
     expect(copa.getAttribute("href")).toContain("/gerenciar_campeonatos/editar?id=copa-2026");
     expect(copa.querySelector(".cl-sub")!.textContent).toContain("Santos/SP");
@@ -282,42 +291,168 @@ describe("lista de campeonatos (área de gerenciamento)", () => {
     expect(acai.querySelector(".cl-sub")!.textContent).toMatch(/01 a 03 de outubro de 2026/);
   });
 
-  it("cada campeonato ativo tem o atalho 'Organizar' (ao lado do link de edição); arquivado não tem", async () => {
-    await iniciarLista({ store });
-    const linhas = todos(".cl-linha");
-    expect(linhas).toHaveLength(3);
-    const copa = linhas.find((li) => li.textContent?.includes("Copa"))!;
-    const organizar = copa.querySelector<HTMLAnchorElement>(".cl-organizar")!;
-    expect(organizar.getAttribute("href")).toBe("/campeonatos/copa-2026/organizar");
-    expect(organizar.textContent).toBe("Organizar");
-    expect(organizar.getAttribute("aria-label")).toBe("Organizar Copa Cabeça");
-    // O link principal continua levando à edição, e não há link dentro de link.
-    expect(copa.querySelector(".cl-item")!.getAttribute("href")).toContain("/gerenciar_campeonatos/editar?id=copa-2026");
-    expect(copa.querySelector(".cl-item .cl-organizar")).toBeNull();
+  describe("filtros por situação", () => {
+    it("chips com a contagem de cada um; 'Próximos' começa marcado", async () => {
+      await iniciarL();
+      expect(todos("[data-filtros-estado] .cl-filtro").map((b) => b.textContent)).toEqual([
+        "Próximos (3)",
+        "Passados (0)",
+        "Arquivados (1)",
+        "Todos (4)",
+      ]);
+      expect(chipFiltro("proximos").getAttribute("aria-pressed")).toBe("true");
+      expect(chipFiltro("passados").getAttribute("aria-pressed")).toBe("false");
+    });
 
-    const check = $<HTMLInputElement>("[data-mostrar-arquivados]");
-    check.checked = true;
-    check.dispatchEvent(new Event("change"));
-    const antigo = todos(".cl-linha").find((li) => li.textContent?.includes("Antigo"))!;
-    expect(antigo.querySelector(".cl-organizar")).toBeNull();
+    it("'Arquivados' mostra os arquivados com a marca (e só eles)", async () => {
+      await iniciarL();
+      escolherFiltro("arquivados");
+      expect(nomesNaLista()).toEqual(["Torneio Antigo"]);
+      const antigo = todos(".cl-item")[0];
+      expect(antigo.textContent).toContain("Arquivado");
+      expect(chipFiltro("arquivados").getAttribute("aria-pressed")).toBe("true");
+      expect($("[data-contador-campeonatos]").textContent).toBe("1 campeonato");
+    });
+
+    it("'Todos' junta tudo; filtro vazio explica e aponta para os outros", async () => {
+      await iniciarL();
+      escolherFiltro("todos");
+      expect(nomesNaLista()).toHaveLength(4);
+      escolherFiltro("passados");
+      expect(nomesNaLista()).toEqual([]);
+      expect($("[data-estado-lista]").hidden).toBe(false);
+      expect($("[data-estado-lista]").textContent).toContain("Nenhum campeonato em “Passados”");
+    });
+
+    it("se não há nenhum próximo, abre em 'Todos' (nunca numa tela vazia)", async () => {
+      await iniciarL({ hoje: () => "2027-06-01" }); // tudo já passou
+      expect(chipFiltro("todos").getAttribute("aria-pressed")).toBe("true");
+      expect(nomesNaLista().length).toBeGreaterThan(0);
+    });
+
+    it("a busca vale dentro do filtro escolhido", async () => {
+      await iniciarL();
+      escolherFiltro("todos");
+      digitarBusca("antigo");
+      expect(nomesNaLista()).toEqual(["Torneio Antigo"]);
+    });
+
+    it("marca 'Hoje' no que está acontecendo (inclusive no meio de um evento de vários dias)", async () => {
+      await iniciarL({ hoje: () => "2026-10-02" }); // meio do Açaí (01 a 03/10)
+      const acai = todos(".cl-item").find((a) => a.textContent?.includes("Açaí"))!;
+      expect(acai.querySelector(".cl-chip--hoje")!.textContent).toBe("Hoje");
+      const copa = todos(".cl-item").find((a) => a.textContent?.includes("Copa"))!;
+      expect(copa.querySelector(".cl-chip--hoje")).toBeNull();
+    });
+
+    it("marca os ocultos na home", async () => {
+      await iniciarL();
+      const oculto = todos(".cl-item").find((a) => a.textContent?.includes("Oculto"))!;
+      expect(oculto.textContent).toContain("Oculto na home");
+    });
   });
 
-  it("marca os ocultos na home e, ao pedir, mostra os arquivados com a marca", async () => {
-    await iniciarLista({ store });
-    const oculto = todos(".cl-item").find((a) => a.textContent?.includes("Oculto"))!;
-    expect(oculto.textContent).toContain("Oculto na home");
+  describe("ações de cada linha", () => {
+    const linhaDe = (parte: string) => todos(".cl-linha").find((li) => li.textContent?.includes(parte))!;
 
-    const check = $<HTMLInputElement>("[data-mostrar-arquivados]");
-    check.checked = true;
-    check.dispatchEvent(new Event("change"));
-    expect(nomesNaLista()).toContain("Torneio Antigo");
-    const antigo = todos(".cl-item").find((a) => a.textContent?.includes("Antigo"))!;
-    expect(antigo.textContent).toContain("Arquivado");
-    expect($("[data-contador-campeonatos]").textContent).toBe("4 campeonatos");
+    it("sem o progresso carregado: 'Organizar' e 'Duplicar' em cada campeonato ativo; link de edição sem link dentro de link", async () => {
+      await iniciarL();
+      const copa = linhaDe("Copa");
+      const organizar = copa.querySelector<HTMLAnchorElement>(".cl-organizar")!;
+      expect(organizar.getAttribute("href")).toBe("/campeonatos/copa-2026/organizar");
+      expect(organizar.textContent).toBe("Organizar");
+      expect(organizar.getAttribute("aria-label")).toBe("Organizar Copa Cabeça");
+      expect(copa.querySelector(".cl-item")!.getAttribute("href")).toContain("/gerenciar_campeonatos/editar?id=copa-2026");
+      expect(copa.querySelector(".cl-item .cl-organizar")).toBeNull();
+      const duplicar = copa.querySelector<HTMLAnchorElement>(".cl-duplicar")!;
+      expect(duplicar.getAttribute("href")).toBe("/gerenciar_campeonatos/editar?id=copa-2026#duplicar");
+      expect(duplicar.getAttribute("aria-label")).toBe("Duplicar Copa Cabeça");
+    });
+
+    it("arquivado não tem 'Organizar' (a página não existe), mas pode ser duplicado", async () => {
+      await iniciarL();
+      escolherFiltro("arquivados");
+      const antigo = linhaDe("Antigo");
+      expect(antigo.querySelector(".cl-organizar")).toBeNull();
+      expect(antigo.querySelector(".cl-duplicar")).not.toBeNull();
+    });
+  });
+
+  describe("progresso de cada evento", () => {
+    const zero = { categorias: 0, duplas: 0, chaveamentos: 0, jogos: 0, concluidos: 0, nomesCategorias: [] as string[] };
+    const progressoCom = (valor: Record<string, typeof zero>) => ({
+      carregar: vi.fn(async () => ({ ok: true as const, valor })),
+    });
+    const linhaDe = (parte: string) => todos(".cl-linha").find((li) => li.textContent?.includes(parte))!;
+
+    it("pede o progresso UMA vez, em lote, só dos ativos, e mostra o rótulo na linha", async () => {
+      const progressoStore = progressoCom({
+        "copa-2026": { ...zero, categorias: 3, duplas: 24, chaveamentos: 3, jogos: 18, concluidos: 5, nomesCategorias: ["A", "B", "C"] },
+      });
+      await iniciarL({ progressoStore });
+      await tick();
+      expect(progressoStore.carregar).toHaveBeenCalledTimes(1);
+      expect([...progressoStore.carregar.mock.calls[0][0]].sort()).toEqual(["acai-2026", "copa-2026", "oculto-2026"]);
+      expect(linhaDe("Copa").querySelector(".cl-progresso")!.textContent).toBe(
+        "3 categorias · 24 duplas · chaveamento gerado · 5/18 jogos"
+      );
+    });
+
+    it("sem categorias: a ação vira 'Criar categorias' e leva direto ao editor de categorias", async () => {
+      await iniciarL({ progressoStore: progressoCom({ "copa-2026": zero }) });
+      await tick();
+      const a = linhaDe("Copa").querySelector<HTMLAnchorElement>(".cl-organizar")!;
+      expect(a.textContent).toBe("Criar categorias");
+      expect(a.getAttribute("href")).toBe("/gerenciar_campeonatos/editar?id=copa-2026#categorias");
+      expect(linhaDe("Copa").querySelector(".cl-progresso")!.textContent).toBe("Sem categorias");
+    });
+
+    it("em andamento com UMA categoria: 'Continuar' vai direto à categoria; com várias, ao índice", async () => {
+      await iniciarL({
+        progressoStore: progressoCom({
+          "copa-2026": { ...zero, categorias: 1, duplas: 8, chaveamentos: 1, jogos: 7, concluidos: 2, nomesCategorias: ["Feminino Iniciante"] },
+          "acai-2026": { ...zero, categorias: 2, duplas: 8, chaveamentos: 2, jogos: 7, concluidos: 2, nomesCategorias: ["Open", "Master"] },
+        }),
+      });
+      await tick();
+      const copa = linhaDe("Copa").querySelector<HTMLAnchorElement>(".cl-organizar")!;
+      expect(copa.textContent).toBe("Continuar");
+      expect(copa.getAttribute("href")).toBe("/campeonatos/copa-2026/organizar/feminino-iniciante");
+      const acai = linhaDe("Açaí").querySelector<HTMLAnchorElement>(".cl-organizar")!;
+      expect(acai.textContent).toBe("Continuar");
+      expect(acai.getAttribute("href")).toBe("/campeonatos/acai-2026/organizar");
+    });
+
+    it("sem duplas ou sem chaveamento: 'Organizar' (ao índice, ou direto à única categoria)", async () => {
+      await iniciarL({
+        progressoStore: progressoCom({
+          "copa-2026": { ...zero, categorias: 1, duplas: 0, nomesCategorias: ["Open"] },
+        }),
+      });
+      await tick();
+      const a = linhaDe("Copa").querySelector<HTMLAnchorElement>(".cl-organizar")!;
+      expect(a.textContent).toBe("Organizar");
+      expect(a.getAttribute("href")).toBe("/campeonatos/copa-2026/organizar/open");
+    });
+
+    it("falha ao ler o progresso: a lista continua igual, sem erro na tela", async () => {
+      const progressoStore = { carregar: vi.fn(async () => ({ ok: false as const, erro: { code: "FALHA_LEITURA" as const } })) };
+      await iniciarL({ progressoStore });
+      await tick();
+      expect(nomesNaLista()).toHaveLength(3);
+      expect($("[data-estado-lista]").hidden).toBe(true);
+      expect(document.querySelector(".cl-progresso")).toBeNull();
+    });
+
+    it("sem a store de progresso: funciona como antes", async () => {
+      await iniciarL();
+      await tick();
+      expect(nomesNaLista()).toHaveLength(3);
+    });
   });
 
   it("a busca filtra sem acento e mostra 'x de y'; sem resultado mostra o aviso", async () => {
-    await iniciarLista({ store });
+    await iniciarL();
     digitarBusca("acai");
     expect(nomesNaLista()).toEqual(["Açaí Open"]);
     expect($("[data-contador-campeonatos]").textContent).toBe("1 de 3 campeonatos");
@@ -329,13 +464,13 @@ describe("lista de campeonatos (área de gerenciamento)", () => {
 
   it("sem campeonatos: aviso de lista vazia", async () => {
     store.itens = [];
-    await iniciarLista({ store });
+    await iniciarL();
     expect($("[data-estado-lista]").textContent).toContain("Nenhum campeonato cadastrado");
   });
 
   it("falha de leitura: mostra o erro e 'Tentar novamente' recarrega", async () => {
     store.falharListar = 1;
-    await iniciarLista({ store });
+    await iniciarL();
     expect($("[data-estado-lista]").textContent).toContain("Não foi possível carregar");
     expect(todos(".cl-item")).toHaveLength(0);
     clicar(".cl-retentar");
@@ -345,16 +480,16 @@ describe("lista de campeonatos (área de gerenciamento)", () => {
 
   it("texto malicioso no nome é exibido como texto (sem HTML)", async () => {
     store.itens.push(camp({ id: "x", nome: "<img src=x onerror=alert(1)>", data: "2027-01-01" }));
-    await iniciarLista({ store });
+    await iniciarL();
     expect(document.querySelector("img")).toBeNull();
-    expect(nomesNaLista()[0]).toBe("<img src=x onerror=alert(1)>");
+    expect(nomesNaLista().at(-1)).toBe("<img src=x onerror=alert(1)>"); // o mais distante vai ao fim
   });
 
   describe("organizador (apenasMeus)", () => {
     it("lista só os campeonatos dele (listarMeus, nunca listar) e troca o título", async () => {
       document.body.insertAdjacentHTML("beforeend", `<h2 id="lista-campeonatos-titulo">Todos os campeonatos</h2>`);
       store.meusIds = ["acai-2026", "velho-2025"];
-      await iniciarLista({ store, apenasMeus: true });
+      await iniciarL({ apenasMeus: true });
       expect(store.listarMeus).toHaveBeenCalledWith({ incluirArquivados: true });
       expect(store.listar).not.toHaveBeenCalled();
       expect(nomesNaLista()).toEqual(["Açaí Open"]); // o arquivado só com o filtro
@@ -364,20 +499,36 @@ describe("lista de campeonatos (área de gerenciamento)", () => {
 
     it("sem campeonatos dele: aviso próprio", async () => {
       store.meusIds = [];
-      await iniciarLista({ store, apenasMeus: true });
+      await iniciarL({ apenasMeus: true });
       expect($("[data-estado-lista]").textContent).toContain("Você ainda não tem campeonatos");
     });
 
     it("administrador (padrão) segue vendo todos pela listar", async () => {
-      await iniciarLista({ store });
+      await iniciarL();
       expect(store.listar).toHaveBeenCalled();
       expect(store.listarMeus).not.toHaveBeenCalled();
     });
   });
 
   describe("cadastro", () => {
+    const irPara = vi.fn();
+    /** Armazenamento do "último local" em memória (nada de localStorage real entre testes). */
+    const memoria = () => {
+      const dados = new Map<string, string>();
+      return {
+        dados,
+        getItem: (k: string) => dados.get(k) ?? null,
+        setItem: (k: string, v: string) => void dados.set(k, v),
+      };
+    };
+    const iniciarCad = (extra: Partial<Parameters<typeof iniciarLista>[0]> = {}) =>
+      iniciarLista({ store, irPara, armazenamento: null, hoje: () => "2026-09-01", ...extra });
+    const detalhes = () => $<HTMLDetailsElement>("[data-detalhes]");
+
+    beforeEach(() => irPara.mockClear());
+
     it("dados inválidos: mostra o erro no campo e NÃO chama a store", async () => {
-      await iniciarLista({ store });
+      await iniciarCad();
       preencher("nome", "  ");
       preencher("data", "2026-12-05");
       enviar();
@@ -386,10 +537,29 @@ describe("lista de campeonatos (área de gerenciamento)", () => {
       expect(erroDe("nome").hidden).toBe(false);
       expect(erroDe("nome").textContent).toContain("nome do campeonato");
       expect(campo("nome").getAttribute("aria-invalid")).toBe("true");
+      expect(irPara).not.toHaveBeenCalled();
     });
 
-    it("data final anterior ao início: erro no campo da data final", async () => {
-      await iniciarLista({ store });
+    it("TODOS os erros aparecem de uma vez e o bloco 'Mais detalhes' abre sozinho", async () => {
+      await iniciarCad();
+      expect(detalhes().open).toBe(false);
+      preencher("nome", "");
+      preencher("data", "2026-12-05");
+      preencher("dataFim", "2026-12-01");
+      preencher("inscricao", "movisport");
+      enviar();
+      await tick();
+      expect(store.criar).not.toHaveBeenCalled();
+      for (const c of ["nome", "dataFim", "inscricao"]) {
+        expect(erroDe(c).hidden, c).toBe(false);
+        expect(campo(c).getAttribute("aria-invalid"), c).toBe("true");
+      }
+      expect(erroDe("data").hidden).toBe(true); // só o que está errado
+      expect(detalhes().open).toBe(true);
+    });
+
+    it("erro só em campo de dentro do bloco fechado: o bloco abre", async () => {
+      await iniciarCad();
       preencher("nome", "Novo");
       preencher("data", "2026-12-05");
       preencher("dataFim", "2026-12-01");
@@ -397,40 +567,104 @@ describe("lista de campeonatos (área de gerenciamento)", () => {
       await tick();
       expect(store.criar).not.toHaveBeenCalled();
       expect(erroDe("dataFim").hidden).toBe(false);
+      expect(detalhes().open).toBe(true);
     });
 
-    it("sucesso: entra na lista, limpa o formulário (listado volta a ligado) e avisa", async () => {
-      await iniciarLista({ store });
+    it("sucesso: entra na lista, limpa o formulário e VAI DIRETO às categorias do evento novo", async () => {
+      await iniciarCad();
       preencher("nome", "Copa Nova");
       preencher("data", "2027-02-01");
       preencher("cidade", "Santos");
       preencher("uf", "SP");
-      preencher("preco", "R$ 160,00");
+      preencher("preco", "160");
       campo("listado").checked = false;
       enviar();
       await tick();
 
       expect(store.criar).toHaveBeenCalledTimes(1);
       expect(store.criar.mock.calls[0][0]).toMatchObject({
-        nome: "Copa Nova", data: "2027-02-01", cidade: "Santos", uf: "SP", preco: "R$ 160,00", listado: false,
+        nome: "Copa Nova", data: "2027-02-01", cidade: "Santos", uf: "SP", preco: "160", precoTexto: "R$ 160,00", listado: false,
       });
-      expect(nomesNaLista()[0]).toBe("Copa Nova"); // data mais recente, vai ao topo
-      expect(todos(".cl-item")[0].textContent).toContain("Oculto na home");
+      expect(nomesNaLista().at(-1)).toBe("Copa Nova"); // o mais distante vai ao fim
+      expect(todos(".cl-item").at(-1)!.textContent).toContain("Oculto na home");
       expect(campo("nome").value).toBe("");
       expect(campo("listado").checked).toBe(true);
-      expect(status().hidden).toBe(false);
       expect(status().textContent).toContain("Copa Nova foi cadastrado");
-      // Segue em um clique: "Editar" e "Organizar" do campeonato recém-criado.
-      const links = Array.from(status().querySelectorAll<HTMLAnchorElement>("a"));
-      expect(links.map((a) => a.textContent)).toEqual(["Editar", "Organizar"]);
-      expect(links[0].getAttribute("href")).toContain("/gerenciar_campeonatos/editar?id=novo-");
-      expect(links[1].getAttribute("href")).toMatch(/^\/campeonatos\/novo-\d+\/organizar$/);
+      expect(irPara).toHaveBeenCalledTimes(1);
+      expect(irPara.mock.calls[0][0]).toMatch(/^\/gerenciar_campeonatos\/editar\?id=novo-\d+#categorias$/);
       expect(store.listar).toHaveBeenCalledTimes(1); // sem nova leitura
     });
 
-    it("falha de persistência: mostra o erro geral e mantém o que foi digitado", async () => {
+    it("preço: um campo só (o texto exibível é derivado) e 'Valor a confirmar' sem preço", async () => {
+      await iniciarCad();
+      preencher("nome", "A");
+      preencher("data", "2027-02-01");
+      preencher("preco", "1.500,5");
+      enviar();
+      await tick();
+      expect(store.criar.mock.calls[0][0]).toMatchObject({ preco: "1.500,5", precoTexto: "R$ 1.500,50" });
+
+      montarLista();
+      await iniciarCad();
+      preencher("nome", "B");
+      preencher("data", "2027-02-02");
+      preencher("preco", "99"); // ignorado: a caixa manda
+      (campo("precoAConfirmar") as HTMLInputElement).checked = true;
+      enviar();
+      await tick();
+      expect(store.criar.mock.calls[1][0]).toMatchObject({ preco: "", precoTexto: "Valor a confirmar" });
+    });
+
+    it("link de inscrição sem https:// é aceito e gravado com o esquema", async () => {
+      await iniciarCad();
+      preencher("nome", "Copa");
+      preencher("data", "2027-02-01");
+      preencher("inscricao", "movisport.pro/copa");
+      enviar();
+      await tick();
+      expect(erroDe("inscricao").hidden).toBe(true);
+      expect(store.itens.at(-1)!.inscricao).toBe("https://movisport.pro/copa");
+    });
+
+    it("lembra cidade e UF do último evento: o próximo cadastro já vem preenchido", async () => {
+      const mem = memoria();
+      await iniciarCad({ armazenamento: mem });
+      expect(campo("cidade").value).toBe("");
+      preencher("nome", "Copa");
+      preencher("data", "2027-02-01");
+      preencher("cidade", "Santos");
+      preencher("uf", "SP");
+      enviar();
+      await tick();
+      expect(JSON.parse(mem.dados.get("pingo:ultimo-local")!)).toEqual({ cidade: "Santos", uf: "SP" });
+
+      montarLista();
+      await iniciarCad({ armazenamento: mem });
+      expect(campo("cidade").value).toBe("Santos");
+      expect(campo("uf").value).toBe("SP");
+      // O resumo ao lado de "Mais detalhes" mostra o que está valendo, com o bloco fechado.
+      expect($("[data-detalhes-resumo]").textContent).toBe("(Santos/SP)");
+      expect(detalhes().open).toBe(false);
+    });
+
+    it("sem cidade nem UF não grava nada; armazenamento corrompido é ignorado", async () => {
+      const mem = memoria();
+      await iniciarCad({ armazenamento: mem });
+      preencher("nome", "Copa");
+      preencher("data", "2027-02-01");
+      enviar();
+      await tick();
+      expect(mem.dados.size).toBe(0);
+
+      montarLista();
+      mem.dados.set("pingo:ultimo-local", "{isso não é json");
+      await expect(iniciarCad({ armazenamento: mem })).resolves.toBeUndefined();
+      expect(campo("cidade").value).toBe("");
+    });
+
+    it("falha de persistência: mostra o erro geral, mantém o que foi digitado e NÃO navega", async () => {
       store.falharCriar = true;
-      await iniciarLista({ store });
+      await iniciarCad();
       preencher("nome", "Copa Nova");
       preencher("data", "2027-02-01");
       enviar();
@@ -439,6 +673,7 @@ describe("lista de campeonatos (área de gerenciamento)", () => {
       expect(status().textContent).toContain("Falha ao salvar");
       expect(campo("nome").value).toBe("Copa Nova");
       expect($<HTMLButtonElement>("[data-enviar]").disabled).toBe(false);
+      expect(irPara).not.toHaveBeenCalled();
     });
   });
 });
@@ -485,8 +720,6 @@ describe("edição de campeonato (área de gerenciamento)", () => {
     expect($("[data-perfil-local]").textContent).toBe("Praia do Gonzaga · Santos/SP");
     expect($("[data-perfil-chips]").textContent).toContain("Oculto na home");
     expect($("[data-perfil-chips]").textContent).not.toContain("Origem");
-    expect(todos("[data-categorias-lista] li").map((e) => e.textContent)).toEqual(["Amador", "Open"]);
-    expect($("[data-categorias-estado]").hidden).toBe(true);
     expect($<HTMLAnchorElement>("[data-organizar-link]").getAttribute("href")).toContain("/campeonatos/copa-2026/organizar");
 
     expect(campo("nome").value).toBe("Copa Cabeça");
@@ -494,7 +727,7 @@ describe("edição de campeonato (área de gerenciamento)", () => {
     expect(campo("dataFim").value).toBe("2026-12-06");
     expect(campo("uf").value).toBe("SP");
     expect(campo("preco").value).toBe("160,5");
-    expect(campo("precoTexto").value).toBe("R$ 160,50");
+    expect((campo("precoAConfirmar") as HTMLInputElement).checked).toBe(false);
     expect(campo("listado").checked).toBe(false);
     expect($("[data-arquivar]").textContent).toBe("Arquivar campeonato");
   });
@@ -643,11 +876,24 @@ describe("edição de campeonato (área de gerenciamento)", () => {
     });
   });
 
-  it("sem categorias: mostra o aviso no lugar da lista", async () => {
-    await iniciar("sem-cat-2026");
-    expect($("[data-categorias-estado]").hidden).toBe(false);
-    expect($("[data-categorias-estado]").textContent).toContain("Nenhuma categoria");
-    expect(todos("[data-categorias-lista] li")).toHaveLength(0);
+  it("liga o editor de categorias do evento aberto (e só quando a store de categorias é dada)", async () => {
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      `<div data-categorias-editor><p data-cat-estado></p><ul data-cat-lista></ul></div>`
+    );
+    const categoriaStore = {
+      listar: vi.fn(async () => ({ ok: true, valor: [{ id: "c1", nome: "Open", duplas: 0 }] })),
+    };
+    await iniciarEdicao({ store, id: "copa-2026", irParaLista, categoriaStore: categoriaStore as never });
+    await tick();
+    expect(categoriaStore.listar).toHaveBeenCalledWith("copa-2026");
+    expect(todos("[data-cat-lista] .cat-item")).toHaveLength(1);
+
+    // Sem a store de categorias, nada é ligado.
+    categoriaStore.listar.mockClear();
+    await iniciar();
+    await tick();
+    expect(categoriaStore.listar).not.toHaveBeenCalled();
   });
 
   it("id ausente, inexistente e falha de leitura (com tentar novamente)", async () => {
@@ -689,7 +935,6 @@ describe("edição de campeonato (área de gerenciamento)", () => {
     expect($("[data-perfil-nome]").textContent).toBe("Copa Renomeada");
     expect($("[data-perfil-chips]").textContent).toContain("Visível na home");
     expect(campo("nome").value).toBe("Copa Renomeada");
-    expect(todos("[data-categorias-lista] li")).toHaveLength(2);
     expect(status().textContent).toBe("Alterações salvas.");
   });
 
@@ -749,5 +994,73 @@ describe("edição de campeonato (área de gerenciamento)", () => {
     clicar("[data-cancelar-exclusao]");
     expect($("[data-confirmacao-exclusao]").hidden).toBe(true);
     expect(store.excluir).not.toHaveBeenCalled();
+  });
+});
+
+// ===========================================================================
+// Edição: preço em um campo só (o texto exibível é derivado, sem perder o que já existia)
+// ===========================================================================
+
+describe("edição: preço único", () => {
+  const irParaLista = vi.fn();
+
+  function montarComEvento(parcial: Partial<CampeonatoDetalhe>) {
+    montarEdicao();
+    const store = new FakeStore([camp({ id: "copa-2026", nome: "Copa", ...parcial })]);
+    return store;
+  }
+  const salvarEdicao = async (store: FakeStore) => {
+    await iniciarEdicao({ store, id: "copa-2026", irParaLista });
+    enviar();
+    await tick();
+    return store.atualizar.mock.calls[0][1];
+  };
+
+  it("preço e texto iguais ao original: o texto livre que já existia é preservado", async () => {
+    const entrada = await salvarEdicao(montarComEvento({ preco: 160, precoTexto: "R$ 160 por dupla" }));
+    expect(entrada).toMatchObject({ preco: "160", precoTexto: "R$ 160 por dupla" });
+  });
+
+  it("preço alterado: o texto é derivado do novo valor", async () => {
+    const store = montarComEvento({ preco: 160, precoTexto: "R$ 160 por dupla" });
+    await iniciarEdicao({ store, id: "copa-2026", irParaLista });
+    preencher("preco", "200,5");
+    enviar();
+    await tick();
+    expect(store.atualizar.mock.calls[0][1]).toMatchObject({ preco: "200,5", precoTexto: "R$ 200,50" });
+  });
+
+  it("preço apagado: o texto antigo não fica órfão", async () => {
+    const store = montarComEvento({ preco: 160, precoTexto: "R$ 160,00" });
+    await iniciarEdicao({ store, id: "copa-2026", irParaLista });
+    preencher("preco", "");
+    enviar();
+    await tick();
+    expect(store.atualizar.mock.calls[0][1]).toMatchObject({ preco: "", precoTexto: "" });
+  });
+
+  it("sem preço e com texto livre (ex.: Gratuito): o texto continua", async () => {
+    const entrada = await salvarEdicao(montarComEvento({ preco: null, precoTexto: "Gratuito" }));
+    expect(entrada).toMatchObject({ preco: "", precoTexto: "Gratuito" });
+  });
+
+  it("'Valor a confirmar' vem marcado e, ao desmarcar, o texto some (não é preservado)", async () => {
+    const store = montarComEvento({ preco: null, precoTexto: "Valor a confirmar" });
+    await iniciarEdicao({ store, id: "copa-2026", irParaLista });
+    expect((campo("precoAConfirmar") as HTMLInputElement).checked).toBe(true);
+    (campo("precoAConfirmar") as HTMLInputElement).checked = false;
+    enviar();
+    await tick();
+    expect(store.atualizar.mock.calls[0][1]).toMatchObject({ preco: "", precoTexto: "" });
+  });
+
+  it("preço inválido: erro no campo do preço (e nada é salvo)", async () => {
+    const store = montarComEvento({ preco: 160, precoTexto: "R$ 160,00" });
+    await iniciarEdicao({ store, id: "copa-2026", irParaLista });
+    preencher("preco", "abc");
+    enviar();
+    await tick();
+    expect(store.atualizar).not.toHaveBeenCalled();
+    expect(erroDe("preco").hidden).toBe(false);
   });
 });

@@ -13,7 +13,8 @@
 //   - preço (opcional): número >= 0, aceita "160", "160,50",
 //     "R$ 1.500,00"                                            -> PRECO_INVALIDO
 //   - precoTexto (opcional): 1..60                             -> PRECO_TEXTO_INVALIDO
-//   - inscrição (opcional): URL http/https                     -> INSCRICAO_INVALIDA
+//   - inscrição (opcional): URL http/https (sem esquema, ganha https://)
+//                                                              -> INSCRICAO_INVALIDA
 //   - instagram (opcional): @usuario, usuario ou URL instagram.com
 //                                                              -> INSTAGRAM_INVALIDO
 //   - descrição (opcional): até 2000                           -> DESCRICAO_INVALIDA
@@ -22,6 +23,7 @@
 
 import type {
   CampeonatoDados,
+  CampeonatoErro,
   CampeonatoInput,
   CampeonatoRegistro,
   ResultadoCampeonato,
@@ -121,62 +123,85 @@ export function normalizarInstagramEvento(
   return { ok: true, valor: `@${usuario}` };
 }
 
+/** Tem esquema (`algo:`)? Ex.: "https://x.com", "ftp://x", "javascript:alert(1)". */
+function temEsquema(texto: string): boolean {
+  return /^[a-z][a-z0-9+.-]*:/i.test(texto);
+}
+
 /**
- * Valida e normaliza os dados de um campeonato (entrada crua de formulário).
- * Não muta a entrada. Devolve o primeiro erro encontrado.
+ * Link de inscrição digitado sem esquema ("movisport.pro/inscricao") ganha
+ * `https://`. Só quando parece um endereço: sem espaços, sem esquema e com ponto.
+ * Qualquer outra coisa (inclusive "javascript:…" ou "ftp://…") segue como veio e
+ * é recusada por `urlHttpValida`.
  */
-export function validarCampeonato(
-  entrada: CampeonatoInput
-): ResultadoCampeonato<CampeonatoDados> {
+export function completarEsquemaHttps(texto: string): string {
+  const t = aparar(texto);
+  if (t === "" || temEsquema(t) || /\s/.test(t) || !t.includes(".")) return t;
+  return `https://${t}`;
+}
+
+/** "R$ 160,00": texto exibível derivado de um preço numérico (sem espaço não separável). */
+export function precoParaTexto(preco: number): string {
+  return `R$ ${preco.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** Texto de preço quando ainda não há valor. */
+export const PRECO_A_CONFIRMAR = "Valor a confirmar";
+
+/**
+ * Avalia TODOS os campos de uma vez (na ordem do formulário). Devolve a lista de
+ * erros (vazia = válido) e, quando válido, os dados normalizados.
+ */
+function avaliar(entrada: CampeonatoInput): {
+  erros: CampeonatoErro[];
+  valor: CampeonatoDados | null;
+} {
+  const erros: CampeonatoErro[] = [];
+
   const nome = aparar(entrada.nome);
-  if (!tamanhoValido(nome, NOME_MAX)) return { ok: false, erro: { code: "NOME_INVALIDO" } };
+  if (!tamanhoValido(nome, NOME_MAX)) erros.push({ code: "NOME_INVALIDO" });
 
   const data = aparar(entrada.data);
-  if (!dataIsoValida(data)) return { ok: false, erro: { code: "DATA_INVALIDA" } };
+  const dataOk = dataIsoValida(data);
+  if (!dataOk) erros.push({ code: "DATA_INVALIDA" });
 
   const dataFim = aparar(entrada.dataFim);
-  if (dataFim !== "" && (!dataIsoValida(dataFim) || dataFim < data)) {
-    return { ok: false, erro: { code: "DATA_FIM_INVALIDA" } };
+  if (dataFim !== "" && (!dataIsoValida(dataFim) || (dataOk && dataFim < data))) {
+    erros.push({ code: "DATA_FIM_INVALIDA" });
   }
 
   const cidade = aparar(entrada.cidade);
-  if (cidade !== "" && !tamanhoValido(cidade, CIDADE_MAX)) {
-    return { ok: false, erro: { code: "CIDADE_INVALIDA" } };
-  }
+  if (cidade !== "" && !tamanhoValido(cidade, CIDADE_MAX)) erros.push({ code: "CIDADE_INVALIDA" });
 
   const uf = aparar(entrada.uf).toUpperCase();
-  if (uf !== "" && !(UFS_BRASIL as readonly string[]).includes(uf)) {
-    return { ok: false, erro: { code: "UF_INVALIDA" } };
-  }
+  if (uf !== "" && !(UFS_BRASIL as readonly string[]).includes(uf)) erros.push({ code: "UF_INVALIDA" });
 
   const endereco = aparar(entrada.endereco);
-  if (endereco !== "" && !tamanhoValido(endereco, ENDERECO_MAX)) {
-    return { ok: false, erro: { code: "ENDERECO_INVALIDO" } };
-  }
+  if (endereco !== "" && !tamanhoValido(endereco, ENDERECO_MAX)) erros.push({ code: "ENDERECO_INVALIDO" });
 
   const preco = interpretarPreco(entrada.preco);
-  if (preco === undefined) return { ok: false, erro: { code: "PRECO_INVALIDO" } };
+  if (preco === undefined) erros.push({ code: "PRECO_INVALIDO" });
 
   const precoTexto = aparar(entrada.precoTexto);
   if (precoTexto !== "" && !tamanhoValido(precoTexto, PRECO_TEXTO_MAX)) {
-    return { ok: false, erro: { code: "PRECO_TEXTO_INVALIDO" } };
+    erros.push({ code: "PRECO_TEXTO_INVALIDO" });
   }
 
-  const inscricao = aparar(entrada.inscricao);
+  // Link sem esquema ganha https:// antes de validar (o valor gravado já o traz).
+  const inscricao = completarEsquemaHttps(entrada.inscricao ?? "");
   if (inscricao !== "" && (inscricao.length > INSCRICAO_MAX || !urlHttpValida(inscricao))) {
-    return { ok: false, erro: { code: "INSCRICAO_INVALIDA" } };
+    erros.push({ code: "INSCRICAO_INVALIDA" });
   }
 
   const instagram = normalizarInstagramEvento(entrada.instagram);
-  if (!instagram.ok) return instagram;
+  if (!instagram.ok) erros.push(instagram.erro);
 
   const descricao = aparar(entrada.descricao);
-  if (descricao.length > DESCRICAO_MAX) {
-    return { ok: false, erro: { code: "DESCRICAO_INVALIDA" } };
-  }
+  if (descricao.length > DESCRICAO_MAX) erros.push({ code: "DESCRICAO_INVALIDA" });
 
+  if (erros.length > 0) return { erros, valor: null };
   return {
-    ok: true,
+    erros,
     valor: {
       nome,
       data,
@@ -184,14 +209,34 @@ export function validarCampeonato(
       cidade: cidade === "" ? null : cidade,
       uf: uf === "" ? null : uf,
       endereco: endereco === "" ? null : endereco,
-      preco,
+      preco: preco as number | null,
       precoTexto: precoTexto === "" ? null : precoTexto,
       inscricao: inscricao === "" ? null : inscricao,
-      instagram: instagram.valor,
+      instagram: instagram.ok ? instagram.valor : null,
       descricao: descricao === "" ? null : descricao,
       listado: entrada.listado ?? true,
     },
   };
+}
+
+/**
+ * Todos os erros do formulário, na ordem dos campos (vazia = válido). Serve para
+ * a tela marcar tudo de uma vez, em vez de um erro por tentativa.
+ */
+export function validarCampeonatoTodos(entrada: CampeonatoInput): CampeonatoErro[] {
+  return avaliar(entrada).erros;
+}
+
+/**
+ * Valida e normaliza os dados de um campeonato (entrada crua de formulário).
+ * Não muta a entrada. Devolve o primeiro erro encontrado.
+ */
+export function validarCampeonato(
+  entrada: CampeonatoInput
+): ResultadoCampeonato<CampeonatoDados> {
+  const { erros, valor } = avaliar(entrada);
+  if (erros.length > 0 || valor === null) return { ok: false, erro: erros[0] };
+  return { ok: true, valor };
 }
 
 // Reexportada de utils/texto (compartilhada com a busca de eventos).

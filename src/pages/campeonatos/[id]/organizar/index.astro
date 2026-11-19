@@ -2,6 +2,7 @@
 import Layout from "../../../../layouts/Layout.astro";
 import GuardaAcesso from "../../../../components/GuardaAcesso.astro";
 import OrganizarAtalhos from "../../../../components/OrganizarAtalhos.astro";
+import { hrefGerenciarCampeonato } from "../../../../scripts/rotas-gerenciar";
 import { comBase, slugCategoria } from "../../../../utils/url";
 import { carregarEventos, type EventoCarregado } from "../../../../utils/eventos-db";
 import { CACHE_PAGINAS } from "../../../../utils/cache-http";
@@ -89,9 +90,12 @@ const itens = categorias.map((nome) => ({
           ))}
         </ul>
       ) : (
-        <p class="organizar__vazio">
-          Este campeonato ainda não tem categorias cadastradas.
-        </p>
+        <div class="organizar__vazio">
+          <p>Este campeonato ainda não tem categorias.</p>
+          <a class="btn-destaque organizar__cta" href={`${hrefGerenciarCampeonato(campeonato.id)}#categorias`}>
+            Criar categorias
+          </a>
+        </div>
       )
     }
   </section>
@@ -209,6 +213,14 @@ const itens = categorias.map((nome) => ({
     flex-shrink: 0;
     font-size: 1.1rem;
     color: var(--cor-destaque-texto);
+  }
+
+  .organizar__vazio p {
+    margin: 0 0 0.8rem;
+  }
+
+  .organizar__cta {
+    min-height: 44px;
   }
 
   .organizar__vazio {

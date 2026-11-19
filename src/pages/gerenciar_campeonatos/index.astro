@@ -38,6 +38,7 @@ import { comBase } from "../../utils/url";
 <script>
   import { iniciarLista } from "../../scripts/campeonatos-lista";
   import { criarCampeonatoStoreBrowser } from "../../store/campeonatoStore";
+  import { criarProgressoStoreBrowser } from "../../store/progressoStore";
   import { hrefGerenciarCampeonato } from "../../scripts/rotas-gerenciar";
   import { guardarAcesso } from "../../scripts/guarda";
   import { criarAuthStoreBrowser } from "../../store/authStore";
@@ -53,6 +54,7 @@ import { comBase } from "../../utils/url";
     if (papel === "organizador") trocarVoltar(document, comBase("/"), "Voltar ao início");
     void iniciarLista({
       store: criarCampeonatoStoreBrowser(),
+      progressoStore: criarProgressoStoreBrowser(),
       hrefEditar: hrefGerenciarCampeonato,
       apenasMeus: papel === "organizador",
     });

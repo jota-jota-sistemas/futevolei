@@ -7,7 +7,7 @@
 // Contrato de DOM (data-*), dentro de `raiz`:
 //   [data-estado-perfil] · [data-perfil] (conteúdo, oculto até carregar)
 //   [data-perfil-nome|chips|periodo|local] · [data-organizar-link]
-//   [data-categorias-estado] [data-categorias-lista]
+//   (categorias: editor em components/CategoriasEditor.astro, ligado por scripts/categorias-editor.ts)
 //   [data-donos-estado] [data-donos-lista] [data-donos-form] [data-donos-status]
 //   (organizadores do evento: o dono e o administrador adicionam e removem)
 //   [data-campeonato-form] · [data-arquivar] · [data-excluir]
@@ -20,18 +20,23 @@
 
 import type { CampeonatoDetalhe, CampeonatoDono } from "../domain/campeonatos/types";
 import { mensagemDoErro } from "../domain/campeonatos/mensagens";
-import { validarCampeonato } from "../domain/campeonatos/validation";
+import { validarCampeonatoTodos } from "../domain/campeonatos/validation";
 import type { CampeonatoStore } from "../store/campeonatoStore";
+import type { CategoriaStore } from "../store/categoriaStore";
 import { formatarPeriodo, hrefOrganizarCampeonato } from "../utils/url";
 import {
   definirEnviando,
   esconderStatus,
   lerFormulario,
   limparErros,
+  ligarResumoDetalhes,
   mostrarErro,
+  mostrarErros,
   mostrarStatus,
   preencherFormulario,
 } from "./campeonato-form";
+import { iniciarDuplicar } from "./campeonato-duplicar";
+import { iniciarCategoriasEditor, type EventoParaCopiar } from "./categorias-editor";
 import { irParaGerenciarCampeonatos } from "./rotas-gerenciar";
 
 export interface DepsEditar {
@@ -46,6 +51,12 @@ export interface DepsEditar {
    * edição (organizador). Padrão `false`: administrador gerencia todos.
    */
   verificarPosse?: boolean;
+  /** Store das categorias; sem ela o editor de categorias não é ligado. */
+  categoriaStore?: CategoriaStore;
+  /** Eventos que a pessoa gerencia, para "copiar categorias de outro evento". */
+  listarEventosParaCopiar?: () => Promise<EventoParaCopiar[]>;
+  /** Navegação depois de duplicar (padrão: `window.location.assign`). */
+  irPara?: (url: string) => void;
 }
 
 export async function iniciarEdicao({
@@ -54,6 +65,9 @@ export async function iniciarEdicao({
   raiz = document,
   irParaLista = irParaGerenciarCampeonatos,
   verificarPosse = false,
+  categoriaStore,
+  listarEventosParaCopiar,
+  irPara,
 }: DepsEditar): Promise<void> {
   const q = <T extends Element>(seletor: string) => raiz.querySelector<T>(seletor);
   const estado = q<HTMLElement>("[data-estado-perfil]");
@@ -66,8 +80,6 @@ export async function iniciarEdicao({
   const periodo = q<HTMLElement>("[data-perfil-periodo]");
   const local = q<HTMLElement>("[data-perfil-local]");
   const organizar = q<HTMLAnchorElement>("[data-organizar-link]");
-  const categoriasEstado = q<HTMLElement>("[data-categorias-estado]");
-  const categoriasLista = q<HTMLElement>("[data-categorias-lista]");
   const btnArquivar = q<HTMLButtonElement>("[data-arquivar]");
   const btnExcluir = q<HTMLButtonElement>("[data-excluir]");
   const painel = q<HTMLElement>("[data-confirmacao-exclusao]");
@@ -126,25 +138,6 @@ export async function iniciarEdicao({
     if (organizar) organizar.href = hrefOrganizarCampeonato(c.id);
     if (btnArquivar) btnArquivar.textContent = c.ativo ? "Arquivar campeonato" : "Reativar campeonato";
     document.title = `${c.nome} — Gerenciar campeonato — Pingo Futevôlei`;
-  }
-
-  /** Categorias só para leitura: nomes, com o caminho para organizar. */
-  function renderCategorias(c: CampeonatoDetalhe): void {
-    if (!categoriasLista || !categoriasEstado) return;
-    categoriasLista.textContent = "";
-    if (c.categorias.length === 0) {
-      categoriasEstado.textContent =
-        "Nenhuma categoria ainda. Elas são criadas na organização do evento.";
-      categoriasEstado.hidden = false;
-      return;
-    }
-    categoriasEstado.hidden = true;
-    for (const nomeCategoria of c.categorias) {
-      const li = document.createElement("li");
-      li.className = "pf-categoria";
-      li.textContent = nomeCategoria;
-      categoriasLista.append(li);
-    }
   }
 
   // ---- Organizadores do evento ------------------------------------------------
@@ -259,8 +252,16 @@ export async function iniciarEdicao({
     estado!.hidden = true;
     perfil!.hidden = false;
     renderResumo(atual);
-    renderCategorias(atual);
     preencherFormulario(form!, atual);
+    if (categoriaStore) {
+      void iniciarCategoriasEditor({
+        store: categoriaStore,
+        campeonatoId: atual.id,
+        raiz,
+        listarEventos: listarEventosParaCopiar,
+      });
+      iniciarDuplicar({ store, categoriaStore, campeonato: atual, raiz, irPara });
+    }
     void carregarDonos();
   }
 
@@ -272,9 +273,10 @@ export async function iniciarEdicao({
     esconderStatus(form!);
     const entrada = lerFormulario(form!);
 
-    const validado = validarCampeonato(entrada);
-    if (!validado.ok) {
-      mostrarErro(form!, validado.erro);
+    // Todos os erros de uma vez (cada um no seu campo).
+    const erros = validarCampeonatoTodos(entrada);
+    if (erros.length > 0) {
+      mostrarErros(form!, erros);
       return;
     }
 
@@ -290,9 +292,11 @@ export async function iniciarEdicao({
     atual = { ...r.valor, categorias: atual.categorias };
     renderResumo(atual);
     preencherFormulario(form!, atual);
+    if (categoriaStore) iniciarDuplicar({ store, categoriaStore, campeonato: atual, raiz, irPara });
     mostrarStatus(form!, "Alterações salvas.");
   }
 
+  ligarResumoDetalhes(form);
   form.addEventListener("submit", (evento) => {
     evento.preventDefault();
     void salvar();

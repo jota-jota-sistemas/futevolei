@@ -1,10 +1,11 @@
 ---
 // Edição de UM campeonato na área de gerenciamento (/gerenciar_campeonatos/editar):
-// resumo, categorias (somente leitura, com o caminho para organizar), edição dos
+// resumo, categorias (criar, remover e copiar, com o caminho para organizar), edição dos
 // dados, arquivar/reativar e excluir. O comportamento é ligado pelo script da
 // página (ver scripts/campeonato-editar.ts).
 import Cartao from "./Cartao.astro";
 import CampeonatoForm from "./CampeonatoForm.astro";
+import CategoriasEditor from "./CategoriasEditor.astro";
 ---
 
 <div class="perfil">
@@ -20,10 +21,9 @@ import CampeonatoForm from "./CampeonatoForm.astro";
       </Cartao>
 
       <Cartao titulo="Categorias" id="categorias">
-        <p class="categorias__estado" data-categorias-estado role="status"></p>
-        <ul class="pf-categorias" data-categorias-lista aria-label="Categorias do campeonato"></ul>
+        <CategoriasEditor />
         <p class="categorias__ajuda">
-          As categorias, as duplas e os chaveamentos são criados na organização do evento.
+          Crie as categorias aqui. As duplas e os chaveamentos de cada uma são montados na organização do evento.
         </p>
         <a class="gerenciar__botao categorias__link" data-organizar-link href="#">
           Ir para organizar
@@ -52,6 +52,37 @@ import CampeonatoForm from "./CampeonatoForm.astro";
           </p>
         </form>
         <p class="donos__status" data-donos-status role="status" aria-live="polite" hidden></p>
+      </Cartao>
+
+      <Cartao titulo="Duplicar" id="duplicar">
+        <p class="duplicar__ajuda">
+          Cria um campeonato novo com os mesmos dados (cidade, preço, link…). As datas já vêm
+          52 semanas depois, no mesmo dia da semana. Duplas e placares não são copiados.
+        </p>
+        <form class="duplicar__form" data-duplicar-form novalidate>
+          <div class="duplicar__campo">
+            <label for="duplicar-nome">Nome do novo campeonato</label>
+            <input id="duplicar-nome" name="nome" type="text" maxlength="120" autocomplete="off" />
+          </div>
+          <div class="duplicar__datas">
+            <div class="duplicar__campo">
+              <label for="duplicar-data">Data de início</label>
+              <input id="duplicar-data" name="data" type="date" />
+            </div>
+            <div class="duplicar__campo">
+              <label for="duplicar-data-fim">Data final</label>
+              <input id="duplicar-data-fim" name="dataFim" type="date" />
+            </div>
+          </div>
+          <label class="duplicar__check">
+            <input type="checkbox" name="copiarCategorias" checked />
+            Copiar as categorias
+          </label>
+          <p class="duplicar__erro" data-duplicar-erro role="alert" hidden></p>
+          <button type="submit" class="btn-destaque duplicar__botao" data-duplicar-enviar>
+            Criar cópia
+          </button>
+        </form>
       </Cartao>
 
       <Cartao titulo="Gerenciar" id="gerenciar">
@@ -85,7 +116,7 @@ import CampeonatoForm from "./CampeonatoForm.astro";
     </div>
 
     <Cartao titulo="Editar dados" id="editar">
-      <CampeonatoForm prefixo="editar" rotuloEnvio="Salvar alterações" />
+      <CampeonatoForm prefixo="editar" rotuloEnvio="Salvar alterações" detalhesAbertos />
     </Cartao>
   </div>
 </div>
@@ -114,8 +145,7 @@ import CampeonatoForm from "./CampeonatoForm.astro";
   .perfil__conteudo[hidden],
   .resumo__linha[hidden],
   .confirmacao[hidden],
-  .gerenciar__status[hidden],
-  .categorias__estado[hidden] {
+  .gerenciar__status[hidden] {
     display: none;
   }
 
@@ -142,9 +172,8 @@ import CampeonatoForm from "./CampeonatoForm.astro";
   }
 
   /* ---- Categorias ---- */
-  .categorias__estado,
   .categorias__ajuda {
-    margin: 0 0 0.8rem;
+    margin: 1rem 0 0.8rem;
     font-size: 0.9rem;
     color: var(--cor-texto-suave);
   }
@@ -215,6 +244,95 @@ import CampeonatoForm from "./CampeonatoForm.astro";
 
   .donos__status[data-tipo="erro"] {
     color: var(--cor-erro);
+  }
+
+  /* ---- Duplicar ---- */
+  .duplicar__ajuda {
+    margin: 0 0 1rem;
+    font-size: 0.9rem;
+    color: var(--cor-texto-suave);
+  }
+
+  .duplicar__form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+
+  .duplicar__datas {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.9rem;
+  }
+
+  .duplicar__campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 0;
+  }
+
+  .duplicar__campo label {
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  .duplicar__campo input {
+    width: 100%;
+    min-height: 44px;
+    padding: 0.5rem 0.8rem;
+    border: 1px solid var(--cor-texto-suave);
+    border-radius: 12px;
+    background: var(--cor-superficie);
+    color: var(--cor-texto);
+    font-family: inherit;
+    font-size: 1rem; /* 16px evita o zoom automático do iOS */
+  }
+
+  .duplicar__check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+
+  .duplicar__check input {
+    width: 1.1rem;
+    height: 1.1rem;
+    accent-color: var(--cor-destaque-texto);
+  }
+
+  .duplicar__erro {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--cor-erro);
+  }
+
+  .duplicar__erro[hidden] {
+    display: none;
+  }
+
+  .duplicar__erro :global(a) {
+    color: var(--cor-destaque-texto);
+    font-weight: 700;
+  }
+
+  .duplicar__botao {
+    min-height: 44px;
+  }
+
+  .duplicar__botao[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  @media (min-width: 560px) {
+    .duplicar__datas {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 
   /* ---- Gerenciar ---- */
@@ -315,24 +433,6 @@ import CampeonatoForm from "./CampeonatoForm.astro";
   .pf-chip--arquivado {
     background: var(--cor-borda);
     color: var(--cor-texto);
-  }
-
-  .pf-categorias {
-    list-style: none;
-    margin: 0 0 0.8rem;
-    padding: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-  }
-
-  .pf-categoria {
-    padding: 0.4rem 0.7rem;
-    border: 1px solid var(--cor-borda);
-    border-radius: 999px;
-    background: var(--cor-superficie);
-    font-size: 0.85rem;
-    font-weight: 600;
   }
 
   .pf-donos {

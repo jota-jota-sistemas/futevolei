@@ -14,6 +14,7 @@ import {
   mensagemDoErro,
   type CampoCampeonato,
 } from "../domain/campeonatos/mensagens";
+import { PRECO_A_CONFIRMAR, interpretarPreco, precoParaTexto } from "../domain/campeonatos/validation";
 
 const CAMPOS: CampoCampeonato[] = [
   "nome",
@@ -23,7 +24,6 @@ const CAMPOS: CampoCampeonato[] = [
   "uf",
   "endereco",
   "preco",
-  "precoTexto",
   "inscricao",
   "instagram",
   "descricao",
@@ -35,10 +35,39 @@ function campo(form: HTMLFormElement, nome: string): Campo | null {
   return form.querySelector<Campo>(`[name="${nome}"]`);
 }
 
-/** Lê os valores crus do formulário. */
+const ehAConfirmar = (texto: string | null | undefined): boolean =>
+  (texto ?? "").trim().toLowerCase() === PRECO_A_CONFIRMAR.toLowerCase();
+
+/**
+ * Lê os valores crus do formulário. O preço é UM campo só: o texto exibível
+ * (`precoTexto`) é derivado dele ("160" -> "R$ 160,00"), ou "Valor a confirmar"
+ * quando a caixa está marcada. Na edição, um texto livre que já existia (ex.:
+ * "Gratuito", "R$ 160 por dupla") é preservado enquanto o preço não mudar.
+ */
 export function lerFormulario(form: HTMLFormElement): CampeonatoInput {
   const valor = (nome: string) => campo(form, nome)?.value ?? "";
   const listado = campo(form, "listado") as HTMLInputElement | null;
+  const aConfirmar = (campo(form, "precoAConfirmar") as HTMLInputElement | null)?.checked === true;
+
+  let preco = valor("preco");
+  let precoTexto = "";
+  const precoOriginal = form.dataset.precoOriginal ?? "";
+  const textoOriginal = form.dataset.precoTextoOriginal ?? "";
+  if (aConfirmar) {
+    preco = "";
+    precoTexto = PRECO_A_CONFIRMAR;
+  } else {
+    const n = interpretarPreco(preco);
+    if (typeof n === "number") {
+      const mesmoPreco = precoOriginal !== "" && Number(precoOriginal) === n;
+      precoTexto = mesmoPreco && textoOriginal !== "" ? textoOriginal : precoParaTexto(n);
+    } else if (n === null && precoOriginal === "" && !ehAConfirmar(textoOriginal)) {
+      // Sem preço e sem ter tido preço: mantém o texto livre que já existia.
+      precoTexto = textoOriginal;
+    }
+    // n === undefined: preço inválido; a validação aponta o campo.
+  }
+
   return {
     nome: valor("nome"),
     data: valor("data"),
@@ -46,8 +75,8 @@ export function lerFormulario(form: HTMLFormElement): CampeonatoInput {
     cidade: valor("cidade"),
     uf: valor("uf"),
     endereco: valor("endereco"),
-    preco: valor("preco"),
-    precoTexto: valor("precoTexto"),
+    preco,
+    precoTexto,
     inscricao: valor("inscricao"),
     instagram: valor("instagram"),
     descricao: valor("descricao"),
@@ -73,7 +102,11 @@ export function preencherFormulario(form: HTMLFormElement, c: CampeonatoRegistro
   definir("uf", c.uf);
   definir("endereco", c.endereco);
   definir("preco", precoParaCampo(c.preco));
-  definir("precoTexto", c.precoTexto);
+  // Guarda o preço e o texto originais: o texto só é regerado se o preço mudar.
+  form.dataset.precoOriginal = c.preco === null ? "" : String(c.preco);
+  form.dataset.precoTextoOriginal = c.precoTexto ?? "";
+  const aConfirmar = campo(form, "precoAConfirmar") as HTMLInputElement | null;
+  if (aConfirmar) aConfirmar.checked = c.preco === null && ehAConfirmar(c.precoTexto);
   definir("inscricao", c.inscricao);
   definir("instagram", c.instagram);
   definir("descricao", c.descricao);
@@ -89,6 +122,10 @@ export function limparFormulario(form: HTMLFormElement): void {
   }
   const listado = campo(form, "listado") as HTMLInputElement | null;
   if (listado) listado.checked = true;
+  const aConfirmar = campo(form, "precoAConfirmar") as HTMLInputElement | null;
+  if (aConfirmar) aConfirmar.checked = false;
+  delete form.dataset.precoOriginal;
+  delete form.dataset.precoTextoOriginal;
   limparErros(form);
   esconderStatus(form);
 }
@@ -113,7 +150,52 @@ export function mostrarErroCampo(
     p.textContent = mensagem;
     p.hidden = false;
   }
-  campo(form, nome)?.setAttribute("aria-invalid", "true");
+  const el = campo(form, nome);
+  el?.setAttribute("aria-invalid", "true");
+  // Campo dentro de "Mais detalhes" fechado: abre para a pessoa ver o erro.
+  const detalhes = el?.closest("details");
+  if (detalhes) detalhes.open = true;
+}
+
+/**
+ * Mostra TODOS os erros de uma vez (cada um no seu campo) e foca o primeiro campo
+ * com erro. Erro sem campo na tela (ou sem campo) vira mensagem geral.
+ */
+export function mostrarErros(form: HTMLFormElement, erros: readonly CampeonatoErro[]): void {
+  let primeiro: CampoCampeonato | null = null;
+  const gerais: string[] = [];
+  for (const erro of erros) {
+    const nome = campoDoErro(erro);
+    if (nome && form.querySelector(`[data-erro="${nome}"]`)) {
+      mostrarErroCampo(form, nome, mensagemDoErro(erro));
+      primeiro ??= nome;
+    } else {
+      gerais.push(mensagemDoErro(erro));
+    }
+  }
+  if (gerais.length > 0) mostrarStatus(form, gerais.join(" "), "erro");
+  if (primeiro) campo(form, primeiro)?.focus();
+}
+
+/**
+ * Resumo ao lado de "Mais detalhes" (ex.: "(Santos/SP)"), para quem preenche
+ * cidade/UF sem abrir o bloco (inclusive os lembrados do último evento) ver o
+ * que está valendo. Atualiza ao digitar.
+ */
+export function ligarResumoDetalhes(form: HTMLFormElement): void {
+  const alvo = form.querySelector<HTMLElement>("[data-detalhes-resumo]");
+  if (!alvo) return;
+  const atualizar = () => {
+    const local = [campo(form, "cidade")?.value.trim(), campo(form, "uf")?.value]
+      .filter(Boolean)
+      .join("/");
+    alvo.textContent = local ? `(${local})` : "";
+  };
+  for (const nome of ["cidade", "uf"]) {
+    campo(form, nome)?.addEventListener("input", atualizar);
+    campo(form, nome)?.addEventListener("change", atualizar);
+  }
+  atualizar();
 }
 
 /** Mensagem geral do formulário (sucesso ou erro). `role=status` anuncia a leitores de tela. */
@@ -126,29 +208,6 @@ export function mostrarStatus(
   if (!el) return;
   el.textContent = texto;
   el.dataset.tipo = tipo;
-  el.hidden = false;
-}
-
-/**
- * Mensagem de sucesso seguida de links de ação (ex.: "Editar", "Organizar"),
- * para a pessoa seguir em um clique. DOM seguro: só `textContent` e `href`.
- */
-export function mostrarStatusComLinks(
-  form: HTMLFormElement,
-  texto: string,
-  links: readonly { rotulo: string; href: string }[]
-): void {
-  const el = form.querySelector<HTMLElement>("[data-status]");
-  if (!el) return;
-  el.textContent = `${texto} `;
-  el.dataset.tipo = "ok";
-  for (const l of links) {
-    const a = document.createElement("a");
-    a.className = "cf__link";
-    a.href = l.href;
-    a.textContent = l.rotulo;
-    el.append(a);
-  }
   el.hidden = false;
 }
 

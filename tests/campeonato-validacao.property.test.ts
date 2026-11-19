@@ -6,6 +6,10 @@
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
 import {
+  PRECO_A_CONFIRMAR,
+  completarEsquemaHttps,
+  precoParaTexto,
+  validarCampeonatoTodos,
   compararCampeonatos,
   dataIsoValida,
   filtrarCampeonatos,
@@ -118,7 +122,7 @@ describe("validarCampeonato: exemplos", () => {
     expect(erroDe({ ...base, endereco: "E".repeat(201) })).toBe("ENDERECO_INVALIDO");
     expect(erroDe({ ...base, preco: "abc" })).toBe("PRECO_INVALIDO");
     expect(erroDe({ ...base, precoTexto: "P".repeat(61) })).toBe("PRECO_TEXTO_INVALIDO");
-    expect(erroDe({ ...base, inscricao: "movisport.pro" })).toBe("INSCRICAO_INVALIDA");
+    expect(erroDe({ ...base, inscricao: "movisport" })).toBe("INSCRICAO_INVALIDA");
     expect(erroDe({ ...base, instagram: "https://exemplo.com/x" })).toBe("INSTAGRAM_INVALIDO");
     expect(erroDe({ ...base, descricao: "D".repeat(2001) })).toBe("DESCRICAO_INVALIDA");
   });
@@ -355,6 +359,108 @@ describe("busca e ordenação", () => {
         expect(ordenarCampeonatos(o1)).toEqual(o1);
         expect(o1).toHaveLength(lista.length);
         for (let i = 1; i < o1.length; i++) expect(compararCampeonatos(o1[i - 1], o1[i])).toBeLessThanOrEqual(0);
+      })
+    );
+  });
+});
+
+describe("link de inscrição sem esquema ganha https://", () => {
+  it("completarEsquemaHttps só completa o que parece um endereço", () => {
+    expect(completarEsquemaHttps("movisport.pro")).toBe("https://movisport.pro");
+    expect(completarEsquemaHttps("  movisport.pro/inscricao?x=1 ")).toBe("https://movisport.pro/inscricao?x=1");
+    expect(completarEsquemaHttps("https://x.com")).toBe("https://x.com");
+    expect(completarEsquemaHttps("http://x.com")).toBe("http://x.com");
+    // Não é endereço: sem ponto, com espaço ou com outro esquema.
+    for (const nao of ["movisport", "meu site.com", "ftp://x.com", "javascript:alert(1)", "mailto:a@b.com", ""]) {
+      expect(completarEsquemaHttps(nao), nao).toBe(nao.trim());
+    }
+  });
+
+  it("o valor gravado já traz o https://; esquemas perigosos continuam recusados", () => {
+    const r = validarCampeonato({ ...base, inscricao: "movisport.pro/copa" });
+    expect(r.ok && r.valor.inscricao).toBe("https://movisport.pro/copa");
+    for (const ruim of ["javascript:alert(1)", "ftp://x.com", "data:text/html,x", "movisport"]) {
+      expect(erroDe({ ...base, inscricao: ruim }), ruim).toBe("INSCRICAO_INVALIDA");
+    }
+  });
+
+  it("propriedade: o resultado, quando válido, sempre começa com http(s) e é idempotente", () => {
+    fc.assert(
+      fc.property(fc.string({ maxLength: 40 }), (texto) => {
+        const r = validarCampeonato({ ...base, inscricao: texto });
+        if (!r.ok || r.valor.inscricao === null) return;
+        expect(r.valor.inscricao).toMatch(/^https?:\/\//i);
+        const de_novo = validarCampeonato({ ...base, inscricao: r.valor.inscricao });
+        expect(de_novo.ok && de_novo.valor.inscricao).toBe(r.valor.inscricao);
+      })
+    );
+  });
+});
+
+describe("validarCampeonatoTodos", () => {
+  it("devolve todos os erros de uma vez, na ordem dos campos", () => {
+    const erros = validarCampeonatoTodos({
+      nome: "  ",
+      data: "",
+      uf: "XX",
+      preco: "abc",
+      inscricao: "movisport",
+      instagram: "a b",
+    });
+    expect(erros.map((e) => e.code)).toEqual([
+      "NOME_INVALIDO",
+      "DATA_INVALIDA",
+      "UF_INVALIDA",
+      "PRECO_INVALIDO",
+      "INSCRICAO_INVALIDA",
+      "INSTAGRAM_INVALIDO",
+    ]);
+  });
+
+  it("vazia quando válido; o primeiro erro é o mesmo de validarCampeonato", () => {
+    expect(validarCampeonatoTodos(base)).toEqual([]);
+    const ruim = { nome: "", data: "x", cidade: "C".repeat(90) };
+    const todos = validarCampeonatoTodos(ruim);
+    const primeiro = validarCampeonato(ruim);
+    expect(primeiro.ok).toBe(false);
+    expect(!primeiro.ok && primeiro.erro).toEqual(todos[0]);
+  });
+
+  it("data final só é comparada com um início válido (sem erro extra por causa do início)", () => {
+    expect(validarCampeonatoTodos({ nome: "A", data: "x", dataFim: "2026-12-05" }).map((e) => e.code)).toEqual(["DATA_INVALIDA"]);
+    expect(validarCampeonatoTodos({ nome: "A", data: "2026-12-05", dataFim: "2026-12-01" }).map((e) => e.code)).toEqual([
+      "DATA_FIM_INVALIDA",
+    ]);
+  });
+
+  it("propriedade: validarCampeonato é ok exatamente quando não há erros, e não muta a entrada", () => {
+    const campo = fc.string({ maxLength: 12 });
+    fc.assert(
+      fc.property(campo, campo, campo, campo, (nome, cidade, uf, preco) => {
+        const entrada = { nome, data: "2026-12-05", cidade, uf, preco };
+        const copia = { ...entrada };
+        const todos = validarCampeonatoTodos(entrada);
+        expect(validarCampeonato(entrada).ok).toBe(todos.length === 0);
+        expect(entrada).toEqual(copia);
+      })
+    );
+  });
+});
+
+describe("precoParaTexto", () => {
+  it("formata em reais, sem espaço não separável", () => {
+    expect(precoParaTexto(160)).toBe("R$ 160,00");
+    expect(precoParaTexto(1500.5)).toBe("R$ 1.500,50");
+    expect(precoParaTexto(0)).toBe("R$ 0,00");
+    expect(precoParaTexto(160)).not.toMatch(/\u00a0/);
+    expect(PRECO_A_CONFIRMAR).toBe("Valor a confirmar");
+  });
+
+  it("propriedade: o texto gerado volta ao mesmo número ao ser interpretado", () => {
+    fc.assert(
+      fc.property(fc.integer({ min: 0, max: 9_999_999 }), fc.integer({ min: 0, max: 99 }), (reais, cent) => {
+        const n = Number(`${reais}.${String(cent).padStart(2, "0")}`);
+        expect(interpretarPreco(precoParaTexto(n))).toBe(n);
       })
     );
   });

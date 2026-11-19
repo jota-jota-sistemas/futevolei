@@ -10,9 +10,11 @@ interface Props {
   /** Prefixo dos ids (evita colisão se houver mais de um formulário na página). */
   prefixo: string;
   rotuloEnvio: string;
+  /** Abre o bloco "Mais detalhes" (edição). No cadastro ele começa fechado. */
+  detalhesAbertos?: boolean;
 }
 
-const { prefixo, rotuloEnvio } = Astro.props;
+const { prefixo, rotuloEnvio, detalhesAbertos = false } = Astro.props;
 ---
 
 <form class="cf" data-campeonato-form novalidate>
@@ -43,6 +45,14 @@ const { prefixo, rotuloEnvio } = Astro.props;
       <p class="cf__erro" id={`${prefixo}-data-erro`} data-erro="data" hidden></p>
     </div>
 
+    {/* Só nome e data à vista: o resto fica em "Mais detalhes" (menos digitação
+        para criar). Na edição o bloco já vem aberto. */}
+    <details class="cf__detalhes cf__campo--cheio" open={detalhesAbertos} data-detalhes>
+      <summary class="cf__resumo">
+        <span>Mais detalhes</span>
+        <span class="cf__resumo-info" data-detalhes-resumo></span>
+      </summary>
+      <div class="cf__grade cf__grade--interna">
     <div class="cf__campo">
       <label for={`${prefixo}-dataFim`}>Data final</label>
       <input
@@ -103,20 +113,10 @@ const { prefixo, rotuloEnvio } = Astro.props;
         aria-describedby={`${prefixo}-preco-erro`}
       />
       <p class="cf__erro" id={`${prefixo}-preco-erro`} data-erro="preco" hidden></p>
-    </div>
-
-    <div class="cf__campo">
-      <label for={`${prefixo}-precoTexto`}>Preço como texto</label>
-      <input
-        id={`${prefixo}-precoTexto`}
-        name="precoTexto"
-        type="text"
-        maxlength="60"
-        autocomplete="off"
-        placeholder="R$ 160,00 ou Valor a confirmar"
-        aria-describedby={`${prefixo}-precoTexto-erro`}
-      />
-      <p class="cf__erro" id={`${prefixo}-precoTexto-erro`} data-erro="precoTexto" hidden></p>
+      <label class="cf__check cf__check--preco">
+        <input type="checkbox" name="precoAConfirmar" />
+        Valor a confirmar
+      </label>
     </div>
 
     <div class="cf__campo cf__campo--cheio">
@@ -170,6 +170,8 @@ const { prefixo, rotuloEnvio } = Astro.props;
         Desmarcado, o evento só tem as telas de organizar e acompanhar.
       </p>
     </div>
+      </div>
+    </details>
   </div>
 
   <p class="cf__aviso">
@@ -226,6 +228,39 @@ const { prefixo, rotuloEnvio } = Astro.props;
     color: var(--cor-texto);
     font-family: inherit;
     font-size: 1rem; /* 16px evita o zoom automático do iOS ao focar */
+  }
+
+  .cf__detalhes {
+    min-width: 0;
+    border: 1px solid var(--cor-borda);
+    border-radius: 12px;
+    background: var(--cor-superficie);
+  }
+
+  .cf__resumo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.75rem;
+    min-height: 44px; /* alvo de toque confortável */
+    padding: 0.5rem 0.9rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .cf__resumo-info {
+    font-weight: 600;
+    color: var(--cor-texto-suave);
+    overflow-wrap: anywhere;
+  }
+
+  .cf__grade--interna {
+    padding: 0.25rem 0.9rem 1rem;
+  }
+
+  .cf__check--preco {
+    margin-top: 0.15rem;
   }
 
   .cf__campo textarea {
@@ -285,17 +320,6 @@ const { prefixo, rotuloEnvio } = Astro.props;
     font-size: 0.95rem;
     font-weight: 600;
     color: var(--cor-destaque-texto);
-  }
-
-  /* Links criados pelo script depois de cadastrar ("Editar", "Organizar"):
-     alvo de toque de 44px. */
-  .cf__status :global(.cf__link) {
-    display: inline-flex;
-    align-items: center;
-    min-height: 44px;
-    margin-right: 1rem;
-    color: var(--cor-destaque-texto);
-    font-weight: 700;
   }
 
   .cf__status[data-tipo="erro"] {
