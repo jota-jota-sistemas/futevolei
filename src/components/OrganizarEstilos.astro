@@ -207,4 +207,80 @@
     gap: 0.4rem;
     margin-left: auto;
   }
+
+  /* Próximos jogos */
+  .org__fila {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .org__fila-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 10px;
+    background: var(--cor-fundo);
+  }
+  .org__fila-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+    flex: 1 1 12rem;
+  }
+  .org__fila-jogo {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cor-destaque-texto);
+  }
+  .org__fila-duplas {
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  .org__fila-vivo {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #c0392b;
+  }
+  .org__fila-botao {
+    align-self: auto;
+  }
+  .org__fila-vazio {
+    color: var(--cor-texto-suave);
+    font-size: 0.92rem;
+  }
+  .org__cruzamentos {
+    margin: 0;
+    padding-left: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .org__botao[disabled] {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  /* Tela de placar: alvos de toque e dica de empate */
+  .placar-tela__menos {
+    min-height: 44px;
+  }
+  .placar-tela__dica {
+    min-height: 1.3em;
+    margin: 0.7rem 0 0;
+    font-size: 0.9rem;
+    color: var(--cor-texto-suave);
+  }
+  .placar-tela__encerrar {
+    min-height: 44px;
+  }
 </style>

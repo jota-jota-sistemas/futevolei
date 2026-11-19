@@ -42,7 +42,7 @@ create table if not exists categorias (
   id              uuid primary key default gen_random_uuid(),
   campeonato_id   text not null references campeonatos(id) on delete cascade,
   nome            text not null,             -- ex.: "Open"
-  formato         text check (formato in ('fase de grupos','dupla eliminação')),
+  formato         text check (formato in ('fase de grupos','dupla eliminação','eliminação simples')),
   numero_grupos           int,               -- só "fase de grupos"
   classificados_por_grupo int,               -- só "fase de grupos"
   criado_em       timestamptz not null default now(),

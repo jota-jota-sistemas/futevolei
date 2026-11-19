@@ -144,6 +144,7 @@ export interface ChaveamentoLinhas {
 const FORMATOS_VALIDOS: ReadonlySet<string> = new Set<Format>([
   "fase de grupos",
   "dupla eliminação",
+  "eliminação simples",
 ]);
 
 function comoFormato(valor: string): Format {
