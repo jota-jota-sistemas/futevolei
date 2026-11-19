@@ -1,21 +1,27 @@
 // src/domain/bracket/ordenacao.ts
 //
-// Ordenação e numeração dos jogos na "fila única" do torneio (uma quadra).
-// Função PURA e DETERMINÍSTICA — sem I/O, sem relógio, sem Math.random.
+// Numeração dos jogos do torneio ("Jogo N"). Função PURA e DETERMINÍSTICA —
+// sem I/O, sem relógio, sem Math.random.
 //
-// Objetivos (alinhados com o organizador):
-//  - Numerar cada jogo com um número de disputa global contínuo (1, 2, 3, …),
-//    exibido na UI ("Jogo N").
-//  - Sugerir uma ordem que EVITE uma mesma dupla jogar dois jogos consecutivos
-//    e reduza a espera (prioriza quem está parado há mais tempo). Quando há
-//    conflito, PRIORIZA o não-consecutivo sobre reduzir a espera.
-//  - Intercalar os grupos (a escolha gulosa por "maior descanso" já faz isso
-//    naturalmente, pois alterna entre duplas/grupos diferentes).
+// Duas regras, conforme o lado do jogo:
+//  - FASE DE GRUPOS: fila única (uma quadra). Numera 1, 2, 3, … sugerindo uma
+//    ordem que EVITE a mesma dupla em dois jogos consecutivos e reduza a espera
+//    (prioriza quem está parado há mais tempo). Quando há conflito, PRIORIZA o
+//    não-consecutivo sobre reduzir a espera.
+//  - MATA-MATA (vencedores, perdedores, grande final): numeração atribuída já
+//    na geração a TODOS os jogos disputáveis, inclusive os futuros (cujas duplas
+//    ainda não estão definidas), para o público acompanhar "Vencedor do jogo 12"
+//    desde o início. A ordem é uma fila que respeita a chave: um jogo só recebe
+//    número depois dos jogos que o alimentam (a final é a última, as semifinais
+//    as penúltimas, e a chave de perdedores começa assim que há perdedores, sem
+//    esperar a de vencedores acabar). Entre os jogos prontos, evita que a mesma
+//    dupla jogue duas vezes seguidas (jogo que depende do imediatamente anterior)
+//    e prioriza quem descansou mais (jogos de origem numerados há mais tempo).
+//    Jogos com BYE não são disputados e não recebem número.
 //
-// Estabilidade: um jogo já numerado NUNCA muda de número. Jogos que só ficam
-// elegíveis depois (confrontos futuros do mata-mata, quando as duas duplas
-// passam a estar definidas após resultados) entram no FIM da fila com números
-// novos. A numeração só cresce.
+// Estabilidade: um jogo já numerado NUNCA muda de número. Jogos ainda sem número
+// entram no FIM, com números novos. A numeração só cresce. Com grupos seguidos
+// de mata-mata, o mata-mata continua a contagem depois do último jogo de grupo.
 
 import type { Bracket, Match, PairId } from "./types";
 
@@ -82,8 +88,10 @@ export function numerarJogos(bracket: Bracket): Bracket {
     }
   }
 
-  // Candidatos: elegíveis e ainda sem número.
-  let candidatos = matches.filter((m) => elegivel(m) && m.ordemDisputa === null);
+  // Candidatos da fila gulosa: jogos de grupo elegíveis e ainda sem número.
+  let candidatos = matches.filter(
+    (m) => m.side === "grupo" && elegivel(m) && m.ordemDisputa === null,
+  );
 
   // Duplas do último jogo numerado (para a regra do não-consecutivo). Começa
   // com as duplas do maior número já atribuído, se houver.
@@ -101,9 +109,68 @@ export function numerarJogos(bracket: Bracket): Bracket {
     candidatos = candidatos.filter((c) => c !== escolhido);
   }
 
+  // Mata-mata: fila que respeita a estrutura da chave (ver cabeçalho). Continua
+  // do maior número já atribuído (inclusive o dos jogos de grupo).
+  numerarMataMata(matches, proximo);
   return { ...bracket, matches };
 }
 
+/** Jogo de mata-mata que será de fato disputado (sem BYE). */
+function disputavelMataMata(m: Match): boolean {
+  return m.side !== "grupo" && m.a.bye !== true && m.b.bye !== true;
+}
+/**
+ * Numera (in place) os jogos de mata-mata ainda sem número, a partir de
+ * `ultimo + 1`. Escolha gulosa entre os jogos PRONTOS (todos os jogos que o
+ * alimentam já numerados ou sem disputa):
+ *  1) prefere o que NÃO depende do jogo imediatamente anterior (evita a mesma
+ *     dupla em dois jogos seguidos); se todos dependem, relaxa;
+ *  2) prefere o de maior descanso: menor número entre os jogos de origem, no
+ *     pior caso (menor "gargalo" = origem mais antiga);
+ *  3) desempate estável (lado, rodada, posição).
+ */
+function numerarMataMata(matches: Match[], ultimo: number): void {
+  const alimentadores = new Map<string, Match[]>();
+  for (const m of matches) {
+    for (const alvo of [m.avancaVencedorPara, m.encaminhaPerdedorPara]) {
+      if (!alvo) continue;
+      const lista = alimentadores.get(alvo.matchId) ?? [];
+      lista.push(m);
+      alimentadores.set(alvo.matchId, lista);
+    }
+  }
+  const origens = (m: Match): Match[] =>
+    (alimentadores.get(m.id) ?? []).filter(disputavelMataMata);
+  let pendentes = matches.filter(
+    (m) => disputavelMataMata(m) && m.ordemDisputa === null,
+  );
+  let anterior: Match | undefined = matches.find(
+    (m) => m.ordemDisputa === ultimo && ultimo > 0,
+  );
+  let proximo = ultimo;
+  const gargalo = (m: Match): number =>
+    Math.max(0, ...origens(m).map((o) => o.ordemDisputa ?? 0));
+  while (pendentes.length > 0) {
+    let prontos = pendentes.filter((m) =>
+      origens(m).every((o) => o.ordemDisputa !== null),
+    );
+    // Defesa: ligações inconsistentes não podem travar a numeração.
+    if (prontos.length === 0) prontos = pendentes;
+    const dependeDoAnterior = (m: Match): boolean =>
+      anterior !== undefined && origens(m).includes(anterior);
+    const livres = prontos.filter((m) => !dependeDoAnterior(m));
+    const pool = livres.length > 0 ? livres : prontos;
+    const escolhido = [...pool].sort((x, y) => {
+      const gx = gargalo(x);
+      const gy = gargalo(y);
+      return gx !== gy ? gx - gy : compararEstavel(x, y);
+    })[0];
+    proximo += 1;
+    escolhido.ordemDisputa = proximo;
+    anterior = escolhido;
+    pendentes = pendentes.filter((m) => m !== escolhido);
+  }
+}
 /** Marca que as duas duplas do jogo apareceram no número `n` (se maior). */
 function registrarAparicao(
   ultimo: Map<PairId, number>,

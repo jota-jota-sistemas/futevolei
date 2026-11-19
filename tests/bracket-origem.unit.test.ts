@@ -40,7 +40,9 @@ describe("origem das vagas indefinidas", () => {
     const rotulos = [...origens.values()].map(rotuloOrigem);
     expect(rotulos.some((t) => /^Vencedor do jogo \d+$/.test(t))).toBe(true);
     expect(rotulos.some((t) => /^Perdedor do jogo \d+$/.test(t))).toBe(true);
-    expect(rotulos.some((t) => /^Vencedor da chave de vencedores, rodada \d+, jogo \d+$/.test(t))).toBe(true);
+    // Todo jogo do mata-mata é numerado na geração: nenhum rótulo cai no texto
+    // longo "rodada X, jogo Y".
+    expect(rotulos.every((t) => /^(Vencedor|Perdedor) do jogo \d+$/.test(t))).toBe(true);
   });
 
   it("a visualização mostra a origem no lugar de 'A definir'", () => {
