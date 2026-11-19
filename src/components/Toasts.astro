@@ -1,0 +1,84 @@
+---
+// Contêiner dos avisos curtos ("toasts") da organização. A lógica está em
+// scripts/organizar/toast.ts. Mobile-first: no pé da tela, largura total em
+// telas pequenas, acima da área segura do iOS, botões de 44px.
+---
+
+<div class="toasts" data-toasts aria-label="Avisos"></div>
+
+<style is:global>
+  .toasts {
+    position: fixed;
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: 560px;
+    margin: 0 auto;
+    pointer-events: none; /* só os avisos recebem toque */
+  }
+
+  .toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem 0.5rem;
+    padding: 0.35rem 0.4rem 0.35rem 1rem;
+    border-radius: 14px;
+    background: var(--cor-escuro);
+    color: var(--cor-texto-claro);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+
+  .toast--erro {
+    background: var(--cor-erro);
+  }
+
+  .toast__texto {
+    flex: 1;
+    min-width: 0;
+    padding: 0.4rem 0;
+    overflow-wrap: anywhere;
+  }
+
+  .toast__acao,
+  .toast__fechar {
+    flex: none;
+    min-width: 44px;
+    min-height: 44px; /* alvo de toque confortável */
+    padding: 0 0.8rem;
+    border: none;
+    border-radius: 10px;
+    background: none;
+    color: inherit;
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .toast__acao {
+    color: var(--cor-destaque);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .toast--erro .toast__acao {
+    color: #ffffff;
+  }
+
+  .toast__acao[disabled] {
+    opacity: 0.6;
+    cursor: wait;
+  }
+
+  .toast__fechar {
+    font-size: 1.3rem;
+    line-height: 1;
+  }
+</style>

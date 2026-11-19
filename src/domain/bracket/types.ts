@@ -106,6 +106,7 @@ export type DomainError =
   | { code: "NOME_ATLETA_INVALIDO"; qual: "A" | "B" } // R1.3
   | { code: "NOME_DUPLICADO" } // R1.4
   | { code: "REMOCAO_BLOQUEADA" } // R1.6
+  | { code: "EDICAO_BLOQUEADA" } // editar dupla com chaveamento já gerado
   | { code: "VENCEDOR_INVALIDO" } // R6.2
   | { code: "JOGO_NAO_PRONTO" } // R6.3
   | { code: "PLACAR_INVALIDO" } // placar não inteiro ou negativo
