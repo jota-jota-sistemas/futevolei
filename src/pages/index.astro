@@ -51,8 +51,13 @@ const presetsMes = opcoesPresetsMes(campeonatos);
 
 <script>
   import { iniciarAtalhosHome } from "../scripts/atalhos-home";
+  import { iniciarCriarEventoHome } from "../scripts/criar-evento-home";
+  import { descobrirPapel } from "../scripts/papel-conta";
 
-  // Gestores logados (administrador e organizador) ganham o atalho "Organizar" nos
-  // cards; visitantes não carregam nada a mais.
-  void iniciarAtalhosHome();
+  // Gestores logados (administrador e organizador) ganham o botão "Criar evento" no
+  // hero e o atalho "Organizar" nos cards; visitantes não carregam nada a mais.
+  // O papel é descoberto uma vez só e compartilhado.
+  const papel = descobrirPapel();
+  void iniciarCriarEventoHome({ descobrir: () => papel });
+  void iniciarAtalhosHome({ descobrir: () => papel });
 </script>

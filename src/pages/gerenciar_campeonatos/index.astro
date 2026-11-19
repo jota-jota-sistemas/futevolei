@@ -44,6 +44,10 @@ import { comBase } from "../../utils/url";
   import { criarAuthStoreBrowser } from "../../store/authStore";
   import { trocarVoltar } from "../../scripts/topo";
   import { comBase } from "../../utils/url";
+  import {
+    rolarParaFormularioSeHash,
+    prefereMenosMovimento,
+  } from "../../scripts/rolar-para-formulario";
 
   // A lista só inicia depois que a guarda libera o acesso. Administrador vê todos
   // os campeonatos; organizador, só aqueles em que é dono (o banco confere).
@@ -52,6 +56,13 @@ import { comBase } from "../../utils/url";
     if (!liberado) return;
     // O organizador não usa o painel (só tem os campeonatos): "Voltar" leva ao início.
     if (papel === "organizador") trocarVoltar(document, comBase("/"), "Voltar ao início");
+    // Vindo de "Criar evento" (home): leva direto ao formulário de novo campeonato.
+    rolarParaFormularioSeHash({
+      hash: window.location.hash,
+      idCartao: "novo-campeonato",
+      idCampo: "novo-nome",
+      reduzirMovimento: prefereMenosMovimento(),
+    });
     void iniciarLista({
       store: criarCampeonatoStoreBrowser(),
       progressoStore: criarProgressoStoreBrowser(),
