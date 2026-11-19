@@ -63,8 +63,10 @@ describe("tela cheia do jogo", () => {
     expect(texto(".tela-jogo__situacao")).toBe("Encerrado");
     expect(document.querySelector(".tela-jogo__lado--a")?.classList.contains("tela-jogo__lado--vencedora")).toBe(true);
     expect(texto(".tela-jogo__lado--a .tela-jogo__selo")).toBe("Vencedora");
-    // O destino só tem número quando suas duas duplas já estão definidas.
-    expect(texto(".tela-jogo__rodape")).toBe("O vencedor avança no chaveamento");
+    // Todo jogo do mata-mata já nasce numerado, então o destino tem número.
+    const destino = b.matches.find((m) => m.id === jogo.avancaVencedorPara?.matchId)!;
+    expect(destino.ordemDisputa).not.toBeNull();
+    expect(texto(".tela-jogo__rodape")).toBe(`O vencedor segue para o Jogo ${destino.ordemDisputa}`);
   });
 
   it("fecha pelo botão e pelo Esc, avisando quem abriu", () => {

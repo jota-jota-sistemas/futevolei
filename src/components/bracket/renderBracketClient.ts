@@ -575,6 +575,7 @@ function ligarJogos(
       const origem = mapa.get(l.de)?.firstElementChild as HTMLElement | undefined;
       const destino = mapa.get(l.para)?.firstElementChild as HTMLElement | undefined;
       if (!origem || !destino) continue;
+      if (mapa.get(l.de)?.classList.contains("elim-tree__item--bye")) continue;
       const a = origem.getBoundingClientRect();
       const b = destino.getBoundingClientRect();
       const x1 = a.right - base.left + container.scrollLeft;
@@ -700,7 +701,12 @@ function renderEliminationTree(
                     classes: ["elim-tree__lista"],
                     filhos: rodada.jogos.map((match) =>
                       el("li", {
-                        classes: ["elim-tree__item"],
+                        classes: [
+                          "elim-tree__item",
+                          // Jogo de BYE: não é disputado; a dupla que avança já
+                          // aparece na rodada seguinte. Fica oculto (CSS).
+                          (match.a.bye || match.b.bye) && "elim-tree__item--bye",
+                        ],
                         attrs: { "data-match-id": match.id },
                         filhos: [renderMatchCard(match, duplasPorId, opcoes, origens)],
                       }),
