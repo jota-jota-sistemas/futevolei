@@ -6,7 +6,7 @@ import { itensConta, temSessaoSalva } from "../src/utils/menu";
 import { iniciarMenuConta } from "../src/scripts/menu-conta";
 import type { AuthStore } from "../src/store/authStore";
 
-const H = { entrar: "/entrar", conta: "/conta", gerenciar: "/g" };
+const H = { entrar: "/entrar", conta: "/conta", gerenciar: "/g", gerenciarCampeonatos: "/c" };
 
 describe("itensConta", () => {
   it("visitante, logado e admin", () => {
@@ -15,14 +15,18 @@ describe("itensConta", () => {
     expect(itensConta("admin", H).map((i) => i.rotulo)).toEqual(["Gerenciar", "Minha conta"]);
   });
 
-  it("organizador também vê 'Gerenciar' (o painel mostra só o que ele gerencia)", () => {
-    expect(itensConta("organizador", H)).toEqual(itensConta("admin", H));
-    expect(itensConta("organizador", H).some((i) => i.href === "/g")).toBe(true);
+  it("organizador também vê 'Gerenciar', mas vai direto à lista de campeonatos (sem passar pelo painel)", () => {
+    const itens = itensConta("organizador", H);
+    expect(itens.map((i) => i.rotulo)).toEqual(["Gerenciar", "Minha conta"]);
+    expect(itens[0].href).toBe("/c");
+    expect(itens[0].secundario).toBe(true);
+    // O administrador continua no painel.
+    expect(itensConta("admin", H)[0].href).toBe("/g");
   });
 
   it("o link de gerenciamento não aparece para visitante nem para logado comum", () => {
     for (const e of ["visitante", "logado"] as const) {
-      expect(itensConta(e, H).some((i) => i.href === "/g")).toBe(false);
+      expect(itensConta(e, H).some((i) => i.href === "/g" || i.href === "/c")).toBe(false);
     }
   });
 });
@@ -87,6 +91,7 @@ describe("iniciarMenuConta", () => {
     await iniciarMenuConta({ criarStore: () => store, chavesStorage: () => ["sb-a-auth-token"] });
     expect(textos()).toEqual(["Gerenciar", "Minha contaConta"]);
     expect(store.eOrganizador).toHaveBeenCalled();
+    expect(document.querySelector("[data-menu-conta] a")!.getAttribute("href")).toBe("/gerenciar_campeonatos");
   });
 
   it("admin não precisa consultar o papel de organizador", async () => {
@@ -94,6 +99,7 @@ describe("iniciarMenuConta", () => {
     await iniciarMenuConta({ criarStore: () => store, chavesStorage: () => ["sb-a-auth-token"] });
     expect(textos()).toEqual(["Gerenciar", "Minha contaConta"]);
     expect(store.eOrganizador).not.toHaveBeenCalled();
+    expect(document.querySelector("[data-menu-conta] a")!.getAttribute("href")).toBe("/gerenciar");
   });
 
   it("itens públicos ficam intactos", async () => {

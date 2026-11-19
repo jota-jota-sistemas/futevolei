@@ -1,6 +1,8 @@
 ---
 import Layout from "../../../../layouts/Layout.astro";
 import GuardaAcesso from "../../../../components/GuardaAcesso.astro";
+import OrganizarAbas from "../../../../components/OrganizarAbas.astro";
+import OrganizarAtalhos from "../../../../components/OrganizarAtalhos.astro";
 import { comBase, slugCategoria } from "../../../../utils/url";
 import { carregarEventos, type EventoCarregado } from "../../../../utils/eventos-db";
 import { CACHE_PAGINAS } from "../../../../utils/cache-http";
@@ -84,6 +86,18 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
       <h1 class="org__titulo">{categoriaNome}</h1>
       <p class="org__subtitulo">{campeonato.nome}</p>
     </header>
+
+    {/* Trocar de categoria em um clique + atalhos do campeonato. */}
+    <OrganizarAbas
+      campeonatoId={campeonato.id}
+      categorias={campeonato.categoriasBanco}
+      atual={categoriaNome}
+    />
+    <OrganizarAtalhos
+      campeonatoId={campeonato.id}
+      listado={campeonato.listado}
+      temCategorias={campeonato.categoriasBanco.length > 0}
+    />
 
     {/* Faixa de status/erros global da página (persistência, carregamento). */}
     <p class="org__status" data-status role="status" aria-live="polite"></p>

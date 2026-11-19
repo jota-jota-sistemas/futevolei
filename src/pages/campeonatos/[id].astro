@@ -195,6 +195,16 @@ const descricaoMeta =
             )
           }
         </div>
+
+        {/* Atalhos de GESTÃO: a página é igual para todos (cache no CDN), então o
+            bloco nasce oculto e os links só são preenchidos no navegador, para
+            administradores e donos do evento (ver scripts/atalho-evento.ts). */}
+        <div class="detalhe__gestao" data-gestao data-campeonato-id={campeonato.id} hidden>
+          <a class="btn-destaque detalhe__botao" data-gestao-organizar href="#">
+            Organizar <span aria-hidden="true">→</span>
+          </a>
+          <a class="detalhe__editar" data-gestao-editar href="#">Editar campeonato</a>
+        </div>
       </aside>
 
       {/* Conteúdo principal: só existe se houver foto, descrição ou categorias.
@@ -242,6 +252,14 @@ const descricaoMeta =
   </article>
 
 </Layout>
+
+<script>
+  import { iniciarAtalhoEvento } from "../../scripts/atalho-evento";
+
+  // Administradores e donos do evento veem "Organizar" e "Editar"; os demais não
+  // carregam nada a mais.
+  void iniciarAtalhoEvento();
+</script>
 
 <style>
   .detalhe {
@@ -434,13 +452,27 @@ const descricaoMeta =
     width: 100%;
   }
 
-  /* Instagram: botão secundário de contorno (texto escuro sobre claro, AA). */
-  .detalhe__instagram {
+  /* Gestão (admin e donos): botões de largura total, alvo de toque de 44px. */
+  .detalhe__gestao {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-top: 1rem;
+  }
+
+  .detalhe__gestao[hidden] {
+    display: none;
+  }
+
+  /* Instagram e Editar: botão secundário de contorno (texto escuro sobre claro, AA). */
+  .detalhe__instagram,
+  .detalhe__editar {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
     width: 100%;
+    min-height: 44px;
     padding: 0.7rem 1.3rem;
     border: 1.5px solid var(--cor-escuro);
     border-radius: 999px;
@@ -451,7 +483,8 @@ const descricaoMeta =
     transition: background 0.15s ease, color 0.15s ease;
   }
 
-  .detalhe__instagram:hover {
+  .detalhe__instagram:hover,
+  .detalhe__editar:hover {
     background: var(--cor-escuro);
     color: var(--cor-texto-claro);
   }

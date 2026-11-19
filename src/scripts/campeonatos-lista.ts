@@ -19,7 +19,7 @@ import {
   validarCampeonato,
 } from "../domain/campeonatos/validation";
 import type { CampeonatoStore } from "../store/campeonatoStore";
-import { formatarPeriodo } from "../utils/url";
+import { formatarPeriodo, hrefOrganizarCampeonato } from "../utils/url";
 import {
   definirEnviando,
   esconderStatus,
@@ -27,7 +27,7 @@ import {
   limparErros,
   limparFormulario,
   mostrarErro,
-  mostrarStatus,
+  mostrarStatusComLinks,
 } from "./campeonato-form";
 import { hrefGerenciarCampeonato } from "./rotas-gerenciar";
 
@@ -63,6 +63,7 @@ function chip(texto: string): HTMLSpanElement {
 /** Monta o item da lista com DOM seguro (textContent; nunca innerHTML). */
 function itemDe(c: CampeonatoRegistro, hrefEditar: (id: string) => string): HTMLLIElement {
   const li = document.createElement("li");
+  li.className = "cl-linha";
   const a = document.createElement("a");
   a.className = "cl-item";
   a.href = hrefEditar(c.id);
@@ -89,6 +90,16 @@ function itemDe(c: CampeonatoRegistro, hrefEditar: (id: string) => string): HTML
   if (chips.childElementCount > 0) a.append(chips);
 
   li.append(a);
+  // Atalho para a organização (um clique a menos). Arquivado não tem página de
+  // organizar (ela só existe para campeonatos ativos).
+  if (c.ativo) {
+    const organizar = document.createElement("a");
+    organizar.className = "cl-organizar";
+    organizar.href = hrefOrganizarCampeonato(c.id);
+    organizar.textContent = "Organizar";
+    organizar.setAttribute("aria-label", `Organizar ${c.nome}`);
+    li.append(organizar);
+  }
   return li;
 }
 
@@ -198,7 +209,10 @@ export async function iniciarLista({
       todos = ordenarCampeonatos([...todos, r.valor]);
       render();
       limparFormulario(formulario);
-      mostrarStatus(formulario, `${r.valor.nome} foi cadastrado.`);
+      mostrarStatusComLinks(formulario, `${r.valor.nome} foi cadastrado.`, [
+        { rotulo: "Editar", href: hrefEditar(r.valor.id) },
+        { rotulo: "Organizar", href: hrefOrganizarCampeonato(r.valor.id) },
+      ]);
     }
 
     formulario.addEventListener("submit", (evento) => {

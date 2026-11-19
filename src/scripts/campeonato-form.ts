@@ -129,6 +129,29 @@ export function mostrarStatus(
   el.hidden = false;
 }
 
+/**
+ * Mensagem de sucesso seguida de links de ação (ex.: "Editar", "Organizar"),
+ * para a pessoa seguir em um clique. DOM seguro: só `textContent` e `href`.
+ */
+export function mostrarStatusComLinks(
+  form: HTMLFormElement,
+  texto: string,
+  links: readonly { rotulo: string; href: string }[]
+): void {
+  const el = form.querySelector<HTMLElement>("[data-status]");
+  if (!el) return;
+  el.textContent = `${texto} `;
+  el.dataset.tipo = "ok";
+  for (const l of links) {
+    const a = document.createElement("a");
+    a.className = "cf__link";
+    a.href = l.href;
+    a.textContent = l.rotulo;
+    el.append(a);
+  }
+  el.hidden = false;
+}
+
 export function esconderStatus(form: HTMLFormElement): void {
   const el = form.querySelector<HTMLElement>("[data-status]");
   if (!el) return;

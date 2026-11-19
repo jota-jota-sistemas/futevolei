@@ -9,7 +9,7 @@
 
 import { itensConta, temSessaoSalva, type EstadoConta } from "../utils/menu";
 import { hrefEntrar, hrefConta } from "./rotas-auth";
-import { hrefGerenciar } from "./rotas-gerenciar";
+import { hrefGerenciar, hrefGerenciarCampeonatos } from "./rotas-gerenciar";
 import type { AuthStore } from "../store/authStore";
 
 export interface OpcoesMenuConta {
@@ -38,6 +38,7 @@ function desenhar(
     entrar: hrefEntrar(),
     conta: hrefConta(),
     gerenciar: hrefGerenciar(),
+    gerenciarCampeonatos: hrefGerenciarCampeonatos(),
   });
   contenedor.textContent = "";
   for (const item of itens) {

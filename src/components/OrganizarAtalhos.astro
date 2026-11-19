@@ -1,0 +1,63 @@
+---
+// Atalhos do campeonato nas páginas de organização: editar, ver a página pública
+// e acompanhar as partidas. Mobile-first: links em linha que quebra, alvo de
+// toque de 44px.
+import { atalhosDeOrganizacao } from "../utils/organizar-nav";
+import { hrefGerenciarCampeonato } from "../scripts/rotas-gerenciar";
+
+interface Props {
+  campeonatoId: string;
+  listado: boolean;
+  temCategorias: boolean;
+}
+
+const { campeonatoId, listado, temCategorias } = Astro.props;
+const atalhos = atalhosDeOrganizacao({
+  id: campeonatoId,
+  listado,
+  temCategorias,
+  hrefEditar: hrefGerenciarCampeonato(campeonatoId),
+});
+---
+
+<nav class="atalhos" aria-label="Atalhos do campeonato">
+  <ul class="atalhos__lista">
+    {
+      atalhos.map((a) => (
+        <li>
+          <a class="atalhos__link" href={a.href}>{a.rotulo}</a>
+        </li>
+      ))
+    }
+  </ul>
+</nav>
+
+<style>
+  .atalhos {
+    margin: 0 0 1.25rem;
+  }
+
+  .atalhos__lista {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.1rem;
+    margin: 0;
+    padding: 0;
+  }
+
+  .atalhos__link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px; /* alvo de toque confortável */
+    color: var(--cor-destaque-texto);
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .atalhos__link:hover {
+    color: var(--cor-texto);
+  }
+</style>

@@ -207,6 +207,25 @@ describe("/conta", () => {
     expect(document.querySelector<HTMLButtonElement>("[data-virar-organizador]")!.disabled).toBe(false);
   });
 
+  it("o link 'Gerenciar': organizador vai direto aos campeonatos; administrador, ao painel", async () => {
+    await iniciarConta({ ...storesConta({ organizador: true }), irPara: vi.fn() });
+    expect(document.querySelector<HTMLAnchorElement>("[data-conta-gerenciar]")!.getAttribute("href")).toBe(
+      "/gerenciar_campeonatos"
+    );
+    montarConta();
+    await iniciarConta({ ...storesConta({ admin: true, organizador: true }), irPara: vi.fn() });
+    expect(document.querySelector<HTMLAnchorElement>("[data-conta-gerenciar]")!.getAttribute("href")).toBe("/gerenciar");
+  });
+
+  it("virar organizador pelo botão também leva o link direto aos campeonatos", async () => {
+    await iniciarConta({ ...storesConta(), irPara: vi.fn() });
+    document.querySelector<HTMLButtonElement>("[data-virar-organizador]")!.click();
+    await tick();
+    expect(document.querySelector<HTMLAnchorElement>("[data-conta-gerenciar]")!.getAttribute("href")).toBe(
+      "/gerenciar_campeonatos"
+    );
+  });
+
   it("quem já é organizador: papel, link de gerenciar e sem botão de cadastro", async () => {
     await iniciarConta({ ...storesConta({ organizador: true }), irPara: vi.fn() });
     expect(t("[data-conta-papel]")).toBe("Organizador");

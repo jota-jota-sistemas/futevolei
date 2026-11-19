@@ -131,3 +131,17 @@ export function slugCategoria(nome: string): string {
 export function hrefPerfilJogador(id: string): string {
   return `${comBase("/jogadores/perfil")}?id=${encodeURIComponent(id)}`;
 }
+
+/**
+ * Link da organização de um campeonato (índice das categorias). Rota restrita a
+ * administradores e donos do evento (a página confere o acesso).
+ * Ex. (base "/"): hrefOrganizarCampeonato("copa-2026") -> "/campeonatos/copa-2026/organizar"
+ */
+export function hrefOrganizarCampeonato(id: string): string {
+  return comBase(`/campeonatos/${encodeURIComponent(id)}/organizar`);
+}
+
+/** Link da organização de UMA categoria (`slug` vem de `slugCategoria`). */
+export function hrefOrganizarCategoria(id: string, slug: string): string {
+  return `${hrefOrganizarCampeonato(id)}/${slug}`;
+}

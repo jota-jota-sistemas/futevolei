@@ -41,12 +41,16 @@ import { comBase } from "../../utils/url";
   import { hrefGerenciarCampeonato } from "../../scripts/rotas-gerenciar";
   import { guardarAcesso } from "../../scripts/guarda";
   import { criarAuthStoreBrowser } from "../../store/authStore";
+  import { trocarVoltar } from "../../scripts/topo";
+  import { comBase } from "../../utils/url";
 
   // A lista só inicia depois que a guarda libera o acesso. Administrador vê todos
   // os campeonatos; organizador, só aqueles em que é dono (o banco confere).
   let papel: "admin" | "organizador" = "admin";
   void guardarAcesso({ store: criarAuthStoreBrowser(), permitir: ["admin", "organizador"], aoLiberar: (p) => { papel = p; } }).then((liberado) => {
     if (!liberado) return;
+    // O organizador não usa o painel (só tem os campeonatos): "Voltar" leva ao início.
+    if (papel === "organizador") trocarVoltar(document, comBase("/"), "Voltar ao início");
     void iniciarLista({
       store: criarCampeonatoStoreBrowser(),
       hrefEditar: hrefGerenciarCampeonato,

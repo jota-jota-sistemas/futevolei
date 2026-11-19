@@ -22,7 +22,7 @@ import type { CampeonatoDetalhe, CampeonatoDono } from "../domain/campeonatos/ty
 import { mensagemDoErro } from "../domain/campeonatos/mensagens";
 import { validarCampeonato } from "../domain/campeonatos/validation";
 import type { CampeonatoStore } from "../store/campeonatoStore";
-import { comBase, formatarPeriodo } from "../utils/url";
+import { formatarPeriodo, hrefOrganizarCampeonato } from "../utils/url";
 import {
   definirEnviando,
   esconderStatus,
@@ -123,7 +123,7 @@ export async function iniciarEdicao({
       if (!c.ativo) chips.append(chip("Arquivado", "pf-chip--arquivado"));
       chips.append(chip(c.listado ? "Visível na home" : "Oculto na home"));
     }
-    if (organizar) organizar.href = comBase(`/campeonatos/${encodeURIComponent(c.id)}/organizar`);
+    if (organizar) organizar.href = hrefOrganizarCampeonato(c.id);
     if (btnArquivar) btnArquivar.textContent = c.ativo ? "Arquivar campeonato" : "Reativar campeonato";
     document.title = `${c.nome} — Gerenciar campeonato — Pingo Futevôlei`;
   }
