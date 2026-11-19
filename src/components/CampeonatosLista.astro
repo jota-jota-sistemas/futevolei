@@ -1,6 +1,6 @@
 ---
 // Lista de campeonatos (marcação + estilos) da área de GERENCIAMENTO
-// (/gerenciar_campeonatos): busca, filtro de arquivados e formulário de cadastro.
+// (/gerenciar_campeonatos, "Meus eventos"): busca, filtros por situação e formulário de cadastro.
 // O comportamento é ligado pelo script da página (ver scripts/campeonatos-lista.ts).
 import Cartao from "./Cartao.astro";
 import CampeonatoForm from "./CampeonatoForm.astro";
@@ -19,11 +19,10 @@ import CampeonatoForm from "./CampeonatoForm.astro";
           autocomplete="off"
         />
       </div>
-      <label class="campeonatos__arquivados">
-        <input type="checkbox" data-mostrar-arquivados />
-        Mostrar arquivados
-      </label>
     </div>
+
+    {/* Filtros por situação (Próximos, Passados, Arquivados, Todos): criados pelo script. */}
+    <div class="campeonatos__filtros" data-filtros-estado role="group" aria-label="Filtrar por situação"></div>
 
     <p class="campeonatos__contador" data-contador-campeonatos aria-live="polite"></p>
     <p class="campeonatos__estado" data-estado-lista role="status">Carregando campeonatos…</p>
@@ -77,20 +76,11 @@ import CampeonatoForm from "./CampeonatoForm.astro";
     font-size: 1rem;
   }
 
-  .campeonatos__arquivados {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-height: 2.75rem;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .campeonatos__arquivados input {
-    width: 1.1rem;
-    height: 1.1rem;
-    accent-color: var(--cor-destaque-texto);
+  .campeonatos__filtros {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.9rem;
   }
 
   .campeonatos__contador {
@@ -180,7 +170,16 @@ import CampeonatoForm from "./CampeonatoForm.astro";
     overflow-wrap: anywhere;
   }
 
-  .cl-organizar {
+  /* Ações da linha (organizar/continuar e duplicar): lado a lado no celular, cada
+     uma com alvo de toque de 44px; no canto direito a partir de 560px. */
+  .cl-acoes {
+    display: flex;
+    gap: 0.4rem;
+  }
+
+  .cl-organizar,
+  .cl-duplicar {
+    flex: 1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -192,12 +191,20 @@ import CampeonatoForm from "./CampeonatoForm.astro";
     font-size: 0.9rem;
     font-weight: 700;
     text-decoration: none;
+    text-align: center;
     transition: background 0.15s ease, color 0.15s ease;
   }
 
-  .cl-organizar:hover {
+  .cl-organizar:hover,
+  .cl-duplicar:hover {
     background: var(--cor-escuro);
     color: var(--cor-texto-claro);
+  }
+
+  /* Duplicar é secundário: contorno suave. */
+  .cl-duplicar {
+    border-color: var(--cor-borda);
+    font-weight: 600;
   }
 
   @media (min-width: 560px) {
@@ -207,9 +214,54 @@ import CampeonatoForm from "./CampeonatoForm.astro";
       gap: 0.5rem;
     }
 
-    .cl-organizar {
+    .cl-acoes {
+      flex: none;
       align-self: center;
     }
+
+    .cl-organizar,
+    .cl-duplicar {
+      flex: none;
+    }
+  }
+
+  /* Progresso do evento (uma linha curta sob o período e o local). */
+  .cl-progresso {
+    margin-top: 0.15rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--cor-destaque-texto);
+    overflow-wrap: anywhere;
+  }
+
+  .cl-chip--hoje {
+    background: var(--cor-destaque);
+    color: var(--cor-destaque-contraste);
+  }
+
+  /* Filtros por situação: chips de alternância (aria-pressed). */
+  .cl-filtro {
+    min-height: 44px;
+    padding: 0.4rem 0.95rem;
+    border: 1.5px solid var(--cor-borda);
+    border-radius: 999px;
+    background: var(--cor-superficie);
+    color: var(--cor-texto);
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .cl-filtro:hover {
+    border-color: var(--cor-destaque);
+  }
+
+  .cl-filtro[aria-pressed="true"] {
+    border-color: var(--cor-destaque);
+    background: var(--cor-destaque);
+    color: var(--cor-destaque-contraste);
+    font-weight: 800;
   }
 
   .cl-chips {

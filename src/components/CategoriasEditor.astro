@@ -1,0 +1,306 @@
+---
+// Editor de categorias de um campeonato (cartão "Categorias" da edição):
+// lista com remoção, criação em lote por Gênero × Nível, categoria avulsa e
+// "copiar de outro evento". Só markup e estilo: o comportamento vem de
+// scripts/categorias-editor.ts por meio dos atributos data-*.
+//
+// Mobile-first: chips e botões com alvo de toque de 44px, tudo em coluna no
+// celular e funcionando em 320px.
+import { GENEROS } from "../utils/categorias";
+import { NIVEIS_DE_CATEGORIA } from "../domain/categorias/validation";
+---
+
+<div class="cat" data-categorias-editor>
+  <p class="cat__estado" data-cat-estado role="status">Carregando categorias…</p>
+  <ul class="cat__lista" data-cat-lista aria-label="Categorias do campeonato"></ul>
+
+  <fieldset class="cat__grupo">
+    <legend>Criar várias de uma vez</legend>
+
+    <p class="cat__rotulo" id="cat-generos-rotulo">Gênero</p>
+    <div class="cat__chips" role="group" aria-labelledby="cat-generos-rotulo" data-cat-generos>
+      {
+        GENEROS.map((g) => (
+          <label class="cat__chip">
+            <input type="checkbox" data-cat-genero value={g} />
+            <span>{g}</span>
+          </label>
+        ))
+      }
+    </div>
+
+    <p class="cat__rotulo" id="cat-niveis-rotulo">Nível</p>
+    <div class="cat__chips" role="group" aria-labelledby="cat-niveis-rotulo" data-cat-niveis>
+      {
+        NIVEIS_DE_CATEGORIA.map((n) => (
+          <label class="cat__chip">
+            <input type="checkbox" data-cat-nivel value={n} />
+            <span>{n}</span>
+          </label>
+        ))
+      }
+    </div>
+
+    <button type="button" class="btn-destaque cat__gerar" data-cat-gerar disabled>
+      Marque gênero e nível
+    </button>
+    <p class="cat__dica" data-cat-dica hidden></p>
+  </fieldset>
+
+  <form class="cat__avulsa" data-cat-form-custom novalidate>
+    <label for="cat-custom">Outra categoria</label>
+    <div class="cat__linha">
+      <input
+        id="cat-custom"
+        name="nome"
+        type="text"
+        maxlength="60"
+        autocomplete="off"
+        placeholder="Ex.: Kids, 35+, Dupla mista"
+      />
+      <button type="submit" class="cat__botao" data-cat-adicionar-custom>Adicionar</button>
+    </div>
+  </form>
+
+  <div class="cat__copiar" data-cat-copiar-bloco hidden>
+    <label for="cat-copiar-select">Copiar categorias de outro evento</label>
+    <div class="cat__linha">
+      <select id="cat-copiar-select" data-cat-copiar-select>
+        <option value="">Escolha o evento</option>
+      </select>
+      <button type="button" class="cat__botao" data-cat-copiar disabled>Copiar</button>
+    </div>
+  </div>
+
+  <p class="cat__status" data-cat-status role="status" aria-live="polite" hidden></p>
+</div>
+
+<style>
+  .cat {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .cat__estado {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--cor-texto-suave);
+  }
+
+  .cat__estado[hidden],
+  .cat__dica[hidden],
+  .cat__status[hidden],
+  .cat__copiar[hidden] {
+    display: none;
+  }
+
+  .cat__lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .cat__grupo {
+    margin: 0;
+    padding: 0.9rem 1rem 1rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 12px;
+    min-width: 0;
+  }
+
+  .cat__grupo legend {
+    padding: 0 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  .cat__rotulo {
+    margin: 0.5rem 0 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--cor-texto-suave);
+  }
+
+  .cat__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  /* Chip = label com checkbox escondido; o foco do teclado aparece no chip. */
+  .cat__chip {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .cat__chip input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .cat__chip span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px; /* alvo de toque confortável */
+    padding: 0.4rem 0.95rem;
+    border: 1.5px solid var(--cor-borda);
+    border-radius: 999px;
+    background: var(--cor-superficie);
+    color: var(--cor-texto);
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  .cat__chip input:checked + span {
+    border-color: var(--cor-destaque);
+    background: var(--cor-destaque);
+    color: var(--cor-destaque-contraste);
+    font-weight: 800;
+  }
+
+  .cat__chip input:focus-visible + span {
+    outline: 3px solid var(--cor-destaque);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px var(--cor-destaque-contraste);
+  }
+
+  .cat__gerar {
+    width: 100%;
+    min-height: 44px;
+    margin-top: 1rem;
+  }
+
+  .cat__gerar[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .cat__dica {
+    margin: 0.5rem 0 0;
+    font-size: 0.85rem;
+    color: var(--cor-texto-suave);
+  }
+
+  .cat__avulsa label,
+  .cat__copiar label {
+    display: block;
+    margin-bottom: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  .cat__linha {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .cat__linha input,
+  .cat__linha select {
+    flex: 1 1 200px;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0.5rem 0.8rem;
+    border: 1px solid var(--cor-texto-suave);
+    border-radius: 12px;
+    background: var(--cor-superficie);
+    color: var(--cor-texto);
+    font-family: inherit;
+    font-size: 1rem; /* 16px evita o zoom automático do iOS */
+  }
+
+  .cat__botao {
+    min-height: 44px;
+    padding: 0.5rem 1.2rem;
+    border: 1.5px solid var(--cor-escuro);
+    border-radius: 999px;
+    background: none;
+    color: var(--cor-texto);
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .cat__botao:hover {
+    background: var(--cor-escuro);
+    color: var(--cor-texto-claro);
+  }
+
+  .cat__botao[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .cat__status {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--cor-destaque-texto);
+  }
+
+  .cat__status[data-tipo="erro"] {
+    color: var(--cor-erro);
+  }
+</style>
+
+<!-- Itens criados em runtime pelo script: CSS global com prefixo `cat-item`. -->
+<style is:global>
+  .cat-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.75rem;
+    padding: 0.5rem 0.7rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 12px;
+    background: var(--cor-superficie);
+  }
+
+  .cat-item__nome {
+    flex: 1 1 8rem;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-weight: 700;
+  }
+
+  .cat-item__duplas {
+    flex: none;
+    font-size: 0.8rem;
+    color: var(--cor-texto-suave);
+  }
+
+  .cat-item__remover {
+    flex: none;
+    min-height: 44px;
+    padding: 0.4rem 1rem;
+    border: 1.5px solid var(--cor-erro);
+    border-radius: 999px;
+    background: none;
+    color: var(--cor-erro);
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .cat-item__remover:hover:not([disabled]) {
+    background: var(--cor-erro);
+    color: #ffffff;
+  }
+
+  .cat-item__remover[disabled] {
+    border-color: var(--cor-borda);
+    color: var(--cor-texto-suave);
+    cursor: not-allowed;
+  }
+</style>

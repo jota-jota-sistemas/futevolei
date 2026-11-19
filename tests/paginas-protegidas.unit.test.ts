@@ -119,3 +119,43 @@ describe("páginas públicas", () => {
     });
   }
 });
+
+describe("Fase 1 (UX do organizador): categorias, criação guiada e Meus eventos", () => {
+  const lerComp = (nome: string) => readFileSync(join(PAGES, "..", "components", nome), "utf8");
+  const lerScript = (nome: string) => readFileSync(join(PAGES, "..", "scripts", nome), "utf8");
+
+  it("a edição tem o editor de categorias e o cartão Duplicar, com as âncoras #categorias e #duplicar", () => {
+    const perfil = lerComp("CampeonatoPerfil.astro");
+    expect(perfil).toMatch(/<CategoriasEditor/);
+    expect(perfil).toMatch(/id="categorias"/);
+    expect(perfil).toMatch(/id="duplicar"/);
+    expect(perfil).toMatch(/data-duplicar-form/);
+  });
+
+  it("nenhum texto diz que as categorias são criadas na organização do evento (elas são criadas na edição)", () => {
+    for (const f of [lerComp("CampeonatoPerfil.astro"), lerComp("CategoriasEditor.astro"), lerScript("campeonato-editar.ts"), lerScript("categorias-editor.ts")]) {
+      expect(f).not.toMatch(/criad[oa]s? na organização/i);
+    }
+  });
+
+  it("o estado vazio da organização tem o botão 'Criar categorias' (não é mais um beco sem saída)", () => {
+    const f = ler("campeonatos/[id]/organizar/index.astro");
+    expect(f).toMatch(/Criar categorias/);
+    expect(f).toMatch(/hrefGerenciarCampeonato\(campeonato\.id\)\}#categorias/);
+  });
+
+  it("o formulário de campeonato: só nome e data à vista, 'Mais detalhes' e preço único (sem campo de texto do preço)", () => {
+    const f = lerComp("CampeonatoForm.astro");
+    expect(f).toMatch(/<details class="cf__detalhes/);
+    expect(f).toMatch(/Mais detalhes/);
+    expect(f).toMatch(/name="precoAConfirmar"/);
+    expect(f).not.toMatch(/name="precoTexto"/);
+    expect(lerComp("CampeonatoPerfil.astro")).toMatch(/<CampeonatoForm[^>]*detalhesAbertos/);
+  });
+
+  it("a lista tem filtros por situação e a página liga o progresso em lote", () => {
+    expect(lerComp("CampeonatosLista.astro")).toMatch(/data-filtros-estado/);
+    expect(ler("gerenciar_campeonatos/index.astro")).toMatch(/progressoStore: criarProgressoStoreBrowser\(\)/);
+    expect(ler("gerenciar_campeonatos/editar.astro")).toMatch(/categoriaStore: criarCategoriaStoreBrowser\(\)/);
+  });
+});

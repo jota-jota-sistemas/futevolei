@@ -30,6 +30,7 @@ import { comBase } from "../../utils/url";
 <script>
   import { iniciarEdicao } from "../../scripts/campeonato-editar";
   import { criarCampeonatoStoreBrowser } from "../../store/campeonatoStore";
+  import { criarCategoriaStoreBrowser } from "../../store/categoriaStore";
   import { irParaGerenciarCampeonatos } from "../../scripts/rotas-gerenciar";
   import { guardarAcesso } from "../../scripts/guarda";
   import { criarAuthStoreBrowser } from "../../store/authStore";
@@ -39,8 +40,15 @@ import { comBase } from "../../utils/url";
   let papel: "admin" | "organizador" = "admin";
   void guardarAcesso({ store: criarAuthStoreBrowser(), permitir: ["admin", "organizador"], aoLiberar: (p) => { papel = p; } }).then((liberado) => {
     if (!liberado) return;
+    const campeonatos = criarCampeonatoStoreBrowser();
     void iniciarEdicao({
-      store: criarCampeonatoStoreBrowser(),
+      store: campeonatos,
+      categoriaStore: criarCategoriaStoreBrowser(),
+      // Para "copiar categorias de outro evento": o organizador só vê os dele.
+      listarEventosParaCopiar: async () => {
+        const r = papel === "organizador" ? await campeonatos.listarMeus() : await campeonatos.listar();
+        return r.ok ? r.valor.map((c) => ({ id: c.id, nome: c.nome })) : [];
+      },
       id: new URLSearchParams(window.location.search).get("id"),
       verificarPosse: papel === "organizador",
       // Depois de excluir de vez, volta para a lista de GERENCIAMENTO.

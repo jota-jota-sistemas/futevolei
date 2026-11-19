@@ -10,7 +10,14 @@ const schema = ler("schema.sql");
 const migracao = ler("migracao-organizadores.sql");
 
 const marca = "-- ORGANIZADORES (papel, donos e escrita por organizador)";
-const bloco = (texto: string) => texto.slice(texto.indexOf(marca)).trim();
+const marcaCategorias = "-- CATEGORIAS: PROTEÇÃO DE REMOÇÃO";
+// Do marcador até o bloco seguinte (categorias), se houver.
+const bloco = (texto: string) => {
+  const ini = texto.indexOf(marca);
+  const prox = texto.indexOf(marcaCategorias);
+  const fim = prox > ini ? prox : texto.length;
+  return texto.slice(ini, fim).replace(/\n-- -+\s*$/, "").trim();
+};
 const semComentarios = (texto: string) =>
   texto
     .split("\n")
