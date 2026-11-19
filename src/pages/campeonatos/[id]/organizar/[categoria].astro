@@ -48,7 +48,7 @@ import { CACHE_PAGINAS } from "../../../../utils/cache-http";
  * A TRANSIÇÃO grupos → mata-mata (posicionar os classificados) NÃO é feita no
  * "gerar". Ela depende dos resultados dos jogos de grupo e fica num passo
  * SEPARADO: quando todos os grupos estão completos, aparece o botão "Gerar
- * mata-mata", que usa `selecionarClassificados` + `posicionarClassificadosNoMataMata`
+ * mata-mata", que usa `prepararMataMata` (src/domain/bracket/matamata.ts)
  * e re-salva o chaveamento (mantendo o fluxo simples e explícito).
  */
 export const prerender = false;
@@ -108,7 +108,7 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
         { id: "titulo-duplas", rotulo: "Duplas" },
         { id: "titulo-formato", rotulo: "Formato" },
         { id: "titulo-gerar", rotulo: "Chaveamento" },
-        { id: "titulo-estado", rotulo: "Jogos" },
+        { id: "titulo-fila", rotulo: "Jogos" },
       ]}
     />
 
@@ -321,6 +321,24 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
             Gerar mata-mata
           </button>
         </div>
+        {/* Situação da fase de grupos: o que falta para liberar o mata-mata. */}
+        <p class="org__ajuda" data-matamata-info aria-live="polite" hidden></p>
+
+        {/* Prévia dos cruzamentos: nada é gravado antes de confirmar. */}
+        <div class="org__confirmar" data-matamata-previa hidden role="alertdialog" aria-labelledby="matamata-titulo">
+          <p class="org__confirmar-msg" id="matamata-titulo">
+            Estes são os primeiros jogos do mata-mata. Confirme para gerar.
+          </p>
+          <ul class="org__cruzamentos" data-matamata-lista></ul>
+          <div class="org__acoes">
+            <button class="org__botao org__botao--primario" type="button" data-matamata-confirmar>
+              Confirmar e gerar mata-mata
+            </button>
+            <button class="org__botao" type="button" data-matamata-cancelar>
+              Cancelar
+            </button>
+          </div>
+        </div>
 
         {/* Confirmação de substituição (R4.8/R4.9): só aparece quando já existe
             um chaveamento. Sem "Confirmar", nada é gravado. */}
@@ -340,6 +358,13 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
         </div>
 
         <p class="org__erro" data-erro-gerar role="alert"></p>
+      </section>
+
+      <!-- ========================= PRÓXIMOS JOGOS ======================= -->
+      <section class="org__bloco" aria-labelledby="titulo-fila" data-fila hidden>
+        <h2 class="org__bloco-titulo" id="titulo-fila">Próximos jogos</h2>
+        <ul class="org__fila" data-fila-lista></ul>
+        <button class="org__botao" type="button" data-fila-ver-todos hidden></button>
       </section>
 
       <!-- ===================== ESTADO ATUAL / RESULTADOS ================ -->
@@ -404,11 +429,7 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
     seedingPadrao,
     seedingAleatorio,
   } from "../../../../domain/bracket/seeding";
-  import {
-    gerarChaveamento,
-    posicionarClassificadosNoMataMata,
-    type ClassificadoDoGrupo,
-  } from "../../../../domain/bracket/generator";
+  import { gerarChaveamento } from "../../../../domain/bracket/generator";
   import { rotuloDupla } from "../../../../domain/pairs/nome";
   import type { VinculosDuplaIds } from "../../../../store/bracketStore";
   import { resumirGeracao } from "../../../../domain/bracket/resumo";
@@ -420,12 +441,20 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
   import { ligarColarLista } from "../../../../scripts/organizar/colar-lista";
   import { ligarFormato, type ControleFormato } from "../../../../scripts/organizar/formato";
   import { ligarNivelador, type ControleNivelador } from "../../../../scripts/organizar/nivelador";
+  import { ligarFila, type ControleFila } from "../../../../scripts/organizar/fila";
+  import { abrirTelaPlacar as abrirPlacarModulo } from "../../../../scripts/organizar/placar";
+  import {
+    jogosPendentesDosGrupos,
+    descreverFaltantes,
+    podeGerarMataMata,
+    prepararMataMata,
+    type PreparoMataMata,
+  } from "../../../../domain/bracket/matamata";
   import { abrirTelaChaveamento, type TelaChaveamento } from "../../../../components/bracket/telaChaveamento";
   import { abrirTelaJogo, type TelaJogo } from "../../../../components/bracket/telaJogo";
   import { registrarPlacar, atualizarPlacarAoVivo } from "../../../../domain/bracket/progression";
   import { numerarJogos } from "../../../../domain/bracket/ordenacao";
   import { jogosAlterados } from "../../../../domain/bracket/diff";
-  import { selecionarClassificados } from "../../../../domain/bracket/standings";
 
   // --------------------------------------------------------------------
   // Helpers de DOM
@@ -473,6 +502,9 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
     duplasCtl: ControleDuplas | null;
     formatoCtl: ControleFormato | null;
     niveladorCtl: ControleNivelador | null;
+    filaCtl: ControleFila | null;
+    // Mata-mata montado e aguardando a confirmação da prévia.
+    matamataPendente: Bracket | null;
   }
 
   /** Aviso curto no pé da tela (some sozinho). */
@@ -564,6 +596,8 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
       duplasCtl: null,
       formatoCtl: null,
       niveladorCtl: null,
+      filaCtl: null,
+      matamataPendente: null,
     };
 
     // Carrega o estado inicial (duplas + chaveamento) antes de exibir a UI.
@@ -680,6 +714,11 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
       avisar,
       aoMudar: () => renderTudo(ctx),
       renderDuplas: () => ctx.duplasCtl?.render(),
+    });
+    ctx.filaCtl = ligarFila({
+      secao: ctx.secao,
+      bracket: () => ctx.bracket,
+      abrirPlacar: (matchId) => abrirTelaPlacar(ctx, matchId),
     });
     // Se já existe um nivelador salvo, a caixa começa marcada; senão, desmarcada.
     const usarNivelador = q<HTMLInputElement>(ctx.secao, "[data-usar-nivelador]");
@@ -832,95 +871,91 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
   // GERAR MATA-MATA (transição grupos → mata-mata, R5.4/R5.5/R5.6)
   // --------------------------------------------------------------------
 
-  /** Verdadeiro sse o bracket atual é de fase de grupos com todos os grupos
-   *  completos (todos os jogos de grupo têm vencedor). */
-  function gruposTodosCompletos(bracket: Bracket): boolean {
-    if (bracket.formato !== "fase de grupos") return false;
-    if (bracket.grupos.length === 0) return false;
-    const jogosGrupo = bracket.matches.filter((m) => m.side === "grupo");
-    if (jogosGrupo.length === 0) return false;
-    return jogosGrupo.every((m) => m.vencedorId !== null);
-  }
-
-  /** Verdadeiro sse o mata-mata já foi gerado (há jogos fora de "grupo"). */
-  function temMataMata(bracket: Bracket): boolean {
-    return bracket.matches.some((m) => m.side !== "grupo");
-  }
-
+  /**
+   * Botão e mensagem da passagem grupos → mata-mata: com a fase de grupos em
+   * andamento mostra o que falta ("Faltam Jogo 4, 7 e 9") e deixa o botão
+   * desabilitado; completa, libera o botão.
+   */
   function renderBotaoMataMata(ctx: Ctx): void {
     const botao = q<HTMLButtonElement>(ctx.secao, "[data-gerar-matamata]");
+    const info = q<HTMLElement>(ctx.secao, "[data-matamata-info]");
     if (!botao) return;
-    const mostrar =
-      ctx.bracket !== null &&
-      gruposTodosCompletos(ctx.bracket) &&
-      !temMataMata(ctx.bracket);
-    botao.hidden = !mostrar;
-  }
-
-  async function gerarMataMata(ctx: Ctx): Promise<void> {
-    const erro = q<HTMLElement>(ctx.secao, "[data-erro-gerar]");
-    limparErro(erro);
-    const bracket = ctx.bracket;
-    if (!bracket || !gruposTodosCompletos(bracket)) return;
-
-    const classificadosPorGrupo = bracket.config.classificadosPorGrupo ?? 1;
-    const duplaPorId = new Map(bracket.duplas.map((d) => [d.id, d]));
-
-    // Monta a lista de classificados (dupla + grupo + posição) para posicionar.
-    const classificados: ClassificadoDoGrupo[] = [];
-    for (const grupo of bracket.grupos) {
-      const top = selecionarClassificados(
-        grupo,
-        bracket.matches,
-        classificadosPorGrupo,
-      );
-      if (top === null) {
-        setTexto(erro, "A fase de grupos ainda não está completa.");
-        return;
-      }
-      for (const standing of top) {
-        const pair = duplaPorId.get(standing.pairId);
-        if (!pair) continue;
-        classificados.push({
-          pair,
-          grupoId: grupo.id,
-          posicaoNoGrupo: standing.posicao,
-        });
-      }
-    }
-
-    const pos = posicionarClassificadosNoMataMata(
-      classificados,
-      bracket.config,
-    );
-    if (!pos.ok) {
-      setTexto(erro, mensagemErro(pos.erro));
+    const b = ctx.bracket;
+    const emGrupos =
+      b !== null &&
+      b.formato === "fase de grupos" &&
+      b.grupos.length > 0 &&
+      !b.matches.some((m) => m.side !== "grupo");
+    botao.hidden = !emGrupos;
+    if (info) info.hidden = !emGrupos;
+    if (!emGrupos || !b) {
+      fecharPreviaMataMata(ctx);
       return;
     }
+    const pendentes = jogosPendentesDosGrupos(b);
+    botao.disabled = pendentes.length > 0;
+    botao.textContent =
+      pendentes.length > 0
+        ? `Gerar mata-mata (faltam ${pendentes.length} ${pendentes.length === 1 ? "jogo" : "jogos"})`
+        : "Gerar mata-mata";
+    setTexto(
+      info,
+      pendentes.length > 0
+        ? `${descreverFaltantes(pendentes)} para fechar a fase de grupos.`
+        : "Fase de grupos concluída. Gere o mata-mata com os classificados.",
+    );
+    if (pendentes.length > 0) fecharPreviaMataMata(ctx);
+  }
 
-    // O mata-mata gerado é um bracket independente; mesclamos os jogos/duplas
-    // do mata-mata ao bracket de grupos existente, preservando os jogos de
-    // grupo e seus resultados.
-    const mataMata = pos.bracket;
-    const jogosGrupo = bracket.matches.filter((m) => m.side === "grupo");
-    const jogosMataMata = mataMata.matches.filter((m) => m.side !== "grupo");
+  function fecharPreviaMataMata(ctx: Ctx): void {
+    ctx.matamataPendente = null;
+    const previa = q<HTMLElement>(ctx.secao, "[data-matamata-previa]");
+    if (previa) previa.hidden = true;
+  }
 
-    // União das duplas (snapshot): grupos + classificados (sem duplicar por id).
-    const duplasUnidas = new Map<string, Pair>();
-    for (const d of bracket.duplas) duplasUnidas.set(d.id, d);
-    for (const d of mataMata.duplas) duplasUnidas.set(d.id, { ...d });
+  /** Monta o mata-mata e mostra os cruzamentos; só grava em `confirmarMataMata`. */
+  function mostrarPreviaMataMata(ctx: Ctx): void {
+    const erro = q<HTMLElement>(ctx.secao, "[data-erro-gerar]");
+    limparErro(erro);
+    if (!ctx.bracket) return;
+    const prep: PreparoMataMata = prepararMataMata(ctx.bracket);
+    if (prep.tipo === "incompleto") {
+      setTexto(erro, `${descreverFaltantes(prep.pendentes) || "A fase de grupos ainda não está completa"}.`);
+      return;
+    }
+    if (prep.tipo === "erro") {
+      setTexto(erro, mensagemErro(prep.erro));
+      return;
+    }
+    ctx.matamataPendente = prep.bracket;
+    const lista = q<HTMLElement>(ctx.secao, "[data-matamata-lista]");
+    lista?.replaceChildren();
+    for (const c of prep.cruzamentos) {
+      const li = document.createElement("li");
+      li.textContent = `${c.jogo !== null ? `Jogo ${c.jogo}: ` : ""}${c.a} × ${c.b}`;
+      lista?.append(li);
+    }
+    const previa = q<HTMLElement>(ctx.secao, "[data-matamata-previa]");
+    if (previa) {
+      previa.hidden = false;
+      q<HTMLButtonElement>(previa, "[data-matamata-cancelar]")?.focus();
+    }
+  }
 
-    const combinado: Bracket = numerarJogos({
-      ...bracket,
-      duplas: Array.from(duplasUnidas.values()),
-      matches: [...jogosGrupo, ...jogosMataMata],
-    });
-
+  async function confirmarMataMata(ctx: Ctx): Promise<void> {
+    const erro = q<HTMLElement>(ctx.secao, "[data-erro-gerar]");
+    limparErro(erro);
+    const combinado = ctx.matamataPendente;
+    if (!combinado) return;
+    const botao = q<HTMLButtonElement>(ctx.secao, "[data-matamata-confirmar]");
+    if (botao) botao.disabled = true;
     const res = await ctx.store.salvarChaveamento(ctx.ref, combinado);
+    if (botao) botao.disabled = false;
     if (!res.ok) {
       setTexto(erro, mensagemErro(res.erro));
       return;
     }
+    fecharPreviaMataMata(ctx);
     avisar({ texto: "Mata-mata gerado a partir dos classificados." });
     await carregarEstado(ctx);
   }
@@ -993,6 +1028,9 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
       return msg;
     }
     avisar({ texto: "Placar registrado." });
+    if (!podeGerarMataMata(bracket) && podeGerarMataMata(numerado)) {
+      avisar({ texto: "Fase de grupos concluída. Já dá para gerar o mata-mata." });
+    }
     // Chegou evento de outra pessoa durante a gravação: relê agora.
     if (reler) void recarregarChaveamento(ctx);
     return null;
@@ -1033,173 +1071,29 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
   // --------------------------------------------------------------------
   // TELA DE PLACAR (ao vivo)
   // --------------------------------------------------------------------
-  // A tela de placar está aberta? Verifica no DOM: se ela estava dentro de uma
-  // tela cheia que foi fechada, o diálogo some junto e não há evento "close".
-  const telaPlacarAberta = (): boolean => document.querySelector(".placar-tela") !== null;
-
   /**
-   * Abre a tela de placar do jogo. Em tela cheia, `dentroDe` é o elemento em
-   * tela cheia: o navegador só mostra o que está dentro dele, então o diálogo
-   * precisa ser criado ali.
+   * Abre a tela de placar do jogo (src/scripts/organizar/placar.ts). Em tela
+   * cheia, `dentroDe` é o elemento em tela cheia: o navegador só mostra o que
+   * está dentro dele, então a janela precisa ser criada ali.
    */
   function abrirTelaPlacar(ctx: Ctx, matchId: string, dentroDe?: HTMLElement): void {
-    const bracket = ctx.bracket;
-    const jogo = bracket?.matches.find((m) => m.id === matchId);
-    if (!bracket || !jogo || telaPlacarAberta()) return;
-    const duplaA = jogo.a.pairId ? bracket.duplas.find((d) => d.id === jogo.a.pairId) : undefined;
-    const duplaB = jogo.b.pairId ? bracket.duplas.find((d) => d.id === jogo.b.pairId) : undefined;
-    if (!duplaA || !duplaB) return;
-
-    // Jogo já encerrado: modo CORREÇÃO (nada é gravado até confirmar). Em
-    // andamento: modo AO VIVO (cada toque grava).
-    const correcao = jogo.vencedorId !== null;
-    const estado = { a: jogo.placarA ?? 0, b: jogo.placarB ?? 0 };
-    let ultimoEnviado = jogo.placarA !== null ? `${jogo.placarA}x${jogo.placarB}` : "";
-    let cadeia: Promise<unknown> = Promise.resolve();
-
-    const dialog = document.createElement("dialog");
-    dialog.className = "placar-tela";
-    dialog.setAttribute("aria-labelledby", "placar-tela-titulo");
-
-    const titulo = document.createElement("h2");
-    titulo.id = "placar-tela-titulo";
-    titulo.className = "placar-tela__titulo";
-    titulo.textContent = jogo.ordemDisputa !== null ? `Jogo ${jogo.ordemDisputa}` : "Placar";
-
-    const subtitulo = document.createElement("p");
-    subtitulo.className = "placar-tela__sub";
-    subtitulo.textContent = correcao
-      ? "Jogo encerrado: ajuste o placar e salve a correção."
-      : "Toque em +1 a cada ponto (o público acompanha em tempo real) ou digite o placar final.";
-
-    const lados = document.createElement("div");
-    lados.className = "placar-tela__lados";
-
-    const msg = document.createElement("p");
-    msg.className = "placar-tela__msg";
-    msg.setAttribute("role", "status");
-
-    // O placar de cada lado é um campo numérico grande: dá para tocar em +1/−1
-    // ou digitar o valor (útil quando não dá para marcar em tempo real).
-    const pontos: Record<"a" | "b", HTMLInputElement> = {
-      a: document.createElement("input"),
-      b: document.createElement("input"),
-    };
-
-    /** Valor inteiro ≥ 0 do campo; vazio ou inválido conta como 0. */
-    const lerCampo = (lado: "a" | "b"): number => {
-      const n = Math.floor(Number(pontos[lado].value));
-      return Number.isFinite(n) && n > 0 ? n : 0;
-    };
-
-    const enviarAoVivo = (): void => {
-      if (correcao) return;
-      cadeia = cadeia.then(async () => {
-        const chave = `${estado.a}x${estado.b}`;
-        if (chave === ultimoEnviado) return;
-        ultimoEnviado = chave;
-        const erro = await salvarPlacarAoVivo(ctx, matchId, estado.a, estado.b);
-        msg.textContent = erro ?? "";
-        if (erro) ultimoEnviado = ""; // força reenvio no próximo toque
-      });
-    };
-
-    const mudar = (lado: "a" | "b", delta: number): void => {
-      estado[lado] = Math.max(0, estado[lado] + delta);
-      pontos[lado].value = String(estado[lado]);
-      enviarAoVivo();
-    };
-
-    const montarLado = (lado: "a" | "b", nome: string): HTMLElement => {
-      const caixa = document.createElement("div");
-      caixa.className = "placar-tela__lado";
-      const n = document.createElement("p");
-      n.className = "placar-tela__nome";
-      n.textContent = nome;
-      const campo = pontos[lado];
-      campo.className = "placar-tela__pontos";
-      campo.type = "number";
-      campo.min = "0";
-      campo.step = "1";
-      campo.inputMode = "numeric";
-      campo.setAttribute("aria-label", `Placar de ${nome}`);
-      campo.value = String(estado[lado]);
-      // Enquanto digita, só guarda o valor (sem gravar "1" a caminho de "15").
-      campo.addEventListener("input", () => {
-        estado[lado] = lerCampo(lado);
-      });
-      // Ao terminar de digitar (sai do campo / Enter), normaliza e grava ao vivo.
-      campo.addEventListener("change", () => {
-        estado[lado] = lerCampo(lado);
-        campo.value = String(estado[lado]);
-        enviarAoVivo();
-      });
-      campo.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") campo.blur();
-      });
-      campo.addEventListener("focus", () => campo.select());
-      const mais = document.createElement("button");
-      mais.type = "button";
-      mais.className = "placar-tela__mais";
-      mais.textContent = "+1";
-      mais.setAttribute("aria-label", `Mais um ponto para ${nome}`);
-      mais.addEventListener("click", () => mudar(lado, 1));
-      const menos = document.createElement("button");
-      menos.type = "button";
-      menos.className = "placar-tela__menos";
-      menos.textContent = "−1";
-      menos.setAttribute("aria-label", `Tirar um ponto de ${nome}`);
-      menos.addEventListener("click", () => mudar(lado, -1));
-      caixa.append(n, pontos[lado], mais, menos);
-      return caixa;
-    };
-    lados.append(montarLado("a", rotuloDupla(duplaA)), montarLado("b", rotuloDupla(duplaB)));
-
-    const acoes = document.createElement("div");
-    acoes.className = "placar-tela__acoes";
-    const encerrar = document.createElement("button");
-    encerrar.type = "button";
-    encerrar.className = "org__botao org__botao--primario placar-tela__encerrar";
-    encerrar.textContent = correcao ? "Salvar correção" : "Partida encerrada";
-    const fechar = document.createElement("button");
-    fechar.type = "button";
-    fechar.className = "org__botao";
-    fechar.textContent = "Fechar";
-    acoes.append(encerrar, fechar);
-
-    dialog.append(titulo, subtitulo, lados, msg, acoes);
-    (dentroDe ?? document.body).append(dialog);
-
-    const limpar = (): void => {
-      dialog.remove();
-    };
-    dialog.addEventListener("close", limpar);
-    fechar.addEventListener("click", () => dialog.close());
-
-    encerrar.addEventListener("click", async () => {
-      encerrar.disabled = true;
-      msg.textContent = "";
-      // Garante que o que está digitado nos campos vale, mesmo sem ter saído deles.
-      estado.a = lerCampo("a");
-      estado.b = lerCampo("b");
-      await cadeia; // espera os toques em andamento gravarem
-      const erro = await registrarResultado(ctx, matchId, estado.a, estado.b);
-      if (erro) {
-        msg.textContent = erro;
-        encerrar.disabled = false;
-        return;
-      }
-      dialog.close();
-    });
-
-    dialog.showModal();
-    encerrar.focus();
+    abrirPlacarModulo(
+      {
+        bracket: () => ctx.bracket,
+        salvarAoVivo: (id, a, b) => salvarPlacarAoVivo(ctx, id, a, b),
+        registrar: (id, a, b) => registrarResultado(ctx, id, a, b),
+        avisar,
+        dentroDe,
+      },
+      matchId,
+    );
   }
 
   // --------------------------------------------------------------------
   // VISUALIZAÇÃO do estado atual (renderBracketClient)
   // --------------------------------------------------------------------
   function renderBracket(ctx: Ctx): void {
+    ctx.filaCtl?.render();
     const slot = q<HTMLElement>(ctx.secao, "[data-bracket-slot]");
     if (!slot) return;
 
@@ -1306,7 +1200,15 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
     // Gerar mata-mata
     q<HTMLButtonElement>(ctx.secao, "[data-gerar-matamata]")?.addEventListener(
       "click",
-      () => void gerarMataMata(ctx),
+      () => mostrarPreviaMataMata(ctx),
+    );
+    q<HTMLButtonElement>(ctx.secao, "[data-matamata-confirmar]")?.addEventListener(
+      "click",
+      () => void confirmarMataMata(ctx),
+    );
+    q<HTMLButtonElement>(ctx.secao, "[data-matamata-cancelar]")?.addEventListener(
+      "click",
+      () => fecharPreviaMataMata(ctx),
     );
 
     // Confirmação de substituição (R4.8/R4.9)

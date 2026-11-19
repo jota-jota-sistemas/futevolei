@@ -36,7 +36,7 @@ describe("página organizar/[categoria] (Fase 2)", () => {
   });
 
   it("os quatro itens da barra de seções apontam para ids que existem", () => {
-    for (const id of ["titulo-duplas", "titulo-formato", "titulo-gerar", "titulo-estado"]) {
+    for (const id of ["titulo-duplas", "titulo-formato", "titulo-gerar", "titulo-fila"]) {
       expect(fonte).toContain(`id: "${id}"`);
       expect(fonte).toContain(`id="${id}"`);
     }
