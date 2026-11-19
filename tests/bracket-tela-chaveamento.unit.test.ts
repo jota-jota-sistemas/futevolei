@@ -77,7 +77,7 @@ describe("tela cheia do chaveamento completo", () => {
       },
     });
 
-    (document.querySelector(".tela-chaveamento .match-card__acompanhar") as HTMLButtonElement).click();
+    (document.querySelector(".tela-chaveamento .match-card__slots--clicavel") as HTMLElement).click();
     expect(jogoAberto).not.toBeNull();
     expect(tela.raiz.querySelector(".tela-jogo")).not.toBeNull(); // dentro da raiz
 

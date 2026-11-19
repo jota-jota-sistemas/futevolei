@@ -1710,30 +1710,8 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
     color: var(--cor-destaque-texto);
   }
 
-  /* Botão que abre a tela cheia do jogo (cards do chaveamento) */
-  .match-card__acompanhar {
-    margin-top: 0.4rem;
-    width: 100%;
-    padding: 0.35rem 0.6rem;
-    border: 1px solid var(--cor-borda);
-    border-radius: 10px;
-    background: var(--cor-superficie);
-    color: var(--cor-texto);
-    font: inherit;
-    font-size: 0.85rem;
-    font-weight: 700;
-    cursor: pointer;
-  }
 
-  .match-card__acompanhar:hover {
-    border-color: var(--cor-destaque);
-    color: var(--cor-destaque-texto);
-  }
 
-  .match-card__acompanhar:focus-visible {
-    outline: 2px solid var(--cor-destaque);
-    outline-offset: 2px;
-  }
 
   /* ---- Tela cheia do chaveamento completo ---- */
   .tela-chaveamento {
@@ -1934,10 +1912,17 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
     letter-spacing: 0.06em;
   }
 
+  /* "versus" entre as duplas: texto discreto e centralizado (não é botão). */
   .tela-jogo__x {
     margin: 0;
-    font-size: clamp(2rem, 6vw, 5rem);
-    color: rgba(255, 255, 255, 0.45);
+    justify-self: center;
+    align-self: center;
+    text-align: center;
+    font-size: clamp(0.85rem, 2vw, 1.4rem);
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
   }
 
   .tela-jogo__rodape {

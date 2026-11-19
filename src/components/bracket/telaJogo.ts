@@ -109,7 +109,7 @@ export function abrirTelaJogo(opcoes: OpcoesTelaJogo): TelaJogo {
     caixa.append(nome, pontos, selo);
     return { caixa, nome, pontos, selo };
   });
-  const x = el("p", "tela-jogo__x", "×");
+  const x = el("p", "tela-jogo__x", "versus");
   x.setAttribute("aria-hidden", "true");
   placar.append(lados[0].caixa, x, lados[1].caixa);
 

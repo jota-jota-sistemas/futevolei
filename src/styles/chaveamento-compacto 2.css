@@ -1,0 +1,195 @@
+/*
+ * Chaveamento compacto, no estilo do Challonge (só apresentação).
+ *
+ * Sobrescreve o visual de .match-card dentro de .elim-tree. Para voltar ao
+ * visual anterior, remova o import deste arquivo em acompanhar.astro e
+ * organizar/[categoria].astro (e a classe elim-tree__item--bye, inofensiva
+ * sem este CSS, em renderBracketClient.ts).
+ *
+ * - Linhas de ~1,5rem, fonte pequena, colunas estreitas.
+ * - Jogos de BYE ocultos (a dupla que avança já aparece na rodada seguinte).
+ * - "Jogo N" e botões saem do fluxo: não ocupam altura.
+ * - Cada jogo fica centralizado em relação ao seu slot da rodada.
+ */
+
+/* Colunas com a mesma altura; cada jogo ocupa uma fração igual da coluna. */
+.elim-tree {
+  gap: 0.8rem;
+}
+.elim-tree .elim-tree__secao {
+  gap: 0.4rem;
+}
+.elim-tree .elim-tree__titulo {
+  font-size: 0.9rem;
+  padding-bottom: 0.2rem;
+}
+.elim-tree .elim-tree__rodada-titulo {
+  font-size: 0.66rem;
+}
+.elim-tree .elim-tree__rodadas {
+  align-items: stretch;
+  gap: 1.6rem;
+}
+.elim-tree .elim-tree__rodada {
+  min-width: 190px;
+  gap: 0.3rem;
+}
+.elim-tree .elim-tree__lista {
+  gap: 0;
+  justify-content: stretch;
+}
+.elim-tree .elim-tree__item {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  /* Folga acima para o rótulo "Jogo N", que fica sobre a borda do card. */
+  padding: 0.6rem 0 0.15rem;
+}
+.elim-tree .elim-tree__item > .match-card {
+  width: 100%;
+}
+/* BYE: não ocupa altura nem aparece (o espaço de alinhamento é mantido pelas
+   demais rodadas). */
+.elim-tree .elim-tree__item--bye {
+  visibility: hidden;
+  padding: 0;
+}
+.elim-tree .elim-tree__item--bye > .match-card {
+  height: 0;
+  overflow: hidden;
+}
+
+/* Coluna em que todos os jogos são BYE: some inteira. */
+.elim-tree .elim-tree__rodada:not(:has(.elim-tree__item:not(.elim-tree__item--bye))) {
+  display: none;
+}
+
+/* Card sem moldura. */
+.elim-tree .match-card {
+  position: relative;
+  gap: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+/* Número do jogo fora do fluxo, no canto superior esquerdo, sobre a linha. */
+.elim-tree .match-card__numero {
+  position: absolute;
+  top: -0.55rem;
+  left: 0;
+  z-index: 1;
+  padding: 0 0.25rem;
+  font-size: 0.6rem;
+  line-height: 1;
+  color: var(--cor-texto-suave);
+  background: var(--cor-fundo);
+  border-radius: 3px;
+}
+
+/* Duas linhas coladas. */
+.elim-tree .match-card__slots {
+  gap: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--cor-borda);
+  background: var(--cor-superficie);
+}
+.elim-tree .match-card__slot {
+  gap: 0;
+  padding: 0 0 0 0.45rem;
+  min-height: 1.5rem;
+  border-radius: 0;
+  font-size: 0.78rem;
+  background: var(--cor-superficie);
+}
+.elim-tree .match-card__slot + .match-card__slot {
+  border-top: 1px solid var(--cor-borda);
+}
+
+/* Vencedor: nome em negrito, sem barra lateral e sem o ✓ (a caixa do placar
+   já indica quem venceu). */
+.elim-tree .match-card__slot--vencedora {
+  background: var(--cor-superficie);
+  border-left: 0;
+  color: var(--cor-texto);
+}
+.elim-tree .match-card__slot--vencedora .match-card__dupla {
+  color: var(--cor-texto);
+}
+.elim-tree .match-card__marca {
+  display: none;
+}
+
+/* Caixa do placar, encostada na borda direita. */
+.elim-tree .match-card__placar {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.7rem;
+  margin-left: 0.4rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  background: var(--cor-fundo);
+  color: var(--cor-texto-suave);
+}
+.elim-tree .match-card__slot--vencedora .match-card__placar {
+  background: var(--cor-destaque);
+  color: var(--cor-destaque-contraste);
+}
+
+/* Botões ("Ver jogo", "Marcar placar") fora do fluxo: aparecem sobre o card ao
+   passar o mouse ou focar. Em telas de toque (sem hover) ficam sempre visíveis,
+   abaixo do card. */
+.elim-tree .match-card__acompanhar,
+.elim-tree .match-card__salvar {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 3;
+  width: auto;
+  margin: 0;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.68rem;
+  opacity: 0;
+  pointer-events: none;
+}
+.elim-tree .match-card__salvar {
+  left: auto;
+  right: 0;
+}
+.elim-tree .match-card:hover .match-card__acompanhar,
+.elim-tree .match-card:hover .match-card__salvar,
+.elim-tree .match-card:focus-within .match-card__acompanhar,
+.elim-tree .match-card:focus-within .match-card__salvar {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (hover: none) {
+  .elim-tree .match-card__acompanhar,
+  .elim-tree .match-card__salvar {
+    position: static;
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.elim-tree .match-card__estado {
+  margin: 0;
+  font-size: 0.6rem;
+}
+.elim-tree .match-card__estado--pendente {
+  display: none;
+}
+
+/* Realce da ramificação: a borda passa para os slots. */
+.elim-tree .elim-tree__item--ramo .match-card {
+  box-shadow: none;
+}
+.elim-tree .elim-tree__item--ramo .match-card__slots {
+  border-color: var(--cor-destaque);
+  box-shadow: 0 0 0 2px var(--cor-destaque-suave);
+}

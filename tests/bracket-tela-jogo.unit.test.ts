@@ -85,15 +85,26 @@ describe("tela cheia do jogo", () => {
     expect(fechou).toBe(2);
   });
 
-  it("na visualização pública, o card pronto tem o botão que abre o jogo", () => {
+  it("na visualização pública, clicar no confronto pronto (ou numa dupla) abre o jogo", () => {
     const b = inicial();
     const abertos: string[] = [];
     const view = renderBracketClient(b, { aoAbrirJogo: (id) => abertos.push(id) });
-    const botoes = view.querySelectorAll<HTMLButtonElement>(".match-card__acompanhar");
-    expect(botoes.length).toBe(2); // só os jogos prontos
-    botoes[0].click();
-    expect(abertos).toHaveLength(1);
-    // Sem a opção (organização), o botão não existe.
-    expect(renderBracketClient(b).querySelector(".match-card__acompanhar")).toBeNull();
+    // Não há mais botão "Ver jogo": o próprio confronto é clicável.
+    expect(view.querySelector(".match-card__acompanhar")).toBeNull();
+    const confrontos = view.querySelectorAll<HTMLElement>(".match-card__slots--clicavel");
+    expect(confrontos.length).toBe(2); // só os jogos prontos
+    expect(confrontos[0].getAttribute("role")).toBe("button");
+    confrontos[0].click();
+    (confrontos[1].querySelector(".match-card__dupla") as HTMLElement).click();
+    confrontos[0].dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(abertos).toHaveLength(3);
+    // Sem a opção, o confronto não é clicável.
+    expect(renderBracketClient(b).querySelector(".match-card__slots--clicavel")).toBeNull();
+  });
+  it("entre as duplas aparece 'versus', não um '×' que parece botão de fechar", () => {
+    const b = inicial();
+    const jogo = b.matches.find((m) => m.a.pairId && m.b.pairId)!;
+    abrirTelaJogo({ bracket: b, matchId: jogo.id, categoria: "X" });
+    expect(texto(".tela-jogo__x")).toBe("versus");
   });
 });

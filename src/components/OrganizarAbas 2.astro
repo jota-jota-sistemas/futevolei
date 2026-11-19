@@ -1,0 +1,79 @@
+---
+// Abas de categorias das páginas de organização: trocar de categoria em um
+// clique, sem voltar ao índice. Mobile-first: as abas quebram em linhas (todas
+// visíveis, sem rolagem horizontal escondendo a aba atual) e cada uma tem alvo
+// de toque de 44px.
+import { abasDeCategorias } from "../utils/organizar-nav";
+
+interface Props {
+  campeonatoId: string;
+  categorias: readonly string[];
+  /** Nome da categoria aberta (marca a aba atual). */
+  atual?: string;
+}
+
+const { campeonatoId, categorias, atual } = Astro.props;
+const abas = abasDeCategorias(campeonatoId, categorias, atual);
+---
+
+{
+  abas.length > 1 && (
+    <nav class="abas" aria-label="Categorias do campeonato">
+      <ul class="abas__lista">
+        {abas.map((aba) => (
+          <li>
+            <a
+              class="abas__link"
+              href={aba.href}
+              aria-current={aba.atual ? "page" : undefined}
+            >
+              {aba.nome}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  )
+}
+
+<style>
+  .abas {
+    margin: 0 0 1rem;
+  }
+
+  .abas__lista {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+  }
+
+  .abas__link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px; /* alvo de toque confortável */
+    padding: 0.4rem 0.95rem;
+    border: 1.5px solid var(--cor-borda);
+    border-radius: 999px;
+    background: var(--cor-superficie);
+    color: var(--cor-texto);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+  }
+
+  .abas__link:hover {
+    border-color: var(--cor-destaque);
+  }
+
+  /* Categoria atual: preenchida com o turquesa da marca (azul-marinho sobre turquesa, AA). */
+  .abas__link[aria-current="page"] {
+    border-color: var(--cor-destaque);
+    background: var(--cor-destaque);
+    color: var(--cor-destaque-contraste);
+    font-weight: 800;
+  }
+</style>
