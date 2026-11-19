@@ -37,6 +37,14 @@ const falha = (code?: string): Resposta => ({ data: null, error: { message: "boo
 class MockSupabase {
   private respostas = new Map<string, Resposta[]>();
   readonly chamadas: Chamada[] = [];
+  /** Chamadas de rpc (nome e argumentos) e a resposta configurável por nome. */
+  readonly rpcs: { nome: string; args: unknown }[] = [];
+  private respostasRpc = new Map<string, Resposta>();
+
+  responderRpc(nome: string, r: Resposta): this {
+    this.respostasRpc.set(nome, r);
+    return this;
+  }
 
   /** Uma resposta fixa, ou uma fila (a última se repete). */
   responder(table: string, op: Op, r: Resposta | Resposta[]): this {
@@ -51,6 +59,11 @@ class MockSupabase {
   cliente(): SupabaseClient {
     const self = this;
     return {
+      rpc: vi.fn(async (nome: string, args: unknown) => {
+        self.rpcs.push({ nome, args });
+        const r = self.respostasRpc.get(nome) ?? { data: false, error: null };
+        return { data: r.data ?? null, error: r.error ?? null };
+      }),
       from(table: string) {
         const c: Chamada = { table, op: "select", args: [], eq: [], like: [], order: [], range: [] };
         let mutou = false;
@@ -235,7 +248,7 @@ describe("criar", () => {
   });
 
   it("falha de escrita -> FALHA_PERSISTENCIA; falha na consulta de ids -> FALHA_LEITURA", async () => {
-    const a = new MockSupabase().responder("campeonatos", "insert", falha("42501"));
+    const a = new MockSupabase().responder("campeonatos", "insert", falha("XX000"));
     expect(await criarCampeonatoStoreBrowser(a.cliente()).criar({ nome: "Copa", data: "2026-12-05" })).toEqual({
       ok: false,
       erro: { code: "FALHA_PERSISTENCIA" },
@@ -346,13 +359,215 @@ describe("excluir", () => {
     expect(await criarCampeonatoStoreBrowser(a.cliente()).excluir("x")).toEqual({ ok: false, erro: { code: "FALHA_LEITURA" } });
     expect(a.de("campeonatos", "delete")).toHaveLength(0);
 
-    const b = new MockSupabase().responder("categorias", "select", ok([], 0)).responder("campeonatos", "delete", falha("42501"));
+    const b = new MockSupabase().responder("categorias", "select", ok([], 0)).responder("campeonatos", "delete", falha("XX000"));
     expect(await criarCampeonatoStoreBrowser(b.cliente()).excluir("x")).toEqual({ ok: false, erro: { code: "FALHA_PERSISTENCIA" } });
 
     const c = new MockSupabase().responder("categorias", "select", ok([], 0)).responder("campeonatos", "delete", ok([]));
     expect(await criarCampeonatoStoreBrowser(c.cliente()).excluir("x")).toEqual({
       ok: false,
       erro: { code: "CAMPEONATO_NAO_ENCONTRADO" },
+    });
+  });
+});
+
+describe("listarMeus", () => {
+  it("faz join interno com os donos (só o que a conta gerencia), só ativos por padrão", async () => {
+    const m = new MockSupabase().responder("campeonatos", "select", ok([
+      { ...row({ id: "a", nome: "Alfa", data: "2026-01-01" }), campeonato_organizadores: [{ email: "x@y.z" }] },
+      { ...row({ id: "b", nome: "Beta", data: "2026-12-01" }), campeonato_organizadores: [{ email: "x@y.z" }] },
+    ]));
+    const r = await criarCampeonatoStoreBrowser(m.cliente()).listarMeus();
+    expect(r.ok && r.valor.map((c) => c.id)).toEqual(["b", "a"]);
+    const c = m.de("campeonatos", "select")[0];
+    expect(c.args[0]).toContain("campeonato_organizadores!inner(email)");
+    expect(c.eq).toContainEqual(["ativo", true]);
+    expect(c.range).toEqual([0, 999]);
+    // O resultado é um registro de campeonato (sem a coluna do join).
+    expect(r.ok && r.valor[0]).not.toHaveProperty("campeonato_organizadores");
+  });
+
+  it("incluirArquivados não filtra por ativo; falha de leitura -> FALHA_LEITURA", async () => {
+    const m = new MockSupabase().responder("campeonatos", "select", ok([]));
+    await criarCampeonatoStoreBrowser(m.cliente()).listarMeus({ incluirArquivados: true });
+    expect(m.de("campeonatos", "select")[0].eq).toEqual([]);
+
+    const f = new MockSupabase().responder("campeonatos", "select", falha());
+    expect(await criarCampeonatoStoreBrowser(f.cliente()).listarMeus()).toEqual({
+      ok: false,
+      erro: { code: "FALHA_LEITURA" },
+    });
+  });
+});
+
+describe("podeGerenciar", () => {
+  it("pergunta ao banco (rpc) e só aceita true", async () => {
+    const m = new MockSupabase().responderRpc("pode_gerenciar_campeonato", { data: true });
+    const store = criarCampeonatoStoreBrowser(m.cliente());
+    expect(await store.podeGerenciar("copa-2026")).toEqual({ ok: true, valor: true });
+    expect(m.rpcs).toEqual([{ nome: "pode_gerenciar_campeonato", args: { p_id: "copa-2026" } }]);
+
+    const nao = new MockSupabase().responderRpc("pode_gerenciar_campeonato", { data: false });
+    expect(await criarCampeonatoStoreBrowser(nao.cliente()).podeGerenciar("x")).toEqual({ ok: true, valor: false });
+    const texto = new MockSupabase().responderRpc("pode_gerenciar_campeonato", { data: "true" });
+    expect(await criarCampeonatoStoreBrowser(texto.cliente()).podeGerenciar("x")).toEqual({ ok: true, valor: false });
+  });
+
+  it("id vazio é false sem consultar; erro do banco -> FALHA_LEITURA", async () => {
+    const m = new MockSupabase();
+    expect(await criarCampeonatoStoreBrowser(m.cliente()).podeGerenciar("")).toEqual({ ok: true, valor: false });
+    expect(m.rpcs).toHaveLength(0);
+    const f = new MockSupabase().responderRpc("pode_gerenciar_campeonato", { error: { message: "x" } });
+    expect(await criarCampeonatoStoreBrowser(f.cliente()).podeGerenciar("x")).toEqual({
+      ok: false,
+      erro: { code: "FALHA_LEITURA" },
+    });
+  });
+});
+
+describe("permissão negada pelo banco (RLS/trigger, código 42501)", () => {
+  const sem = { ok: false, erro: { code: "SEM_PERMISSAO" } };
+
+  it("criar, atualizar, arquivar e excluir viram SEM_PERMISSAO", async () => {
+    const criar = new MockSupabase().responder("campeonatos", "insert", falha("42501"));
+    expect(await criarCampeonatoStoreBrowser(criar.cliente()).criar({ nome: "Copa", data: "2026-12-05" })).toEqual(sem);
+    expect(criar.de("campeonatos", "insert")).toHaveLength(1); // não tenta de novo
+
+    const atualizar = new MockSupabase().responder("campeonatos", "update", falha("42501"));
+    expect(
+      await criarCampeonatoStoreBrowser(atualizar.cliente()).atualizar("x", { nome: "A", data: "2026-12-05" })
+    ).toEqual(sem);
+    expect(await criarCampeonatoStoreBrowser(atualizar.cliente()).definirAtivo("x", false)).toEqual(sem);
+
+    const excluir = new MockSupabase()
+      .responder("categorias", "select", ok([], 0))
+      .responder("campeonatos", "delete", falha("42501"));
+    expect(await criarCampeonatoStoreBrowser(excluir.cliente()).excluir("x")).toEqual(sem);
+  });
+
+  it("outros erros de escrita continuam FALHA_PERSISTENCIA", async () => {
+    const m = new MockSupabase().responder("campeonatos", "update", falha("XX000"));
+    expect(await criarCampeonatoStoreBrowser(m.cliente()).definirAtivo("x", true)).toEqual({
+      ok: false,
+      erro: { code: "FALHA_PERSISTENCIA" },
+    });
+  });
+});
+
+describe("donos do campeonato", () => {
+  it("listarDonos: lê só os donos daquele campeonato, em ordem de entrada", async () => {
+    const m = new MockSupabase().responder("campeonato_organizadores", "select", ok([
+      { email: "ana@x.com", criado_em: "2026-01-01T00:00:00.000Z" },
+      { email: "bia@x.com", criado_em: "2026-02-01T00:00:00.000Z" },
+    ]));
+    const r = await criarCampeonatoStoreBrowser(m.cliente()).listarDonos("copa-2026");
+    expect(r).toEqual({
+      ok: true,
+      valor: [
+        { email: "ana@x.com", criadoEm: "2026-01-01T00:00:00.000Z" },
+        { email: "bia@x.com", criadoEm: "2026-02-01T00:00:00.000Z" },
+      ],
+    });
+    const c = m.de("campeonato_organizadores", "select")[0];
+    expect(c.eq).toEqual([["campeonato_id", "copa-2026"]]);
+    expect(c.order.map((o) => o[0])).toEqual(["criado_em", "email"]);
+  });
+
+  it("listarDonos: id vazio não consulta; falha -> FALHA_LEITURA", async () => {
+    const m = new MockSupabase();
+    expect(await criarCampeonatoStoreBrowser(m.cliente()).listarDonos("")).toEqual({
+      ok: false,
+      erro: { code: "CAMPEONATO_NAO_ENCONTRADO" },
+    });
+    expect(m.chamadas).toHaveLength(0);
+    const f = new MockSupabase().responder("campeonato_organizadores", "select", falha());
+    expect(await criarCampeonatoStoreBrowser(f.cliente()).listarDonos("x")).toEqual({
+      ok: false,
+      erro: { code: "FALHA_LEITURA" },
+    });
+  });
+
+  it("adicionarDono: valida e normaliza o e-mail e grava o vínculo", async () => {
+    const m = new MockSupabase().responder("campeonato_organizadores", "insert", ok());
+    const r = await criarCampeonatoStoreBrowser(m.cliente()).adicionarDono("copa-2026", "  Bia@Exemplo.COM ");
+    expect(r.ok && r.valor.email).toBe("bia@exemplo.com");
+    expect(m.de("campeonato_organizadores", "insert")[0].args[0]).toMatchObject({
+      campeonato_id: "copa-2026",
+      email: "bia@exemplo.com",
+    });
+  });
+
+  it("adicionarDono: e-mail inválido não escreve", async () => {
+    const m = new MockSupabase();
+    expect(await criarCampeonatoStoreBrowser(m.cliente()).adicionarDono("copa-2026", "bia")).toEqual({
+      ok: false,
+      erro: { code: "EMAIL_INVALIDO" },
+    });
+    expect(m.chamadas).toHaveLength(0);
+  });
+
+  it("adicionarDono: quem não é organizador (FK 23503) -> NAO_ORGANIZADOR; já é dono (23505) é sucesso", async () => {
+    const fk = new MockSupabase().responder("campeonato_organizadores", "insert", falha("23503"));
+    expect(await criarCampeonatoStoreBrowser(fk.cliente()).adicionarDono("copa-2026", "bia@x.com")).toEqual({
+      ok: false,
+      erro: { code: "NAO_ORGANIZADOR" },
+    });
+    const dup = new MockSupabase().responder("campeonato_organizadores", "insert", falha("23505"));
+    const r = await criarCampeonatoStoreBrowser(dup.cliente()).adicionarDono("copa-2026", "bia@x.com");
+    expect(r.ok && r.valor.email).toBe("bia@x.com");
+  });
+
+  it("adicionarDono: RLS recusou -> SEM_PERMISSAO; outro erro -> FALHA_PERSISTENCIA", async () => {
+    const rls = new MockSupabase().responder("campeonato_organizadores", "insert", falha("42501"));
+    expect(await criarCampeonatoStoreBrowser(rls.cliente()).adicionarDono("x", "bia@x.com")).toEqual({
+      ok: false,
+      erro: { code: "SEM_PERMISSAO" },
+    });
+    const outro = new MockSupabase().responder("campeonato_organizadores", "insert", falha("XX000"));
+    expect(await criarCampeonatoStoreBrowser(outro.cliente()).adicionarDono("x", "bia@x.com")).toEqual({
+      ok: false,
+      erro: { code: "FALHA_PERSISTENCIA" },
+    });
+  });
+
+  it("removerDono: apaga só o par (campeonato, e-mail)", async () => {
+    const m = new MockSupabase().responder("campeonato_organizadores", "delete", ok([{ email: "bia@x.com" }]));
+    expect(await criarCampeonatoStoreBrowser(m.cliente()).removerDono("copa-2026", "Bia@X.com")).toEqual({
+      ok: true,
+      valor: undefined,
+    });
+    expect(m.de("campeonato_organizadores", "delete")[0].eq).toEqual([
+      ["campeonato_id", "copa-2026"],
+      ["email", "bia@x.com"],
+    ]);
+  });
+
+  it("removerDono: o trigger do banco recusa o último dono -> ULTIMO_DONO", async () => {
+    const m = new MockSupabase().responder("campeonato_organizadores", "delete", {
+      data: null,
+      error: { message: "ULTIMO_DONO", code: "P0001" },
+    });
+    expect(await criarCampeonatoStoreBrowser(m.cliente()).removerDono("copa-2026", "ana@x.com")).toEqual({
+      ok: false,
+      erro: { code: "ULTIMO_DONO" },
+    });
+  });
+
+  it("removerDono: e-mail inválido não escreve; RLS -> SEM_PERMISSAO; outro erro -> FALHA_PERSISTENCIA", async () => {
+    const m = new MockSupabase();
+    expect(await criarCampeonatoStoreBrowser(m.cliente()).removerDono("x", "nao")).toEqual({
+      ok: false,
+      erro: { code: "EMAIL_INVALIDO" },
+    });
+    expect(m.chamadas).toHaveLength(0);
+    const rls = new MockSupabase().responder("campeonato_organizadores", "delete", falha("42501"));
+    expect(await criarCampeonatoStoreBrowser(rls.cliente()).removerDono("x", "a@b.com")).toEqual({
+      ok: false,
+      erro: { code: "SEM_PERMISSAO" },
+    });
+    const outro = new MockSupabase().responder("campeonato_organizadores", "delete", falha("XX000"));
+    expect(await criarCampeonatoStoreBrowser(outro.cliente()).removerDono("x", "a@b.com")).toEqual({
+      ok: false,
+      erro: { code: "FALHA_PERSISTENCIA" },
     });
   });
 });

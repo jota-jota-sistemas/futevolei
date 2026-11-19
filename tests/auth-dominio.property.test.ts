@@ -39,6 +39,14 @@ describe("acesso ao gerenciamento", () => {
     expect(acessoGerenciar(null, true)).toBe("visitante");
     expect(podeGerenciar(null, true)).toBe(false);
   });
+  it("organizador: só vale com sessão e o admin tem precedência", () => {
+    expect(acessoGerenciar(null, false, true)).toBe("visitante");
+    expect(acessoGerenciar(sessao, false, true)).toBe("organizador");
+    expect(acessoGerenciar(sessao, true, true)).toBe("admin");
+    expect(acessoGerenciar(sessao, false, false)).toBe("sem_permissao");
+    // Organizador não é administrador: continua fora de podeGerenciar.
+    expect(podeGerenciar(sessao, false)).toBe(false);
+  });
   it("logado sem permissão e admin", () => {
     expect(acessoGerenciar(sessao, false)).toBe("sem_permissao");
     expect(acessoGerenciar(sessao, true)).toBe("admin");

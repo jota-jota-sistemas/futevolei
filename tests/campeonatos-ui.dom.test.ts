@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type {
   CampeonatoDetalhe,
+  CampeonatoDono,
   CampeonatoRegistro,
   ResultadoCampeonato,
 } from "../src/domain/campeonatos/types";
@@ -100,6 +101,53 @@ class FakeStore implements CampeonatoStore {
     return { ok: true, valor: semCategorias(this.itens[i]) };
   });
 
+  /** Donos por campeonato (id -> e-mails). */
+  donos: Record<string, string[]> = {};
+  falharDonos = false;
+  /** e-mails que já são organizadores (os únicos que podem ser donos). */
+  organizadores: string[] = ["ana@x.com", "bia@x.com", "novo@x.com"];
+  /** Quando true, simula o trigger do banco: não remove o último dono. */
+  protegerUltimoDono = false;
+
+  listarDonos = vi.fn(async (id: string): Promise<ResultadoCampeonato<CampeonatoDono[]>> => {
+    if (this.falharDonos) return { ok: false, erro: { code: "FALHA_LEITURA" } };
+    return { ok: true, valor: (this.donos[id] ?? []).map((email) => ({ email, criadoEm: "2026-01-01T00:00:00.000Z" })) };
+  });
+
+  adicionarDono = vi.fn(async (id: string, email: string): Promise<ResultadoCampeonato<CampeonatoDono>> => {
+    const e = email.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return { ok: false, erro: { code: "EMAIL_INVALIDO" } };
+    if (!this.organizadores.includes(e)) return { ok: false, erro: { code: "NAO_ORGANIZADOR" } };
+    const atuais = (this.donos[id] ??= []);
+    if (!atuais.includes(e)) atuais.push(e);
+    return { ok: true, valor: { email: e, criadoEm: "2026-01-01T00:00:00.000Z" } };
+  });
+
+  removerDono = vi.fn(async (id: string, email: string): Promise<ResultadoCampeonato<void>> => {
+    const atuais = this.donos[id] ?? [];
+    if (this.protegerUltimoDono && atuais.length <= 1) return { ok: false, erro: { code: "ULTIMO_DONO" } };
+    this.donos[id] = atuais.filter((e) => e !== email);
+    return { ok: true, valor: undefined };
+  });
+
+  /** ids que a conta (organizador) gerencia como dona. */
+  meusIds: string[] = [];
+  falharPosse = false;
+
+  listarMeus = vi.fn(async (opcoes?: { incluirArquivados?: boolean }): Promise<ResultadoCampeonato<CampeonatoRegistro[]>> => {
+    if (this.falharListar > 0) {
+      this.falharListar--;
+      return { ok: false, erro: { code: "FALHA_LEITURA" } };
+    }
+    const base = this.itens.filter((c) => this.meusIds.includes(c.id) && (opcoes?.incluirArquivados || c.ativo));
+    return { ok: true, valor: base.map(semCategorias) };
+  });
+
+  podeGerenciar = vi.fn(async (id: string): Promise<ResultadoCampeonato<boolean>> => {
+    if (this.falharPosse) return { ok: false, erro: { code: "FALHA_LEITURA" } };
+    return { ok: true, valor: this.meusIds.includes(id) };
+  });
+
   contarCategorias = vi.fn(async (id: string): Promise<ResultadoCampeonato<number>> => {
     const c = this.itens.find((x) => x.id === id);
     return c ? { ok: true, valor: c.categorias.length } : naoEncontrado();
@@ -159,6 +207,11 @@ const montarEdicao = () => {
       <p data-perfil-nome></p><p data-perfil-periodo></p><p data-perfil-local hidden></p>
       <div data-perfil-chips></div>
       <p data-categorias-estado></p><ul data-categorias-lista></ul>
+      <p data-donos-estado hidden></p><ul data-donos-lista></ul>
+      <form data-donos-form novalidate>
+        <input name="email" type="email" /><button type="submit" data-donos-adicionar>Adicionar</button>
+      </form>
+      <p data-donos-status hidden></p>
       <a data-organizar-link href="#">Organizar</a>
       <button type="button" data-arquivar>Arquivar campeonato</button>
       <button type="button" data-excluir>Excluir campeonato</button>
@@ -180,7 +233,11 @@ const $ = <T extends Element = HTMLElement>(sel: string) => document.querySelect
 const todos = (sel: string) => Array.from(document.querySelectorAll<HTMLElement>(sel));
 const campo = (nome: string) => $<HTMLInputElement & HTMLSelectElement & HTMLTextAreaElement>(`[name="${nome}"]`);
 const preencher = (nome: string, valor: string) => { campo(nome).value = valor; };
-const enviar = () => $("form").dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+const enviar = () =>
+  $("[data-campeonato-form]").dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+const enviarDono = () => $("[data-donos-form]").dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+const emailDono = () => $<HTMLInputElement>('[data-donos-form] [name="email"]');
+const donosNaLista = () => todos("[data-donos-lista] .pf-dono__email").map((e) => e.textContent);
 const clicar = (sel: string) => $<HTMLButtonElement>(sel).click();
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const digitarBusca = (texto: string) => {
@@ -271,6 +328,31 @@ describe("lista de campeonatos (área de gerenciamento)", () => {
     await iniciarLista({ store });
     expect(document.querySelector("img")).toBeNull();
     expect(nomesNaLista()[0]).toBe("<img src=x onerror=alert(1)>");
+  });
+
+  describe("organizador (apenasMeus)", () => {
+    it("lista só os campeonatos dele (listarMeus, nunca listar) e troca o título", async () => {
+      document.body.insertAdjacentHTML("beforeend", `<h2 id="lista-campeonatos-titulo">Todos os campeonatos</h2>`);
+      store.meusIds = ["acai-2026", "velho-2025"];
+      await iniciarLista({ store, apenasMeus: true });
+      expect(store.listarMeus).toHaveBeenCalledWith({ incluirArquivados: true });
+      expect(store.listar).not.toHaveBeenCalled();
+      expect(nomesNaLista()).toEqual(["Açaí Open"]); // o arquivado só com o filtro
+      expect($("#lista-campeonatos-titulo").textContent).toBe("Meus campeonatos");
+      expect($("[data-contador-campeonatos]").textContent).toBe("1 campeonato");
+    });
+
+    it("sem campeonatos dele: aviso próprio", async () => {
+      store.meusIds = [];
+      await iniciarLista({ store, apenasMeus: true });
+      expect($("[data-estado-lista]").textContent).toContain("Você ainda não tem campeonatos");
+    });
+
+    it("administrador (padrão) segue vendo todos pela listar", async () => {
+      await iniciarLista({ store });
+      expect(store.listar).toHaveBeenCalled();
+      expect(store.listarMeus).not.toHaveBeenCalled();
+    });
   });
 
   describe("cadastro", () => {
@@ -377,7 +459,7 @@ describe("edição de campeonato (área de gerenciamento)", () => {
     expect($("[data-perfil-periodo]").textContent).toMatch(/05 a 06 de dezembro de 2026/);
     expect($("[data-perfil-local]").textContent).toBe("Praia do Gonzaga · Santos/SP");
     expect($("[data-perfil-chips]").textContent).toContain("Oculto na home");
-    expect($("[data-perfil-chips]").textContent).toContain("Origem: manual");
+    expect($("[data-perfil-chips]").textContent).not.toContain("Origem");
     expect(todos("[data-categorias-lista] li").map((e) => e.textContent)).toEqual(["Amador", "Open"]);
     expect($("[data-categorias-estado]").hidden).toBe(true);
     expect($<HTMLAnchorElement>("[data-organizar-link]").getAttribute("href")).toContain("/campeonatos/copa-2026/organizar");
@@ -390,6 +472,150 @@ describe("edição de campeonato (área de gerenciamento)", () => {
     expect(campo("precoTexto").value).toBe("R$ 160,50");
     expect(campo("listado").checked).toBe(false);
     expect($("[data-arquivar]").textContent).toBe("Arquivar campeonato");
+  });
+
+  describe("organizador (verificarPosse)", () => {
+    const iniciarComoOrganizador = (id = "copa-2026") =>
+      iniciarEdicao({ store, id, irParaLista, verificarPosse: true });
+
+    it("dono: confere a posse e mostra a edição", async () => {
+      store.meusIds = ["copa-2026"];
+      await iniciarComoOrganizador();
+      expect(store.podeGerenciar).toHaveBeenCalledWith("copa-2026");
+      expect($("[data-perfil]").hidden).toBe(false);
+      expect(campo("nome").value).toBe("Copa Cabeça");
+    });
+
+    it("não é dono: 'Você não gerencia este campeonato' e nada de edição ou formulário preenchido", async () => {
+      store.meusIds = ["sem-cat-2026"];
+      await iniciarComoOrganizador();
+      expect($("[data-estado-perfil]").hidden).toBe(false);
+      expect($("[data-estado-perfil]").textContent).toContain("Você não gerencia este campeonato");
+      expect($("[data-perfil]").hidden).toBe(true);
+      expect(campo("nome").value).toBe("");
+    });
+
+    it("falha ao conferir a posse: erro com 'Tentar novamente' e nunca mostra a edição", async () => {
+      store.meusIds = ["copa-2026"];
+      store.falharPosse = true;
+      await iniciarComoOrganizador();
+      expect($("[data-estado-perfil]").textContent).toContain("Não foi possível carregar");
+      expect($("[data-perfil]").hidden).toBe(true);
+      store.falharPosse = false;
+      clicar(".pf-retentar");
+      await tick();
+      expect($("[data-perfil]").hidden).toBe(false);
+    });
+
+    it("administrador (padrão) não precisa conferir a posse", async () => {
+      await iniciar();
+      expect(store.podeGerenciar).not.toHaveBeenCalled();
+      expect($("[data-perfil]").hidden).toBe(false);
+    });
+
+    it("sem permissão ao salvar (RLS recusou): mensagem clara no formulário", async () => {
+      store.meusIds = ["copa-2026"];
+      await iniciarComoOrganizador();
+      store.atualizar.mockResolvedValueOnce({ ok: false, erro: { code: "SEM_PERMISSAO" } });
+      enviar();
+      await tick();
+      expect(status().dataset.tipo).toBe("erro");
+      expect(status().textContent).toBe("Você não gerencia este campeonato.");
+    });
+  });
+
+  describe("organizadores do evento", () => {
+    beforeEach(() => {
+      store.donos = { "copa-2026": ["ana@x.com"] };
+    });
+
+    it("lista os donos do evento ao carregar", async () => {
+      await iniciar();
+      await tick();
+      expect(store.listarDonos).toHaveBeenCalledWith("copa-2026");
+      expect(donosNaLista()).toEqual(["ana@x.com"]);
+      expect($("[data-donos-estado]").hidden).toBe(true);
+    });
+
+    it("evento sem dono: explica que só administradores gerenciam", async () => {
+      store.donos = {};
+      await iniciar();
+      await tick();
+      expect(donosNaLista()).toEqual([]);
+      expect($("[data-donos-estado]").hidden).toBe(false);
+      expect($("[data-donos-estado]").textContent).toContain("só administradores");
+    });
+
+    it("falha ao ler os donos: mostra o erro, sem quebrar a edição", async () => {
+      store.falharDonos = true;
+      await iniciar();
+      await tick();
+      expect($("[data-donos-estado]").textContent).toContain("Não foi possível carregar");
+      expect($("[data-perfil]").hidden).toBe(false);
+    });
+
+    it("adicionar: grava, atualiza a lista, limpa o campo e avisa", async () => {
+      await iniciar();
+      await tick();
+      emailDono().value = "  Bia@X.com ";
+      enviarDono();
+      await tick();
+      expect(store.adicionarDono).toHaveBeenCalledWith("copa-2026", "Bia@X.com");
+      expect(donosNaLista()).toEqual(["ana@x.com", "bia@x.com"]);
+      expect(emailDono().value).toBe("");
+      expect($("[data-donos-status]").hidden).toBe(false);
+      expect($("[data-donos-status]").textContent).toContain("bia@x.com agora é organizador");
+    });
+
+    it("adicionar e-mail inválido ou de quem não é organizador: erro claro e o campo fica marcado", async () => {
+      await iniciar();
+      await tick();
+      emailDono().value = "bia";
+      enviarDono();
+      await tick();
+      expect($("[data-donos-status]").dataset.tipo).toBe("erro");
+      expect($("[data-donos-status]").textContent).toBe("Informe um e-mail válido.");
+      expect(emailDono().getAttribute("aria-invalid")).toBe("true");
+
+      emailDono().value = "estranho@x.com";
+      enviarDono();
+      await tick();
+      expect($("[data-donos-status]").textContent).toContain("precisa ser organizadora primeiro");
+      expect(donosNaLista()).toEqual(["ana@x.com"]);
+      expect($<HTMLButtonElement>("[data-donos-adicionar]").disabled).toBe(false);
+    });
+
+    it("remover: tira o dono da lista e avisa", async () => {
+      store.donos = { "copa-2026": ["ana@x.com", "bia@x.com"] };
+      await iniciar();
+      await tick();
+      const remover = todos(".pf-dono__remover")[1];
+      expect(remover.getAttribute("aria-label")).toBe("Remover bia@x.com");
+      remover.click();
+      await tick();
+      expect(store.removerDono).toHaveBeenCalledWith("copa-2026", "bia@x.com");
+      expect(donosNaLista()).toEqual(["ana@x.com"]);
+      expect($("[data-donos-status]").textContent).toBe("bia@x.com foi removido.");
+    });
+
+    it("remover o último dono (organizador): o banco recusa e a lista não muda", async () => {
+      store.protegerUltimoDono = true;
+      await iniciar();
+      await tick();
+      todos(".pf-dono__remover")[0].click();
+      await tick();
+      expect($("[data-donos-status]").dataset.tipo).toBe("erro");
+      expect($("[data-donos-status]").textContent).toBe("O campeonato precisa de ao menos um organizador.");
+      expect(donosNaLista()).toEqual(["ana@x.com"]);
+    });
+
+    it("e-mail de dono é exibido como texto (sem HTML)", async () => {
+      store.donos = { "copa-2026": ["<img src=x onerror=alert(1)>@x.com"] };
+      await iniciar();
+      await tick();
+      expect(document.querySelector("[data-donos-lista] img")).toBeNull();
+      expect(donosNaLista()[0]).toBe("<img src=x onerror=alert(1)>@x.com");
+    });
   });
 
   it("sem categorias: mostra o aviso no lugar da lista", async () => {

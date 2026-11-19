@@ -49,9 +49,10 @@ export async function iniciarConta(opcoes: OpcoesConta): Promise<void> {
     return;
   }
 
-  const [perfilR, adminR, jogadoresR] = await Promise.all([
+  const [perfilR, adminR, organizadorR, jogadoresR] = await Promise.all([
     store.meuPerfil(),
     store.eAdmin(),
+    store.eOrganizador(),
     jogadorStore.listar(),
   ]);
   if (!perfilR.ok || !perfilR.valor) {
@@ -61,6 +62,7 @@ export async function iniciarConta(opcoes: OpcoesConta): Promise<void> {
 
   let perfil: Perfil = perfilR.valor;
   const admin = adminR.ok && adminR.valor;
+  let organizador = organizadorR.ok && organizadorR.valor;
   const jogadores: Jogador[] = jogadoresR.ok ? jogadoresR.valor : [];
 
   // ---- Dados da conta ----
@@ -69,7 +71,10 @@ export async function iniciarConta(opcoes: OpcoesConta): Promise<void> {
   const email = q("[data-conta-email]");
   if (email) email.textContent = sessao.valor.email ?? "";
   const papel = q("[data-conta-papel]");
-  if (papel) papel.textContent = admin ? "Administrador" : "Conta comum";
+  const desenharPapel = () => {
+    if (papel) papel.textContent = admin ? "Administrador" : organizador ? "Organizador" : "Conta comum";
+  };
+  desenharPapel();
 
   const foto = avatarSeguro(perfil.avatarUrl);
   const avatar = q<HTMLImageElement>("[data-conta-avatar]");
@@ -78,11 +83,43 @@ export async function iniciarConta(opcoes: OpcoesConta): Promise<void> {
     avatar.hidden = false;
   }
 
+  // ---- Organizador: qualquer conta logada pode se tornar organizadora ----
+  // Administrador gerencia tudo, então não precisa do cartão. O organizador
+  // gerencia só os eventos em que é dono (o banco confere).
   const linkGerenciar = q<HTMLAnchorElement>("[data-conta-gerenciar]");
-  if (linkGerenciar && admin) {
-    linkGerenciar.href = hrefGerenciar();
-    linkGerenciar.hidden = false;
-  }
+  const cartaoOrganizador = q("[data-organizador-cartao]");
+  const textoOrganizador = q("[data-organizador-texto]");
+  const botaoOrganizador = q<HTMLButtonElement>("[data-virar-organizador]");
+  const msgOrganizador = q("[data-organizador-msg]");
+
+  const desenharOrganizador = () => {
+    if (linkGerenciar) {
+      linkGerenciar.href = hrefGerenciar();
+      linkGerenciar.hidden = !(admin || organizador);
+    }
+    if (cartaoOrganizador) cartaoOrganizador.hidden = admin;
+    if (textoOrganizador) {
+      textoOrganizador.textContent = organizador
+        ? "Você é organizador: cria e gerencia os seus próprios campeonatos."
+        : "Organize os seus próprios campeonatos: cadastre eventos e gerencie categorias, duplas e chaveamentos deles.";
+    }
+    if (botaoOrganizador) botaoOrganizador.hidden = organizador;
+  };
+  desenharOrganizador();
+
+  botaoOrganizador?.addEventListener("click", async () => {
+    botaoOrganizador.disabled = true;
+    const r = await store.virarOrganizador();
+    botaoOrganizador.disabled = false;
+    if (!r.ok) {
+      if (msgOrganizador) msgOrganizador.textContent = mensagemAuth(r.erro);
+      return;
+    }
+    organizador = true;
+    desenharPapel();
+    desenharOrganizador();
+    if (msgOrganizador) msgOrganizador.textContent = "Pronto! Você já pode criar e gerenciar campeonatos.";
+  });
 
   // ---- Vínculo com jogador ----
   const seletor = q<HTMLSelectElement>("[data-vinculo-select]");

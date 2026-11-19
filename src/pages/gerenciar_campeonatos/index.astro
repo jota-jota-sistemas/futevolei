@@ -7,10 +7,11 @@ import { comBase } from "../../utils/url";
 
 // ÁREA DE GERENCIAMENTO: criar, alterar, arquivar e excluir campeonatos (eventos).
 //
-// Só administradores logados usam esta área. O conteúdo fica atrás de
+// Administradores e organizadores logados usam esta área; o organizador vê e
+// gerencia só os campeonatos em que é dono. O conteúdo fica atrás de
 // GuardaAcesso (revelado por scripts/guarda.ts) e a escrita no banco exige
-// eh_admin() no RLS. A guarda da tela é só de interface: o HTML estático
-// continua baixável; quem protege os dados é o RLS.
+// eh_admin() ou ser dono do evento (RLS). A guarda da tela é só de interface:
+// o HTML estático continua baixável; quem protege os dados é o RLS.
 ---
 
 <Layout
@@ -41,12 +42,15 @@ import { comBase } from "../../utils/url";
   import { guardarAcesso } from "../../scripts/guarda";
   import { criarAuthStoreBrowser } from "../../store/authStore";
 
-  // A lista só inicia depois que a guarda libera o acesso (administrador).
-  void guardarAcesso({ store: criarAuthStoreBrowser() }).then((liberado) => {
+  // A lista só inicia depois que a guarda libera o acesso. Administrador vê todos
+  // os campeonatos; organizador, só aqueles em que é dono (o banco confere).
+  let papel: "admin" | "organizador" = "admin";
+  void guardarAcesso({ store: criarAuthStoreBrowser(), permitir: ["admin", "organizador"], aoLiberar: (p) => { papel = p; } }).then((liberado) => {
     if (!liberado) return;
     void iniciarLista({
       store: criarCampeonatoStoreBrowser(),
       hrefEditar: hrefGerenciarCampeonato,
+      apenasMeus: papel === "organizador",
     });
   });
 </script>

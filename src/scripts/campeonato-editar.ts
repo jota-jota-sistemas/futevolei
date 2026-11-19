@@ -8,6 +8,8 @@
 //   [data-estado-perfil] · [data-perfil] (conteúdo, oculto até carregar)
 //   [data-perfil-nome|chips|periodo|local] · [data-organizar-link]
 //   [data-categorias-estado] [data-categorias-lista]
+//   [data-donos-estado] [data-donos-lista] [data-donos-form] [data-donos-status]
+//   (organizadores do evento: o dono e o administrador adicionam e removem)
 //   [data-campeonato-form] · [data-arquivar] · [data-excluir]
 //   [data-confirmacao-exclusao] [data-confirmacao-texto]
 //   [data-confirmar-exclusao] [data-cancelar-exclusao] · [data-acoes-status]
@@ -16,7 +18,7 @@
 // categorias, a confirmação avisa e o campeonato é ARQUIVADO (apagar levaria
 // duplas, chaveamentos e jogos junto).
 
-import type { CampeonatoDetalhe } from "../domain/campeonatos/types";
+import type { CampeonatoDetalhe, CampeonatoDono } from "../domain/campeonatos/types";
 import { mensagemDoErro } from "../domain/campeonatos/mensagens";
 import { validarCampeonato } from "../domain/campeonatos/validation";
 import type { CampeonatoStore } from "../store/campeonatoStore";
@@ -39,6 +41,11 @@ export interface DepsEditar {
   raiz?: ParentNode;
   /** Navegação após excluir de vez. Padrão: volta para a lista de gerenciamento. */
   irParaLista?: () => void;
+  /**
+   * Confere no banco se a conta gerencia ESTE campeonato antes de mostrar a
+   * edição (organizador). Padrão `false`: administrador gerencia todos.
+   */
+  verificarPosse?: boolean;
 }
 
 export async function iniciarEdicao({
@@ -46,6 +53,7 @@ export async function iniciarEdicao({
   id,
   raiz = document,
   irParaLista = irParaGerenciarCampeonatos,
+  verificarPosse = false,
 }: DepsEditar): Promise<void> {
   const q = <T extends Element>(seletor: string) => raiz.querySelector<T>(seletor);
   const estado = q<HTMLElement>("[data-estado-perfil]");
@@ -67,6 +75,10 @@ export async function iniciarEdicao({
   const btnConfirmar = q<HTMLButtonElement>("[data-confirmar-exclusao]");
   const btnCancelar = q<HTMLButtonElement>("[data-cancelar-exclusao]");
   const statusAcoes = q<HTMLElement>("[data-acoes-status]");
+  const donosEstado = q<HTMLElement>("[data-donos-estado]");
+  const donosLista = q<HTMLElement>("[data-donos-lista]");
+  const donosForm = q<HTMLFormElement>("[data-donos-form]");
+  const donosStatus = q<HTMLElement>("[data-donos-status]");
 
   let atual: CampeonatoDetalhe | null = null;
 
@@ -135,6 +147,92 @@ export async function iniciarEdicao({
     }
   }
 
+  // ---- Organizadores do evento ------------------------------------------------
+
+  function statusDosDonos(texto: string, tipo: "ok" | "erro" = "ok"): void {
+    if (!donosStatus) return;
+    donosStatus.textContent = texto;
+    donosStatus.dataset.tipo = tipo;
+    donosStatus.hidden = texto === "";
+  }
+
+  function itemDeDono(dono: CampeonatoDono): HTMLLIElement {
+    const li = document.createElement("li");
+    li.className = "pf-dono";
+    const email = document.createElement("span");
+    email.className = "pf-dono__email";
+    email.textContent = dono.email;
+    const remover = document.createElement("button");
+    remover.type = "button";
+    remover.className = "pf-dono__remover";
+    remover.textContent = "Remover";
+    remover.setAttribute("aria-label", `Remover ${dono.email}`);
+    remover.addEventListener("click", () => void removerDono(dono.email, remover));
+    li.append(email, remover);
+    return li;
+  }
+
+  async function carregarDonos(): Promise<void> {
+    if (!atual || !donosLista) return;
+    const r = await store.listarDonos(atual.id);
+    donosLista.textContent = "";
+    if (!r.ok) {
+      if (donosEstado) {
+        donosEstado.textContent = mensagemDoErro(r.erro);
+        donosEstado.hidden = false;
+      }
+      return;
+    }
+    if (donosEstado) {
+      donosEstado.textContent =
+        r.valor.length === 0
+          ? "Sem organizador: só administradores gerenciam este campeonato. Adicione um organizador abaixo."
+          : "";
+      donosEstado.hidden = r.valor.length > 0;
+    }
+    for (const dono of r.valor) donosLista.append(itemDeDono(dono));
+  }
+
+  async function removerDono(email: string, botao: HTMLButtonElement): Promise<void> {
+    if (!atual) return;
+    statusDosDonos("");
+    botao.disabled = true;
+    const r = await store.removerDono(atual.id, email);
+    botao.disabled = false;
+    if (!r.ok) {
+      statusDosDonos(mensagemDoErro(r.erro), "erro");
+      return;
+    }
+    await carregarDonos();
+    statusDosDonos(`${email} foi removido.`);
+  }
+
+  async function adicionarDono(): Promise<void> {
+    if (!atual || !donosForm) return;
+    const campoEmail = donosForm.querySelector<HTMLInputElement>('[name="email"]');
+    const botao = donosForm.querySelector<HTMLButtonElement>("[data-donos-adicionar]");
+    if (!campoEmail) return;
+    campoEmail.removeAttribute("aria-invalid");
+    statusDosDonos("");
+    if (botao) botao.disabled = true;
+    const r = await store.adicionarDono(atual.id, campoEmail.value);
+    if (botao) botao.disabled = false;
+    if (!r.ok) {
+      campoEmail.setAttribute("aria-invalid", "true");
+      statusDosDonos(mensagemDoErro(r.erro), "erro");
+      campoEmail.focus();
+      return;
+    }
+    campoEmail.value = "";
+    await carregarDonos();
+    statusDosDonos(`${r.valor.email} agora é organizador deste campeonato.`);
+  }
+
+  donosForm?.addEventListener("submit", (evento) => {
+    evento.preventDefault();
+    void adicionarDono();
+  });
+
   async function carregar(): Promise<void> {
     if (!id) {
       mostrarEstado("Campeonato não informado. Volte à lista e escolha um campeonato.");
@@ -146,12 +244,24 @@ export async function iniciarEdicao({
       mostrarEstado(mensagemDoErro(r.erro), r.erro.code === "FALHA_LEITURA");
       return;
     }
+    if (verificarPosse) {
+      const posse = await store.podeGerenciar(id);
+      if (!posse.ok) {
+        mostrarEstado(mensagemDoErro(posse.erro), true);
+        return;
+      }
+      if (!posse.valor) {
+        mostrarEstado(mensagemDoErro({ code: "SEM_PERMISSAO" }));
+        return;
+      }
+    }
     atual = r.valor;
     estado!.hidden = true;
     perfil!.hidden = false;
     renderResumo(atual);
     renderCategorias(atual);
     preencherFormulario(form!, atual);
+    void carregarDonos();
   }
 
   // ---- Edição -------------------------------------------------------------

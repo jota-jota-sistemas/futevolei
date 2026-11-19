@@ -27,8 +27,9 @@ import { CACHE_PAGINAS } from "../../../../utils/cache-http";
  *     `src/store/bracketStore.ts` (cliente público com RLS);
  *   - reutiliza `renderBracketClient` para exibir o estado atual do chaveamento.
  *
- * Esta rota NÃO é linkada publicamente e só administradores logados a usam
- * (GuardaAcesso + RLS com eh_admin()). Como o ambiente de build não tem Supabase real, o script é
+ * Esta rota NÃO é linkada publicamente. Administradores logados usam qualquer
+ * evento; organizadores logados, só os eventos em que são donos (GuardaAcesso +
+ * posse conferida no banco + RLS). Como o ambiente de build não tem Supabase real, o script é
  * DEFENSIVO (try/catch): sem Supabase a página apenas mostra avisos e não
  * quebra a geração estática.
  *
@@ -317,6 +318,8 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
   import { criarJogadorStoreBrowser } from "../../../../store/jogadorStore";
   import { criarAuthStoreBrowser } from "../../../../store/authStore";
   import { guardarAcesso } from "../../../../scripts/guarda";
+  import { criarCampeonatoStoreBrowser } from "../../../../store/campeonatoStore";
+  import { verificarPosseDoEvento } from "../../../../scripts/posse-evento";
   import {
     ligarSeletoresDeJogador,
     type SeletorJogadores,
@@ -456,8 +459,14 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
   // Inicialização
   // --------------------------------------------------------------------
   async function iniciar(): Promise<void> {
-    // Só administradores logados: a guarda redireciona ou bloqueia os demais.
-    if (!(await guardarAcesso({ store: criarAuthStoreBrowser() }))) return;
+    // Administradores logados (qualquer evento) e organizadores (só os dele): a
+    // guarda redireciona ou bloqueia os demais. A posse vem do banco.
+    const idDoEvento = q<HTMLElement>(document, ".org[data-campeonato-id]")?.dataset.campeonatoId;
+    if (!(await guardarAcesso({
+      store: criarAuthStoreBrowser(),
+      permitir: ["admin", "organizador"],
+      verificar: verificarPosseDoEvento(criarCampeonatoStoreBrowser(), idDoEvento),
+    }))) return;
 
     const secao = q<HTMLElement>(document, ".org[data-campeonato-id]");
     if (!secao) return;

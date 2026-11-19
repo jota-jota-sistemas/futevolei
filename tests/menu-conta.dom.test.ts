@@ -15,7 +15,12 @@ describe("itensConta", () => {
     expect(itensConta("admin", H).map((i) => i.rotulo)).toEqual(["Gerenciar", "Minha conta"]);
   });
 
-  it("o link de gerenciamento só existe para admin", () => {
+  it("organizador também vê 'Gerenciar' (o painel mostra só o que ele gerencia)", () => {
+    expect(itensConta("organizador", H)).toEqual(itensConta("admin", H));
+    expect(itensConta("organizador", H).some((i) => i.href === "/g")).toBe(true);
+  });
+
+  it("o link de gerenciamento não aparece para visitante nem para logado comum", () => {
     for (const e of ["visitante", "logado"] as const) {
       expect(itensConta(e, H).some((i) => i.href === "/g")).toBe(false);
     }
@@ -40,11 +45,12 @@ function montar() {
 const textos = () =>
   Array.from(document.querySelectorAll("[data-menu-conta] a")).map((a) => a.textContent);
 
-function storeFalsa(sessao: boolean, admin: boolean) {
+function storeFalsa(sessao: boolean, admin: boolean, organizador = false) {
   const ouvintes: Array<(s: unknown) => void> = [];
   const store = {
     sessaoAtual: vi.fn(async () => ({ ok: true, valor: sessao ? { userId: "u", email: "a@b.c" } : null })),
     eAdmin: vi.fn(async () => ({ ok: true, valor: admin })),
+    eOrganizador: vi.fn(async () => ({ ok: true, valor: organizador })),
     aoMudarSessao: vi.fn((cb: (s: unknown) => void) => (ouvintes.push(cb), () => {})),
   } as unknown as AuthStore;
   return { store, ouvintes };
@@ -74,6 +80,20 @@ describe("iniciarMenuConta", () => {
     const a = document.querySelector("[data-menu-conta] a")!;
     expect(a.className).toContain("header__link");
     expect(a.hasAttribute("data-astro-cid-x")).toBe(true);
+  });
+
+  it("organizador: 'Gerenciar' e 'Minha conta'", async () => {
+    const { store } = storeFalsa(true, false, true);
+    await iniciarMenuConta({ criarStore: () => store, chavesStorage: () => ["sb-a-auth-token"] });
+    expect(textos()).toEqual(["Gerenciar", "Minha contaConta"]);
+    expect(store.eOrganizador).toHaveBeenCalled();
+  });
+
+  it("admin não precisa consultar o papel de organizador", async () => {
+    const { store } = storeFalsa(true, true, true);
+    await iniciarMenuConta({ criarStore: () => store, chavesStorage: () => ["sb-a-auth-token"] });
+    expect(textos()).toEqual(["Gerenciar", "Minha contaConta"]);
+    expect(store.eOrganizador).not.toHaveBeenCalled();
   });
 
   it("itens públicos ficam intactos", async () => {

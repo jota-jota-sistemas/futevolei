@@ -264,14 +264,17 @@ describe("validarCampeonato: propriedades", () => {
     const codigos: CampeonatoErro["code"][] = [
       "NOME_INVALIDO", "DATA_INVALIDA", "DATA_FIM_INVALIDA", "CIDADE_INVALIDA", "UF_INVALIDA",
       "ENDERECO_INVALIDO", "PRECO_INVALIDO", "PRECO_TEXTO_INVALIDO", "INSCRICAO_INVALIDA",
-      "INSTAGRAM_INVALIDO", "DESCRICAO_INVALIDA", "CAMPEONATO_NAO_ENCONTRADO",
-      "FALHA_PERSISTENCIA", "FALHA_LEITURA",
+      "INSTAGRAM_INVALIDO", "DESCRICAO_INVALIDA", "CAMPEONATO_NAO_ENCONTRADO", "SEM_PERMISSAO",
+      "EMAIL_INVALIDO", "NAO_ORGANIZADOR", "ULTIMO_DONO", "FALHA_PERSISTENCIA", "FALHA_LEITURA",
     ];
     for (const code of codigos) {
       const erro = { code } as CampeonatoErro;
       expect(mensagemDoErro(erro).length).toBeGreaterThan(5);
       const campo = campoDoErro(erro);
-      const geral = ["CAMPEONATO_NAO_ENCONTRADO", "FALHA_PERSISTENCIA", "FALHA_LEITURA"].includes(code);
+      const geral = [
+        "CAMPEONATO_NAO_ENCONTRADO", "SEM_PERMISSAO", "EMAIL_INVALIDO", "NAO_ORGANIZADOR", "ULTIMO_DONO",
+        "FALHA_PERSISTENCIA", "FALHA_LEITURA",
+      ].includes(code);
       expect(campo === null).toBe(geral);
     }
   });

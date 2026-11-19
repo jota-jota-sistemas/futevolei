@@ -3,7 +3,7 @@
 // Atualiza os itens de conta do cabeçalho conforme o login:
 //   visitante -> "Entrar" (já vem no HTML estático);
 //   logado    -> "Minha conta";
-//   admin     -> "Gerenciar" + "Minha conta".
+//   organizador ou admin -> "Gerenciar" + "Minha conta".
 // Os itens públicos (Eventos, Jogadores) nunca mudam. Para quem nunca entrou
 // não carrega o SDK do Supabase: só olha se há sessão salva no navegador.
 
@@ -90,7 +90,12 @@ export async function iniciarMenuConta(opcoes: OpcoesMenuConta = {}): Promise<vo
       }
       desenhar(contenedor, modelo, "logado", pathname);
       const admin = await store.eAdmin();
-      if (admin.ok && admin.valor) desenhar(contenedor, modelo, "admin", pathname);
+      if (admin.ok && admin.valor) {
+        desenhar(contenedor, modelo, "admin", pathname);
+        return;
+      }
+      const organizador = await store.eOrganizador();
+      if (organizador.ok && organizador.valor) desenhar(contenedor, modelo, "organizador", pathname);
     };
 
     const sessao = await store.sessaoAtual();

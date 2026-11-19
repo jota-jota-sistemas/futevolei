@@ -108,6 +108,11 @@ function montarConta() {
       <p data-conta-nome></p><p data-conta-email></p><p data-conta-papel></p>
       <a data-conta-gerenciar hidden>Gerenciar</a>
       <button data-sair>Sair</button>
+      <div data-organizador-cartao>
+        <p data-organizador-texto></p>
+        <button data-virar-organizador>Quero ser organizador</button>
+        <p data-organizador-msg></p>
+      </div>
       <p data-vinculo-atual></p>
       <div data-vinculo-form><select data-vinculo-select></select><button data-vincular>Vincular</button></div>
       <button data-desvincular hidden>Remover</button>
@@ -120,12 +125,23 @@ const JOGADORES = [
   { id: "j2", nome: "Bia", apelido: "B" },
 ];
 
-function storesConta(o: { sessao?: boolean; admin?: boolean; jogadorId?: string | null; vincular?: unknown } = {}) {
+function storesConta(
+  o: {
+    sessao?: boolean;
+    admin?: boolean;
+    organizador?: boolean;
+    virarOrganizador?: unknown;
+    jogadorId?: string | null;
+    vincular?: unknown;
+  } = {}
+) {
   const perfil = { id: "u", nome: "Ana Silva", avatarUrl: "https://x/a.png", jogadorId: o.jogadorId ?? null };
   const store = {
     sessaoAtual: vi.fn(async () => ({ ok: true, valor: "sessao" in o && !o.sessao ? null : { userId: "u", email: "ana@x.com" } })),
     meuPerfil: vi.fn(async () => ({ ok: true, valor: perfil })),
     eAdmin: vi.fn(async () => ({ ok: true, valor: !!o.admin })),
+    eOrganizador: vi.fn(async () => ({ ok: true, valor: !!o.organizador })),
+    virarOrganizador: vi.fn(async () => o.virarOrganizador ?? { ok: true, valor: undefined }),
     vincularJogador: vi.fn(async (id: string) => o.vincular ?? { ok: true, valor: { ...perfil, jogadorId: id } }),
     desvincularJogador: vi.fn(async () => ({ ok: true, valor: { ...perfil, jogadorId: null } })),
     sair: vi.fn(async () => ({ ok: true, valor: undefined })),
@@ -156,6 +172,53 @@ describe("/conta", () => {
   it("admin vê o link de gerenciamento", async () => {
     await iniciarConta({ ...storesConta({ admin: true }), irPara: vi.fn() });
     expect(t("[data-conta-papel]")).toBe("Administrador");
+    expect(document.querySelector<HTMLElement>("[data-conta-gerenciar]")!.hidden).toBe(false);
+  });
+
+  it("conta comum: convite para ser organizador, sem link de gerenciar", async () => {
+    await iniciarConta({ ...storesConta(), irPara: vi.fn() });
+    expect(document.querySelector<HTMLElement>("[data-organizador-cartao]")!.hidden).toBe(false);
+    expect(document.querySelector<HTMLElement>("[data-virar-organizador]")!.hidden).toBe(false);
+    expect(t("[data-organizador-texto]")).toContain("Organize os seus próprios campeonatos");
+  });
+
+  it("'Quero ser organizador': cadastra, muda o papel e libera o link de gerenciar", async () => {
+    const s = storesConta();
+    await iniciarConta({ ...s, irPara: vi.fn() });
+    document.querySelector<HTMLButtonElement>("[data-virar-organizador]")!.click();
+    await tick();
+    expect(s.store.virarOrganizador).toHaveBeenCalledTimes(1);
+    expect(t("[data-conta-papel]")).toBe("Organizador");
+    expect(document.querySelector<HTMLElement>("[data-conta-gerenciar]")!.hidden).toBe(false);
+    expect(document.querySelector<HTMLElement>("[data-virar-organizador]")!.hidden).toBe(true);
+    expect(t("[data-organizador-texto]")).toContain("Você é organizador");
+    expect(t("[data-organizador-msg]")).toContain("Pronto");
+  });
+
+  it("falha ao virar organizador: mostra a mensagem e mantém o botão", async () => {
+    const s = storesConta({ virarOrganizador: { ok: false, erro: { code: "FALHA_PERSISTENCIA" } } });
+    await iniciarConta({ ...s, irPara: vi.fn() });
+    document.querySelector<HTMLButtonElement>("[data-virar-organizador]")!.click();
+    await tick();
+    expect(t("[data-organizador-msg]")).toBe("Falha ao salvar. Tente novamente em instantes.");
+    expect(t("[data-conta-papel]")).toBe("Conta comum");
+    expect(document.querySelector<HTMLElement>("[data-conta-gerenciar]")!.hidden).toBe(true);
+    expect(document.querySelector<HTMLElement>("[data-virar-organizador]")!.hidden).toBe(false);
+    expect(document.querySelector<HTMLButtonElement>("[data-virar-organizador]")!.disabled).toBe(false);
+  });
+
+  it("quem já é organizador: papel, link de gerenciar e sem botão de cadastro", async () => {
+    await iniciarConta({ ...storesConta({ organizador: true }), irPara: vi.fn() });
+    expect(t("[data-conta-papel]")).toBe("Organizador");
+    expect(document.querySelector<HTMLElement>("[data-conta-gerenciar]")!.hidden).toBe(false);
+    expect(document.querySelector<HTMLElement>("[data-virar-organizador]")!.hidden).toBe(true);
+    expect(t("[data-organizador-texto]")).toContain("Você é organizador");
+  });
+
+  it("administrador não vê o cartão de organizador (e o papel continua Administrador)", async () => {
+    await iniciarConta({ ...storesConta({ admin: true, organizador: true }), irPara: vi.fn() });
+    expect(t("[data-conta-papel]")).toBe("Administrador");
+    expect(document.querySelector<HTMLElement>("[data-organizador-cartao]")!.hidden).toBe(true);
     expect(document.querySelector<HTMLElement>("[data-conta-gerenciar]")!.hidden).toBe(false);
   });
 

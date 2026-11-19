@@ -35,6 +35,12 @@ export interface CampeonatoRegistro {
   atualizadoEm: string;
 }
 
+/** Um dono (organizador) de um campeonato. */
+export interface CampeonatoDono {
+  email: string; // minúsculas
+  criadoEm: string;
+}
+
 /** Nomes das categorias do campeonato (leitura). */
 export interface CampeonatoDetalhe extends CampeonatoRegistro {
   categorias: string[];
@@ -89,6 +95,10 @@ export type CampeonatoErro =
   | { code: "INSTAGRAM_INVALIDO" }
   | { code: "DESCRICAO_INVALIDA" }
   | { code: "CAMPEONATO_NAO_ENCONTRADO" }
+  | { code: "SEM_PERMISSAO" } // o banco recusou: a conta não gerencia este campeonato
+  | { code: "EMAIL_INVALIDO" } // e-mail do dono mal formado
+  | { code: "NAO_ORGANIZADOR" } // o e-mail ainda não é de um organizador
+  | { code: "ULTIMO_DONO" } // o campeonato não pode ficar sem organizador
   | { code: "FALHA_PERSISTENCIA" } // erro de escrita
   | { code: "FALHA_LEITURA" }; // erro de leitura
 
