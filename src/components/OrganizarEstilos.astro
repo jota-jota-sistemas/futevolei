@@ -1,0 +1,210 @@
+---
+// Estilos da organização de uma categoria que valem para elementos criados em
+// runtime (lista de duplas, edição, prévia da lista colada, nivelador) e para o
+// que a Fase 2 acrescentou (aviso de repetida, sugestão de formato, resumo).
+// O CSS escopado do Astro não alcança elementos criados no navegador, por isso
+// é global. Mobile-first: alvos de toque de 44px, nada depende de hover.
+---
+<style is:global>
+  .org__dupla {
+    flex-wrap: wrap;
+  }
+  .org__dupla-acoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .org__acao-linha {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0.4rem 0.9rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 999px;
+    font: inherit;
+    font-size: 0.88rem;
+    font-weight: 600;
+    background: transparent;
+    color: var(--cor-texto);
+    cursor: pointer;
+  }
+  .org__acao-linha.org__remover {
+    color: #c0392b;
+  }
+  .org__dupla--editando {
+    display: block;
+  }
+  .org__dupla-edicao {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .org__dupla-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--cor-texto-suave);
+  }
+  .org__dupla-campo input {
+    min-height: 44px;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 10px;
+    font: inherit;
+    font-size: 1rem;
+    background: var(--cor-fundo);
+    color: var(--cor-texto);
+  }
+  .org__dupla-edicao .org__botao {
+    min-height: 44px;
+    padding: 0.5rem 1.1rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 999px;
+    font: inherit;
+    font-weight: 600;
+    background: var(--cor-fundo);
+    color: var(--cor-texto);
+    cursor: pointer;
+  }
+  .org__dupla-edicao .org__botao--primario {
+    background: var(--cor-destaque);
+    color: var(--cor-destaque-contraste);
+    border-color: var(--cor-destaque);
+  }
+  .org__vinculo-info {
+    min-height: 1.1em;
+    font-size: 0.78rem;
+    color: var(--cor-destaque-texto);
+  }
+  .org__input--vinculado {
+    border-color: var(--cor-destaque);
+  }
+
+  /* Aviso de dupla repetida */
+  .org__aviso {
+    padding: 0.7rem 0.9rem;
+    border: 1px solid #d4a017;
+    border-radius: 10px;
+    background: rgba(212, 160, 23, 0.12);
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .org__aviso[hidden] {
+    display: none;
+  }
+  .org__aviso-msg {
+    margin: 0;
+    font-weight: 600;
+  }
+
+  /* Colar lista */
+  .org__colar {
+    border: 1px solid var(--cor-borda);
+    border-radius: 10px;
+    padding: 0.2rem 0.9rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .org__colar-resumo {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .org__rotulo-campo {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--cor-texto-suave);
+  }
+  .org__textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 10px;
+    font: inherit;
+    font-size: 1rem;
+    background: var(--cor-fundo);
+    color: var(--cor-texto);
+    resize: vertical;
+  }
+  .org__colar-sumario {
+    margin: 0;
+    font-size: 0.88rem;
+    font-weight: 600;
+  }
+  .org__colar-previa {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    max-height: 18rem;
+    overflow-y: auto;
+  }
+  .org__colar-linha {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.5rem;
+    font-size: 0.92rem;
+  }
+  .org__colar-marca {
+    font-weight: 800;
+  }
+  .org__colar-linha--valida .org__colar-marca {
+    color: #2e7d32;
+  }
+  .org__colar-linha--invalida .org__colar-marca {
+    color: #c0392b;
+  }
+  .org__colar-linha--repetida .org__colar-marca {
+    color: #b7791f;
+  }
+  .org__colar-motivo {
+    flex-basis: 100%;
+    color: var(--cor-texto-suave);
+  }
+  .org__colar .org__botao[disabled] {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  /* Formato: sugestão e resumo antes de gerar */
+  .org__sugestao {
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--cor-destaque);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .org__sugestao[hidden] {
+    display: none;
+  }
+  .org__sugestao-texto {
+    margin: 0;
+    font-size: 0.92rem;
+  }
+  .org__resumo {
+    margin: 0;
+    font-weight: 700;
+    font-size: 0.95rem;
+  }
+  .org__bloco {
+    scroll-margin-top: 7rem;
+  }
+  .org__botao {
+    min-height: 44px;
+  }
+  .org__nivelador-botoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-left: auto;
+  }
+</style>

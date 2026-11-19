@@ -3,6 +3,9 @@ import Layout from "../../../../layouts/Layout.astro";
 import GuardaAcesso from "../../../../components/GuardaAcesso.astro";
 import OrganizarAbas from "../../../../components/OrganizarAbas.astro";
 import OrganizarAtalhos from "../../../../components/OrganizarAtalhos.astro";
+import OrganizarSecoes from "../../../../components/OrganizarSecoes.astro";
+import OrganizarEstilos from "../../../../components/OrganizarEstilos.astro";
+import Toasts from "../../../../components/Toasts.astro";
 import { comBase, slugCategoria } from "../../../../utils/url";
 import { carregarEventos, type EventoCarregado } from "../../../../utils/eventos-db";
 import { CACHE_PAGINAS } from "../../../../utils/cache-http";
@@ -99,6 +102,16 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
       temCategorias={campeonato.categoriasBanco.length > 0}
     />
 
+    {/* Pula direto para Duplas, Formato, Chaveamento ou Jogos (página longa no celular). */}
+    <OrganizarSecoes
+      itens={[
+        { id: "titulo-duplas", rotulo: "Duplas" },
+        { id: "titulo-formato", rotulo: "Formato" },
+        { id: "titulo-gerar", rotulo: "Chaveamento" },
+        { id: "titulo-estado", rotulo: "Jogos" },
+      ]}
+    />
+
     {/* Faixa de status/erros global da página (persistência, carregamento). */}
     <p class="org__status" data-status role="status" aria-live="polite"></p>
 
@@ -123,12 +136,7 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
                 maxlength="80"
                 required
               />
-              <div class="org__vinculo" data-vinculo hidden>
-                <label for="dupla-jogador-a">Jogador cadastrado (opcional)</label>
-                <select id="dupla-jogador-a" data-jogador-a>
-                  <option value="">Não vincular</option>
-                </select>
-              </div>
+              <small class="org__vinculo-info" data-vinculo-info aria-live="polite"></small>
             </div>
             <div class="org__campo">
               <label for="dupla-atleta-b">Atleta B</label>
@@ -140,24 +148,54 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
                 maxlength="80"
                 required
               />
-              <div class="org__vinculo" data-vinculo hidden>
-                <label for="dupla-jogador-b">Jogador cadastrado (opcional)</label>
-                <select id="dupla-jogador-b" data-jogador-b>
-                  <option value="">Não vincular</option>
-                </select>
-                <p class="org__vinculo-ajuda">
-                  Vincular registra a dupla no histórico do jogador.
-                </p>
-              </div>
+              <small class="org__vinculo-info" data-vinculo-info aria-live="polite"></small>
             </div>
           </div>
-          <button class="org__botao" type="submit" data-add-dupla>
+          <datalist id="jogadores-opcoes" data-jogadores-lista></datalist>
+          <button class="org__botao org__botao--primario" type="submit" data-add-dupla>
             Adicionar dupla
           </button>
+
+          {/* Mesma dupla já inscrita: avisa e deixa decidir (podem ser homônimos). */}
+          <div class="org__aviso" data-aviso-repetida role="alert" hidden>
+            <p class="org__aviso-msg" data-repetida-msg></p>
+            <div class="org__acoes">
+              <button class="org__botao" type="button" data-repetida-revisar>Revisar</button>
+              <button class="org__botao" type="button" data-repetida-forcar>Adicionar mesmo assim</button>
+            </div>
+          </div>
           <p class="org__erro" data-erro-dupla role="alert"></p>
         </form>
 
+        {/* Lista colada do WhatsApp: uma dupla por linha. */}
+        <details class="org__colar" data-colar>
+          <summary class="org__colar-resumo">Colar lista de duplas</summary>
+          <p class="org__ajuda">
+            Cole a lista, uma dupla por linha (ex.: “Ana &amp; Bia” ou “Ana e Bia”).
+            Números e marcadores no começo da linha são ignorados.
+          </p>
+          <label class="org__rotulo-campo" for="colar-texto">Lista de duplas</label>
+          <textarea
+            id="colar-texto"
+            class="org__textarea"
+            data-colar-texto
+            rows="6"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder={"1. Ana & Bia\n2. Caio e Duda"}
+          ></textarea>
+          <p class="org__colar-sumario" data-colar-resumo aria-live="polite"></p>
+          <ul class="org__colar-previa" data-colar-previa></ul>
+          <button class="org__botao org__botao--primario" type="button" data-colar-confirmar disabled>
+            Adicionar duplas
+          </button>
+          <p class="org__erro" data-colar-erro role="alert"></p>
+        </details>
+
         <p class="org__contagem" data-contagem-duplas></p>
+        <p class="org__ajuda" data-aviso-chaveamento hidden>
+          Chaveamento já gerado: as duplas não podem mais ser editadas nem removidas.
+        </p>
         <ul class="org__duplas" data-lista-duplas></ul>
       </section>
 
@@ -166,6 +204,10 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
         <h2 class="org__bloco-titulo" id="titulo-formato">Formato</h2>
 
         <form class="org__form" data-form-formato novalidate>
+          <div class="org__sugestao" data-sugestao hidden>
+            <p class="org__sugestao-texto" data-sugestao-texto></p>
+            <button class="org__botao" type="button" data-usar-sugestao>Usar sugestão</button>
+          </div>
           <fieldset class="org__fieldset">
             <legend>Escolha o formato do chaveamento</legend>
             <label class="org__radio">
@@ -227,9 +269,8 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
             </div>
           </div>
 
-          <button class="org__botao" type="submit" data-salvar-formato>
-            Salvar formato
-          </button>
+          <p class="org__ajuda" data-formato-dica aria-live="polite"></p>
+          <p class="org__ajuda">O formato é salvo automaticamente.</p>
           <p class="org__erro" data-erro-formato role="alert"></p>
         </form>
       </section>
@@ -250,14 +291,16 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
 
         <form class="org__form" data-form-seeding data-nivelador-conteudo hidden novalidate>
           <p class="org__ajuda">
-            Ordene da dupla mais forte (topo) para a mais fraca. Já vem em ordem
-            alfabética: arraste os cards para reordenar (ou use as setas) e
-            clique em salvar.
+            Ordene da dupla mais forte (topo) para a mais fraca. Arraste pela
+            alça ⠿ ou use os botões de cada dupla. A ordem é salva
+            automaticamente.
           </p>
+          <div class="org__acoes">
+            <button class="org__botao" type="button" data-sortear>Sortear e fixar</button>
+            <button class="org__botao" type="button" data-alfabetica>Ordem alfabética</button>
+          </div>
+          <p class="org__ajuda" data-nivelador-estado aria-live="polite"></p>
           <ol class="org__nivelador" data-lista-seeding></ol>
-          <button class="org__botao" type="submit" data-salvar-seeding>
-            Salvar nivelador
-          </button>
           <p class="org__erro" data-erro-seeding role="alert"></p>
         </form>
       </section>
@@ -265,6 +308,8 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
       <!-- =========================== GERAR ============================== -->
       <section class="org__bloco" aria-labelledby="titulo-gerar">
         <h2 class="org__bloco-titulo" id="titulo-gerar">Chaveamento</h2>
+
+        <p class="org__resumo" data-resumo-geracao aria-live="polite"></p>
 
         <div class="org__acoes">
           <button class="org__botao org__botao--primario" type="button" data-gerar>
@@ -282,7 +327,7 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
         <div class="org__confirmar" data-confirmar hidden role="alertdialog" aria-labelledby="confirmar-msg">
           <p class="org__confirmar-msg" id="confirmar-msg">
             Já existe um chaveamento para esta categoria. Gerar novamente vai
-            substituí-lo. Deseja continuar?
+            substituí-lo.<span data-confirmar-aviso></span> Deseja continuar?
           </p>
           <div class="org__acoes">
             <button class="org__botao org__botao--perigo" type="button" data-confirmar-sim>
@@ -316,6 +361,8 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
     </div>
   </section>
   </GuardaAcesso>
+  <Toasts />
+  <OrganizarEstilos />
 </Layout>
 
 <script>
@@ -348,86 +395,37 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
     Bracket,
     BracketConfig,
     DomainError,
-    Format,
     Pair,
   } from "../../../../domain/bracket/types";
   import type { Result } from "../../../../domain/result";
+  import { mensagemErro } from "../../../../scripts/organizar/mensagens";
 
-  import { validarDuplaCandidata } from "../../../../domain/pairs/validation";
   import {
-    exigirFormato,
-    validarNumeroDeGrupos,
-    validarClassificadosPorGrupo,
-  } from "../../../../domain/bracket/config";
-  import {
-    validarSeeding,
     seedingPadrao,
     seedingAleatorio,
-    type SeedAssignment,
   } from "../../../../domain/bracket/seeding";
   import {
     gerarChaveamento,
     posicionarClassificadosNoMataMata,
     type ClassificadoDoGrupo,
   } from "../../../../domain/bracket/generator";
-  import { rotuloDupla, gerarNomeDupla } from "../../../../domain/pairs/nome";
+  import { rotuloDupla } from "../../../../domain/pairs/nome";
+  import type { VinculosDuplaIds } from "../../../../store/bracketStore";
+  import { resumirGeracao } from "../../../../domain/bracket/resumo";
+  import { resumirPlacares, avisoDePlacaresPerdidos } from "../../../../domain/bracket/placares";
+  import { mostrarToast, type OpcoesToast } from "../../../../scripts/organizar/toast";
+  import { criarRascunho, prefixoDoRascunho, type Rascunho } from "../../../../scripts/organizar/rascunho";
+  import { ligarSecoes } from "../../../../scripts/organizar/secoes";
+  import { ligarDuplas, type ControleDuplas } from "../../../../scripts/organizar/duplas";
+  import { ligarColarLista } from "../../../../scripts/organizar/colar-lista";
+  import { ligarFormato, type ControleFormato } from "../../../../scripts/organizar/formato";
+  import { ligarNivelador, type ControleNivelador } from "../../../../scripts/organizar/nivelador";
   import { abrirTelaChaveamento, type TelaChaveamento } from "../../../../components/bracket/telaChaveamento";
   import { abrirTelaJogo, type TelaJogo } from "../../../../components/bracket/telaJogo";
   import { registrarPlacar, atualizarPlacarAoVivo } from "../../../../domain/bracket/progression";
   import { numerarJogos } from "../../../../domain/bracket/ordenacao";
   import { jogosAlterados } from "../../../../domain/bracket/diff";
   import { selecionarClassificados } from "../../../../domain/bracket/standings";
-
-  // --------------------------------------------------------------------
-  // Tradução de DomainError → mensagem amigável em português (R7/R2/etc.)
-  // --------------------------------------------------------------------
-  function mensagemErro(erro: DomainError): string {
-    switch (erro.code) {
-      case "NOME_DUPLA_INVALIDO":
-        return "Informe um nome de dupla válido (1 a 80 caracteres).";
-      case "NOME_ATLETA_INVALIDO":
-        return `Informe um nome válido para o atleta ${erro.qual} (1 a 80 caracteres).`;
-      case "NOME_DUPLICADO":
-        return "Já existe uma dupla com esse nome nesta categoria.";
-      case "REMOCAO_BLOQUEADA":
-        return "Não é possível remover duplas depois que o chaveamento foi gerado.";
-      case "FORMATO_AUSENTE":
-        return "Escolha um formato antes de gerar o chaveamento.";
-      case "FORMATO_INVALIDO":
-        return "Formato inválido. Escolha 'fase de grupos' ou 'dupla eliminação'.";
-      case "GRUPOS_INVALIDO":
-        return "Número de grupos inválido (inteiro de 1 até a metade do número de duplas).";
-      case "CLASSIFICADOS_INVALIDO":
-        return "Número de classificados por grupo inválido (inteiro, de 1 até o tamanho do menor grupo menos 1).";
-      case "SEED_DUPLICADO":
-        return `A posição do nivelador ${erro.posicao} está repetida.`;
-      case "SEED_FORA_INTERVALO":
-        return `A posição do nivelador ${erro.posicao} está fora do intervalo permitido.`;
-      case "SEED_LACUNA":
-        return `Há uma lacuna no nivelador: falta a posição ${erro.posicao}.`;
-      case "DUPLAS_INSUFICIENTES":
-        return "São necessárias pelo menos 2 duplas para gerar o chaveamento.";
-      case "DUPLAS_EXCEDEM_LIMITE":
-        return "O número de duplas excede o limite suportado (máximo de 128).";
-      case "VENCEDOR_INVALIDO":
-        return "A dupla informada não participa deste jogo.";
-      case "JOGO_NAO_PRONTO":
-        return "Este jogo ainda não está pronto para registro (falta definir uma das duplas).";
-      case "PLACAR_INVALIDO":
-        return "Informe placares inteiros, 0 ou maior.";
-      case "PLACAR_EMPATE":
-        return "Não há empate: um dos placares deve ser maior.";
-      case "JOGO_ENCERRADO":
-        return "Este jogo já foi encerrado.";
-      case "FALHA_PERSISTENCIA":
-        return "Falha ao salvar. Tente novamente em instantes.";
-      case "FALHA_LEITURA":
-        return "Falha ao carregar os dados. Tente novamente em instantes.";
-      default:
-        // Exaustividade: qualquer código novo cai aqui com mensagem genérica.
-        return "Ocorreu um erro inesperado.";
-    }
-  }
 
   // --------------------------------------------------------------------
   // Helpers de DOM
@@ -467,7 +465,20 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
     // Seletores opcionais de jogador cadastrado (null = indisponível; o
     // formulário segue só com texto).
     seletor: SeletorJogadores | null;
+    // Vínculos das duplas com jogadores cadastrados (por id da dupla).
+    vinculos: Record<string, VinculosDuplaIds>;
+    // Formato salvo na categoria (colunas de `categorias`), se houver.
+    configSalva: BracketConfig | null;
+    // Módulos de UI (src/scripts/organizar/*): ligados em iniciar().
+    duplasCtl: ControleDuplas | null;
+    formatoCtl: ControleFormato | null;
+    niveladorCtl: ControleNivelador | null;
   }
+
+  /** Aviso curto no pé da tela (some sozinho). */
+  const avisar = (opcoes: OpcoesToast): void => {
+    mostrarToast(opcoes);
+  };
 
   // --------------------------------------------------------------------
   // Inicialização
@@ -513,10 +524,11 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
     // Resolve o id (uuid) da categoria por (campeonato_id, nome). Convenção da
     // página pública [id].astro: o nome é único por campeonato.
     let categoriaId: string;
+    let configSalva: BracketConfig | null = null;
     try {
       const { data, error } = await supabase
         .from("categorias")
-        .select("id")
+        .select("id, formato, numero_grupos, classificados_por_grupo")
         .eq("campeonato_id", campeonatoId)
         .eq("nome", categoriaNome)
         .maybeSingle();
@@ -528,6 +540,7 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
         return;
       }
       categoriaId = data.id as string;
+      configSalva = configDaCategoria(data);
     } catch {
       setTexto(init, "Falha ao localizar a categoria no banco.");
       return;
@@ -546,16 +559,15 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
       telaChaveamento: null,
       telaJogo: null,
       seletor: null,
+      vinculos: {},
+      configSalva,
+      duplasCtl: null,
+      formatoCtl: null,
+      niveladorCtl: null,
     };
 
     // Carrega o estado inicial (duplas + chaveamento) antes de exibir a UI.
-    await carregarEstado(ctx);
-
-    // Se já existe um nivelador salvo, a caixa começa marcada; senão, desmarcada.
-    const usarNivelador = q<HTMLInputElement>(secao, "[data-usar-nivelador]");
-    if (usarNivelador) usarNivelador.checked = temSeedingSalvo(ctx);
-    atualizarVisibilidadeNivelador(ctx);
-    usarNivelador?.addEventListener("change", () => atualizarVisibilidadeNivelador(ctx));
+    await carregarEstado(ctx, { primeira: true });
 
     // Tempo real: placares lançados por outras pessoas aparecem sem recarregar.
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -566,6 +578,7 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
 
     // Liga os handlers e revela o conteúdo.
     ligarHandlers(ctx);
+    ligarSecoes();
     // Opcional e isolado: se falhar, o formulário continua só com texto.
     void ligarJogadores(ctx, supabase);
     if (init) init.hidden = true;
@@ -575,13 +588,17 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
   // --------------------------------------------------------------------
   // Carregamento de estado (duplas + chaveamento) e re-render
   // --------------------------------------------------------------------
-  async function carregarEstado(ctx: Ctx): Promise<void> {
+  async function carregarEstado(
+    ctx: Ctx,
+    opcoes: { primeira?: boolean } = {},
+  ): Promise<void> {
     limparErro(ctx.status);
 
-    // Duplas e chaveamento são independentes: lê os dois em paralelo.
-    const [duplasRes, brRes] = await Promise.all([
+    // Duplas, vínculos e chaveamento são independentes: lê os três em paralelo.
+    const [duplasRes, brRes, vincRes] = await Promise.all([
       ctx.store.listarDuplas(ctx.ref),
       ctx.store.carregarChaveamento(ctx.ref),
+      ctx.store.listarVinculos(ctx.ref),
     ]);
     if (duplasRes.ok) {
       ctx.duplas = duplasRes.valor;
@@ -590,6 +607,8 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
       setTexto(ctx.status, mensagemErro(duplasRes.erro));
     }
 
+    ctx.vinculos = vincRes.ok ? vincRes.valor : {};
+
     if (brRes.ok) {
       ctx.bracket = brRes.valor;
     } else {
@@ -597,7 +616,75 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
       setTexto(ctx.status, mensagemErro(brRes.erro));
     }
 
+    if (opcoes.primeira) ligarModulos(ctx);
     renderTudo(ctx);
+  }
+
+  /** Formato guardado nas colunas da categoria (null se ainda não definido). */
+  function configDaCategoria(linha: {
+    formato?: unknown;
+    numero_grupos?: unknown;
+    classificados_por_grupo?: unknown;
+  }): BracketConfig | null {
+    const f = linha.formato;
+    if (f !== "fase de grupos" && f !== "dupla eliminação" && f !== "eliminação simples") return null;
+    const config: BracketConfig = { formato: f };
+    if (typeof linha.numero_grupos === "number") config.numeroDeGrupos = linha.numero_grupos;
+    if (typeof linha.classificados_por_grupo === "number") {
+      config.classificadosPorGrupo = linha.classificados_por_grupo;
+    }
+    return config;
+  }
+
+  /** Liga os módulos de duplas, colar lista, formato e nivelador (uma vez). */
+  function ligarModulos(ctx: Ctx): void {
+    const rascunho: Rascunho = criarRascunho(
+      prefixoDoRascunho(ctx.ref.campeonatoId, ctx.ref.categoriaId),
+    );
+    ctx.niveladorCtl = ligarNivelador({
+      secao: ctx.secao,
+      store: ctx.store,
+      ref: ctx.ref,
+      estado: ctx,
+      avisar,
+      aplicarSeeds: (posicaoPorId) => {
+        ctx.duplas = ctx.duplas.map((d) => ({ ...d, seed: posicaoPorId.get(d.id) ?? d.seed }));
+      },
+      aoMudar: () => renderResumo(ctx),
+    });
+    ctx.formatoCtl = ligarFormato({
+      secao: ctx.secao,
+      store: ctx.store,
+      ref: ctx.ref,
+      estado: ctx,
+      rascunho,
+      avisar,
+      aoMudar: () => renderResumo(ctx),
+    });
+    ctx.duplasCtl = ligarDuplas({
+      secao: ctx.secao,
+      store: ctx.store,
+      ref: ctx.ref,
+      estado: ctx,
+      rascunho,
+      avisar,
+      aoMudar: () => renderTudo(ctx),
+      seletor: () => ctx.seletor,
+      opcoesJogadores: () => ctx.seletor?.opcoes ?? null,
+    });
+    ligarColarLista({
+      secao: ctx.secao,
+      store: ctx.store,
+      ref: ctx.ref,
+      estado: ctx,
+      avisar,
+      aoMudar: () => renderTudo(ctx),
+      renderDuplas: () => ctx.duplasCtl?.render(),
+    });
+    // Se já existe um nivelador salvo, a caixa começa marcada; senão, desmarcada.
+    const usarNivelador = q<HTMLInputElement>(ctx.secao, "[data-usar-nivelador]");
+    if (usarNivelador) usarNivelador.checked = ctx.niveladorCtl.temSeedingSalvo();
+    ctx.niveladorCtl.atualizarVisibilidade();
   }
 
   /**
@@ -620,341 +707,24 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
   }
 
   function renderTudo(ctx: Ctx): void {
-    renderDuplas(ctx);
-    renderSeeding(ctx);
+    ctx.duplasCtl?.render();
+    ctx.niveladorCtl?.render();
+    ctx.formatoCtl?.render();
     renderBracket(ctx);
     renderBotaoMataMata(ctx);
+    renderResumo(ctx);
   }
 
-  // --------------------------------------------------------------------
-  // DUPLAS (R1)
-  // --------------------------------------------------------------------
-  function renderDuplas(ctx: Ctx): void {
-    const lista = q<HTMLElement>(ctx.secao, "[data-lista-duplas]");
-    const contagem = q<HTMLElement>(ctx.secao, "[data-contagem-duplas]");
-    if (!lista) return;
-
-    setTexto(
-      contagem,
-      ctx.duplas.length === 0
-        ? "Nenhuma dupla cadastrada."
-        : `${ctx.duplas.length} dupla(s) cadastrada(s).`,
-    );
-
-    lista.replaceChildren();
-    // Já existe chaveamento? A remoção fica bloqueada (R1.6) — escondemos o
-    // botão de remover e avisamos.
-    const temBracket = ctx.bracket !== null;
-
-    for (const dupla of ctx.duplas) {
-      const li = document.createElement("li");
-      li.className = "org__dupla";
-
-      const info = document.createElement("div");
-      info.className = "org__dupla-info";
-      const nome = document.createElement("span");
-      nome.className = "org__dupla-nome";
-      nome.textContent = rotuloDupla(dupla);
-      info.append(nome);
-      li.append(info);
-
-      if (!temBracket) {
-        const remover = document.createElement("button");
-        remover.type = "button";
-        remover.className = "org__remover";
-        remover.textContent = "Remover";
-        remover.setAttribute(
-          "aria-label",
-          `Remover dupla ${rotuloDupla(dupla)}`,
-        );
-        remover.addEventListener("click", () => void removerDupla(ctx, dupla));
-        li.append(remover);
-      }
-
-      lista.append(li);
-    }
-  }
-
-  async function adicionarDupla(ctx: Ctx): Promise<void> {
-    const form = q<HTMLFormElement>(ctx.secao, "[data-form-dupla]");
-    const erro = q<HTMLElement>(ctx.secao, "[data-erro-dupla]");
-    if (!form) return;
-    limparErro(erro);
-
-    const atletaA = q<HTMLInputElement>(form, "#dupla-atleta-a")?.value ?? "";
-    const atletaB = q<HTMLInputElement>(form, "#dupla-atleta-b")?.value ?? "";
-    // Dupla não tem nome próprio: o nome interno (único) é "A & B <horário do
-    // cadastro>". Nas telas aparece só "A & B".
-    // Vínculos opcionais com jogadores cadastrados (nulos quando não escolhidos).
-    if (ctx.seletor?.mesmoJogador()) {
-      setTexto(erro, "Escolha jogadores diferentes para os dois atletas.");
-      return;
-    }
-    const vinculos = ctx.seletor?.lerVinculos() ?? {
-      jogadorAId: null,
-      jogadorBId: null,
-    };
-    const dados = {
-      nomeDupla: gerarNomeDupla(atletaA, atletaB, new Date().toISOString()),
-      atletaA,
-      atletaB,
-      ...vinculos,
-    };
-
-    // Validação de domínio ANTES de qualquer I/O (R1.2–R1.4). A store também
-    // revalida contra o banco (unicidade), mas validar aqui dá feedback rápido.
-    const nomesExistentes = ctx.duplas.map((d) => d.nomeDupla);
-    const validada = validarDuplaCandidata(dados, nomesExistentes);
-    if (!validada.ok) {
-      setTexto(erro, mensagemErro(validada.erro));
-      return;
-    }
-
-    const res = await ctx.store.adicionarDupla(ctx.ref, dados);
-    if (!res.ok) {
-      setTexto(erro, mensagemErro(res.erro));
-      return;
-    }
-
-    form.reset();
-    await carregarEstado(ctx);
-    q<HTMLInputElement>(form, "#dupla-atleta-a")?.focus();
-  }
-
-  async function removerDupla(ctx: Ctx, dupla: Pair): Promise<void> {
-    const erro = q<HTMLElement>(ctx.secao, "[data-erro-dupla]");
-    limparErro(erro);
-    const res = await ctx.store.removerDupla(dupla.id);
-    if (!res.ok) {
-      setTexto(erro, mensagemErro(res.erro));
-      return;
-    }
-    await carregarEstado(ctx);
-  }
-
-  // --------------------------------------------------------------------
-  // FORMATO (R2)
-  // --------------------------------------------------------------------
-  function formatoSelecionado(ctx: Ctx): string | null {
-    const marcado = q<HTMLInputElement>(
-      ctx.secao,
-      "input[name='formato']:checked",
-    );
-    return marcado?.value ?? null;
-  }
-
-  function atualizarVisibilidadeGrupos(ctx: Ctx): void {
-    const params = q<HTMLElement>(ctx.secao, "[data-grupos-params]");
-    if (!params) return;
-    params.hidden = formatoSelecionado(ctx) !== "fase de grupos";
-  }
-
-  async function salvarFormato(ctx: Ctx): Promise<void> {
-    const erro = q<HTMLElement>(ctx.secao, "[data-erro-formato]");
-    limparErro(erro);
-
-    const formatoRes = exigirFormato(formatoSelecionado(ctx));
-    if (!formatoRes.ok) {
-      setTexto(erro, mensagemErro(formatoRes.erro));
-      return;
-    }
-    const formato: Format = formatoRes.valor;
-
-    const config: BracketConfig = { formato };
-
-    if (formato === "fase de grupos") {
-      const n = ctx.duplas.length;
-      const gInput = q<HTMLInputElement>(ctx.secao, "#formato-grupos");
-      const cInput = q<HTMLInputElement>(ctx.secao, "#formato-classificados");
-      const g = Number(gInput?.value);
-      const c = Number(cInput?.value);
-
-      const gRes = validarNumeroDeGrupos(g, n);
-      if (!gRes.ok) {
-        setTexto(erro, mensagemErro(gRes.erro));
-        return;
-      }
-      const cRes = validarClassificadosPorGrupo(c, n, gRes.valor);
-      if (!cRes.ok) {
-        setTexto(erro, mensagemErro(cRes.erro));
-        return;
-      }
-      config.numeroDeGrupos = gRes.valor;
-      config.classificadosPorGrupo = cRes.valor;
-    }
-
-    const res = await ctx.store.salvarConfig(ctx.ref, config);
-    if (!res.ok) {
-      setTexto(erro, mensagemErro(res.erro));
-      return;
-    }
-    setTexto(ctx.status, "Formato salvo.");
-  }
-
-  // --------------------------------------------------------------------
-  // NIVELADOR (seeding, R3) — lista ordenável por arrastar-e-soltar
-  // --------------------------------------------------------------------
-
-  /** Ordem inicial: seed salvo (se válido e completo) ou alfabética. */
-  function ordemInicialNivelador(ctx: Ctx): Pair[] {
-    const n = ctx.duplas.length;
-    const seedsValidos =
-      ctx.duplas.every((d) => Number.isInteger(d.seed) && d.seed >= 1 && d.seed <= n) &&
-      new Set(ctx.duplas.map((d) => d.seed)).size === n;
-    if (seedsValidos) return [...ctx.duplas].sort((a, b) => a.seed - b.seed);
-    const padrao = new Map(seedingPadrao(ctx.duplas).map((s) => [s.pairId, s.posicao]));
-    return [...ctx.duplas].sort(
-      (a, b) => (padrao.get(a.id) ?? 0) - (padrao.get(b.id) ?? 0),
-    );
-  }
-
-  /** O organizador marcou "Quero definir o nivelador"? */
-  function niveladorLigado(ctx: Ctx): boolean {
-    return q<HTMLInputElement>(ctx.secao, "[data-usar-nivelador]")?.checked === true;
-  }
-
-  /** Mostra ou esconde a lista do nivelador conforme a caixa de seleção. */
-  function atualizarVisibilidadeNivelador(ctx: Ctx): void {
-    const conteudo = q<HTMLElement>(ctx.secao, "[data-nivelador-conteudo]");
-    if (conteudo) conteudo.hidden = !niveladorLigado(ctx);
-  }
-
-  /** Há seeding completo salvo (1..N sem repetição) vindo de um nivelador anterior? */
-  function temSeedingSalvo(ctx: Ctx): boolean {
-    const n = ctx.duplas.length;
-    return (
-      n > 0 &&
-      ctx.duplas.every((d) => Number.isInteger(d.seed) && d.seed >= 1 && d.seed <= n) &&
-      new Set(ctx.duplas.map((d) => d.seed)).size === n
-    );
-  }
-
-  /** Ids das duplas na ordem atual mostrada na lista (ou null se não há lista). */
-  function ordemAtualDoNivelador(ctx: Ctx): string[] | null {
-    const itens = Array.from(
-      ctx.secao.querySelectorAll<HTMLElement>(".org__nivelador-item"),
-    );
-    if (itens.length !== ctx.duplas.length || itens.length === 0) return null;
-    return itens.map((li) => li.dataset.pairId ?? "");
-  }
-
-  function atualizarPosicoesNivelador(lista: HTMLElement): void {
-    const itens = Array.from(lista.querySelectorAll<HTMLElement>(".org__nivelador-item"));
-    itens.forEach((li, i) => {
-      const pos = li.querySelector<HTMLElement>(".org__nivelador-pos");
-      if (pos) pos.textContent = `${i + 1}º`;
-      const sobe = li.querySelector<HTMLButtonElement>("[data-sobe]");
-      const desce = li.querySelector<HTMLButtonElement>("[data-desce]");
-      if (sobe) sobe.disabled = i === 0;
-      if (desce) desce.disabled = i === itens.length - 1;
+  /** Resumo de uma linha antes de gerar: duplas · formato · nivelador. */
+  function renderResumo(ctx: Ctx): void {
+    const alvo = q<HTMLElement>(ctx.secao, "[data-resumo-geracao]");
+    if (!alvo) return;
+    const config = ctx.formatoCtl?.lerConfig();
+    alvo.textContent = resumirGeracao({
+      nDuplas: ctx.duplas.length,
+      config: config?.ok ? config.valor : null,
+      niveladorDefinido: ctx.niveladorCtl?.ligado() === true,
     });
-  }
-
-  function renderSeeding(ctx: Ctx): void {
-    const lista = q<HTMLElement>(ctx.secao, "[data-lista-seeding]");
-    if (!lista) return;
-    lista.replaceChildren();
-
-    if (ctx.duplas.length === 0) {
-      const vazio = document.createElement("li");
-      vazio.className = "org__seeding-vazio";
-      vazio.textContent = "Cadastre duplas para definir o nivelador.";
-      lista.append(vazio);
-      return;
-    }
-
-    let arrastando: HTMLElement | null = null;
-
-    for (const dupla of ordemInicialNivelador(ctx)) {
-      const li = document.createElement("li");
-      li.className = "org__nivelador-item";
-      li.dataset.pairId = dupla.id;
-      li.draggable = true;
-
-      const alca = document.createElement("span");
-      alca.className = "org__nivelador-alca";
-      alca.setAttribute("aria-hidden", "true");
-      alca.textContent = "⠿";
-
-      const pos = document.createElement("span");
-      pos.className = "org__nivelador-pos";
-
-      const nome = document.createElement("span");
-      nome.className = "org__nivelador-nome";
-      nome.textContent = rotuloDupla(dupla);
-
-      const mover = (delta: number): void => {
-        const irmao = delta < 0 ? li.previousElementSibling : li.nextElementSibling;
-        if (!irmao) return;
-        if (delta < 0) lista.insertBefore(li, irmao);
-        else lista.insertBefore(irmao, li);
-        atualizarPosicoesNivelador(lista);
-        li.querySelector<HTMLButtonElement>(delta < 0 ? "[data-sobe]" : "[data-desce]")?.focus();
-      };
-      const botao = (rotulo: string, aria: string, attr: string, delta: number) => {
-        const b = document.createElement("button");
-        b.type = "button";
-        b.className = "org__nivelador-seta";
-        b.textContent = rotulo;
-        b.setAttribute("aria-label", `${aria}: ${rotuloDupla(dupla)}`);
-        b.setAttribute(attr, "");
-        b.addEventListener("click", () => mover(delta));
-        return b;
-      };
-
-      li.append(alca, pos, nome, botao("▲", "Subir", "data-sobe", -1), botao("▼", "Descer", "data-desce", 1));
-
-      // Arrastar e soltar (mouse). Em telas de toque, usar as setas.
-      li.addEventListener("dragstart", (e) => {
-        arrastando = li;
-        li.classList.add("org__nivelador-item--arrastando");
-        e.dataTransfer?.setData("text/plain", dupla.id);
-        if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
-      });
-      li.addEventListener("dragend", () => {
-        arrastando = null;
-        li.classList.remove("org__nivelador-item--arrastando");
-        atualizarPosicoesNivelador(lista);
-      });
-      li.addEventListener("dragover", (e) => {
-        e.preventDefault();
-        if (!arrastando || arrastando === li) return;
-        const r = li.getBoundingClientRect();
-        const depois = e.clientY > r.top + r.height / 2;
-        lista.insertBefore(arrastando, depois ? li.nextSibling : li);
-      });
-      li.addEventListener("drop", (e) => e.preventDefault());
-
-      lista.append(li);
-    }
-    atualizarPosicoesNivelador(lista);
-  }
-
-  async function salvarSeeding(ctx: Ctx): Promise<void> {
-    const erro = q<HTMLElement>(ctx.secao, "[data-erro-seeding]");
-    limparErro(erro);
-
-    const ordem = ordemAtualDoNivelador(ctx);
-    if (!ordem) return;
-    // A posição de cada dupla é a sua posição na lista (1 = mais forte).
-    const seeds: SeedAssignment[] = ordem.map((pairId, i) => ({
-      pairId,
-      posicao: i + 1,
-    }));
-
-    const valido = validarSeeding(seeds, ctx.duplas.length);
-    if (!valido.ok) {
-      setTexto(erro, mensagemErro(valido.erro));
-      return;
-    }
-
-    const res = await ctx.store.salvarSeeding(ctx.ref, valido.valor);
-    if (!res.ok) {
-      setTexto(erro, mensagemErro(res.erro));
-      return;
-    }
-    setTexto(ctx.status, "Nivelador salvo.");
-    await carregarEstado(ctx);
   }
 
   // --------------------------------------------------------------------
@@ -967,14 +737,14 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
    */
   function duplasComSeeding(ctx: Ctx): Pair[] {
     // Sem nivelador: ordem aleatória (sorteada na borda; o gerador segue puro).
-    if (!niveladorLigado(ctx)) {
+    if (ctx.niveladorCtl?.ligado() !== true) {
       const sorteio = new Map(
         seedingAleatorio(ctx.duplas).map((s) => [s.pairId, s.posicao]),
       );
       return ctx.duplas.map((d) => ({ ...d, seed: sorteio.get(d.id) ?? d.seed }));
     }
     // Com nivelador, o que o organizador vê na lista é o que vale (mesmo sem salvar).
-    const ordem = ordemAtualDoNivelador(ctx);
+    const ordem = ctx.niveladorCtl?.ordemAtual() ?? null;
     if (ordem) {
       const posicaoPorId = new Map(ordem.map((id, i) => [id, i + 1]));
       return ctx.duplas.map((d) => ({ ...d, seed: posicaoPorId.get(d.id) ?? d.seed }));
@@ -988,33 +758,13 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
   }
 
   /**
-   * Lê o formato a partir do que está marcado na UI OU do chaveamento/estado
-   * existente. Exige um formato (R2.7). Para "fase de grupos", valida os
-   * parâmetros contra o número de duplas.
+   * Lê o formato marcado na tela (já validado contra o número de duplas). Exige
+   * um formato (R2.7); para "fase de grupos", valida os parâmetros.
    */
   function resolverConfigParaGerar(ctx: Ctx): Result<BracketConfig> {
-    const n = ctx.duplas.length;
-
-    const formatoRes = exigirFormato(formatoSelecionado(ctx));
-    if (!formatoRes.ok) return { ok: false, erro: formatoRes.erro };
-    const formato = formatoRes.valor;
-
-    const config: BracketConfig = { formato };
-    if (formato === "fase de grupos") {
-      const g = Number(
-        q<HTMLInputElement>(ctx.secao, "#formato-grupos")?.value,
-      );
-      const c = Number(
-        q<HTMLInputElement>(ctx.secao, "#formato-classificados")?.value,
-      );
-      const gRes = validarNumeroDeGrupos(g, n);
-      if (!gRes.ok) return { ok: false, erro: gRes.erro };
-      const cRes = validarClassificadosPorGrupo(c, n, gRes.valor);
-      if (!cRes.ok) return { ok: false, erro: cRes.erro };
-      config.numeroDeGrupos = gRes.valor;
-      config.classificadosPorGrupo = cRes.valor;
-    }
-    return { ok: true, valor: config };
+    return (
+      ctx.formatoCtl?.lerConfig() ?? { ok: false, erro: { code: "FORMATO_AUSENTE" } }
+    );
   }
 
   async function clicarGerar(ctx: Ctx): Promise<void> {
@@ -1024,8 +774,17 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
     // Se já existe chaveamento, NÃO gera direto: exige confirmação explícita
     // (R4.8). Enquanto não confirmar, nada é gravado (R4.9).
     if (ctx.bracket !== null) {
+      // Avisa o que se perde: placares já lançados somem junto com o chaveamento.
+      const perdidos = avisoDePlacaresPerdidos(resumirPlacares(ctx.bracket));
+      setTexto(
+        q<HTMLElement>(ctx.secao, "[data-confirmar-aviso]"),
+        perdidos ? ` Isso vai apagar ${perdidos}.` : "",
+      );
       const confirmar = q<HTMLElement>(ctx.secao, "[data-confirmar]");
-      if (confirmar) confirmar.hidden = false;
+      if (confirmar) {
+        confirmar.hidden = false;
+        q<HTMLButtonElement>(confirmar, "[data-confirmar-nao]")?.focus();
+      }
       return;
     }
 
@@ -1063,8 +822,10 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
       return;
     }
 
-    setTexto(ctx.status, "Chaveamento gerado e salvo.");
+    avisar({ texto: "Chaveamento gerado e salvo." });
     await carregarEstado(ctx);
+    // No celular o resultado fica bem abaixo: leva a pessoa até ele.
+    q<HTMLElement>(ctx.secao, "#titulo-estado")?.scrollIntoView?.({ block: "start" });
   }
 
   // --------------------------------------------------------------------
@@ -1160,7 +921,7 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
       setTexto(erro, mensagemErro(res.erro));
       return;
     }
-    setTexto(ctx.status, "Mata-mata gerado a partir dos classificados.");
+    avisar({ texto: "Mata-mata gerado a partir dos classificados." });
     await carregarEstado(ctx);
   }
 
@@ -1198,6 +959,7 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
     if (!res.ok) {
       const msg = mensagemErro(res.erro);
       setTexto(ctx.status, msg);
+      avisar({ texto: msg, tipo: "erro" });
       return msg;
     }
 
@@ -1213,7 +975,6 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
     ctx.bracket = numerado;
     renderBracket(ctx);
     renderBotaoMataMata(ctx);
-    setTexto(ctx.status, "Salvando placar…");
 
     ctx.salvando += 1;
     const salvo = await ctx.store.salvarJogos(ctx.ref, alterados, numerado.campeaId);
@@ -1227,10 +988,11 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
       renderBotaoMataMata(ctx);
       const msg = mensagemErro(salvo.erro);
       setTexto(ctx.status, msg);
+      avisar({ texto: msg, tipo: "erro" });
       if (reler) void recarregarChaveamento(ctx);
       return msg;
     }
-    setTexto(ctx.status, "Placar registrado.");
+    avisar({ texto: "Placar registrado." });
     // Chegou evento de outra pessoa durante a gravação: relê agora.
     if (reler) void recarregarChaveamento(ctx);
     return null;
@@ -1535,34 +1297,6 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
 
   function ligarHandlers(ctx: Ctx): void {
     ligarTelaCheia(ctx);
-    // Duplas
-    const formDupla = q<HTMLFormElement>(ctx.secao, "[data-form-dupla]");
-    formDupla?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      void adicionarDupla(ctx);
-    });
-
-    // Formato: mostra/esconde parâmetros de grupos ao trocar o radio.
-    for (const radio of Array.from(
-      ctx.secao.querySelectorAll<HTMLInputElement>("[data-formato]"),
-    )) {
-      radio.addEventListener("change", () => atualizarVisibilidadeGrupos(ctx));
-    }
-    atualizarVisibilidadeGrupos(ctx);
-
-    const formFormato = q<HTMLFormElement>(ctx.secao, "[data-form-formato]");
-    formFormato?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      void salvarFormato(ctx);
-    });
-
-    // Seeding
-    const formSeeding = q<HTMLFormElement>(ctx.secao, "[data-form-seeding]");
-    formSeeding?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      void salvarSeeding(ctx);
-    });
-
     // Gerar
     q<HTMLButtonElement>(ctx.secao, "[data-gerar]")?.addEventListener(
       "click",
@@ -1590,7 +1324,7 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
         // Cancela: nada é gravado (R4.9); apenas fecha o painel.
         const confirmar = q<HTMLElement>(ctx.secao, "[data-confirmar]");
         if (confirmar) confirmar.hidden = true;
-        setTexto(ctx.status, "Substituição cancelada. Nada foi alterado.");
+        avisar({ texto: "Substituição cancelada. Nada foi alterado." });
       },
     );
   }
@@ -2488,7 +2222,7 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
     border: 1px solid var(--cor-borda);
     border-radius: 10px;
     background: var(--cor-fundo);
-    cursor: grab;
+    flex-wrap: wrap;
     user-select: none;
   }
 
@@ -2499,9 +2233,17 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
   }
 
   .org__nivelador-alca {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
     color: var(--cor-texto-suave);
-    font-size: 1.1rem;
+    font-size: 1.3rem;
     line-height: 1;
+    cursor: grab;
+    /* Sem isso o dedo rola a página em vez de arrastar a dupla. */
+    touch-action: none;
   }
 
   .org__nivelador-pos {
@@ -2523,6 +2265,8 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
     border-radius: 8px;
     background: #fff;
     color: var(--cor-texto);
+    min-width: 44px;
+    min-height: 44px;
     padding: 0.2rem 0.5rem;
     font: inherit;
     cursor: pointer;

@@ -1,12 +1,12 @@
 // @vitest-environment happy-dom
 //
-// Seletores opcionais de "jogador cadastrado" no formulário de dupla da
-// organização: popular, preencher o nome, desfazer o vínculo ao editar à mão e
-// ler os ids escolhidos.
+// Autocomplete opcional de "jogador cadastrado" nos campos de atleta da
+// organização: opções do datalist, vínculo só com texto exato, desfazer o
+// vínculo ao editar à mão e ler os ids vinculados.
 
 import { describe, it, expect, beforeEach } from "vitest";
 import type { Jogador } from "../src/domain/jogadores/types";
-import { ligarSeletoresDeJogador, rotuloDoJogador } from "../src/scripts/seletor-jogador";
+import { ligarSeletoresDeJogador, rotuloDoJogador, prepararOpcoes } from "../src/scripts/seletor-jogador";
 
 const jog = (id: string, nome: string, p: Partial<Jogador> = {}): Jogador => ({
   id, nome, apelido: null, genero: null, categoria: null, cidade: null, uf: null, instagram: null,
@@ -19,29 +19,24 @@ const ALVARO = jog("33333333-3333-4333-8333-333333333333", "Álvaro Dias");
 
 let form: HTMLFormElement;
 const el = <T extends Element>(sel: string) => form.querySelector(sel) as T;
-const escolher = (sel: string, valor: string) => {
-  const s = el<HTMLSelectElement>(sel);
-  s.value = valor;
-  s.dispatchEvent(new Event("change", { bubbles: true }));
-};
 const digitar = (sel: string, texto: string) => {
   const i = el<HTMLInputElement>(sel);
   i.value = texto;
   i.dispatchEvent(new Event("input", { bubbles: true }));
 };
-const opcoes = (sel: string) => Array.from(el<HTMLSelectElement>(sel).options).map((o) => o.textContent);
-
+const valores = () =>
+  Array.from(document.querySelectorAll<HTMLOptionElement>("[data-jogadores-lista] option")).map((o) => o.value);
 beforeEach(() => {
   document.body.innerHTML = `
     <form data-form-dupla>
       <input id="dupla-atleta-a" />
-      <div data-vinculo hidden><select data-jogador-a><option value="">Não vincular</option></select></div>
+      <p data-vinculo-info></p>
       <input id="dupla-atleta-b" />
-      <div data-vinculo hidden><select data-jogador-b><option value="">Não vincular</option></select></div>
+      <p data-vinculo-info></p>
+      <datalist id="jogadores-opcoes" data-jogadores-lista></datalist>
     </form>`;
   form = document.querySelector("form") as HTMLFormElement;
 });
-
 describe("rotuloDoJogador", () => {
   it("nome, apelido e local ajudam a distinguir homônimos", () => {
     expect(rotuloDoJogador(ANA)).toBe("Ana Lima “Aninha” · Santos/SP");
@@ -49,82 +44,87 @@ describe("rotuloDoJogador", () => {
     expect(rotuloDoJogador(jog("x", "Caio", { cidade: "Niterói" }))).toBe("Caio · Niterói");
   });
 });
-
-describe("ligarSeletoresDeJogador", () => {
-  it("popula os dois seletores em ordem alfabética (sem acento) e mostra os blocos", () => {
+describe("prepararOpcoes", () => {
+  it("ordem alfabética sem acento, valor = nome quando é único", () => {
     ligarSeletoresDeJogador(form, [BRUNO, ANA, ALVARO]);
-    expect(opcoes("[data-jogador-a]")).toEqual(["Não vincular", "Álvaro Dias", "Ana Lima “Aninha” · Santos/SP", "Bruno Reis"]);
-    expect(opcoes("[data-jogador-b]")).toEqual(opcoes("[data-jogador-a]"));
-    expect(Array.from(form.querySelectorAll<HTMLElement>("[data-vinculo]")).every((b) => !b.hidden)).toBe(true);
+    expect(valores()).toEqual(["Álvaro Dias", "Ana Lima", "Bruno Reis"]);
   });
-
-  it("sem jogadores, os blocos continuam ocultos e nada é vinculado", () => {
+  it("homônimos recebem o rótulo completo e valores nunca se repetem", () => {
+    const a = jog("a1", "Caio", { cidade: "Santos", uf: "SP" });
+    const b = jog("b1", "Caio", { cidade: "Niterói", uf: "RJ" });
+    const c = jog("c1", "Caio", { cidade: "Santos", uf: "SP" });
+    const op = prepararOpcoes(document.querySelector("datalist") as HTMLDataListElement, [a, b, c]);
+    expect(new Set(op.porValor.keys()).size).toBe(3);
+    expect(Array.from(op.porValor.keys())).toContain("Caio · Niterói/RJ");
+  });
+});
+describe("ligarSeletoresDeJogador", () => {
+  it("sem jogadores nada é vinculado", () => {
     const s = ligarSeletoresDeJogador(form, []);
-    expect(Array.from(form.querySelectorAll<HTMLElement>("[data-vinculo]")).every((b) => b.hidden)).toBe(true);
+    expect(s.disponivel).toBe(false);
+    digitar("#dupla-atleta-a", "Ana Lima");
     expect(s.lerVinculos()).toEqual({ jogadorAId: null, jogadorBId: null });
     expect(s.mesmoJogador()).toBe(false);
   });
-
-  it("escolher um jogador preenche o nome do atleta com o do cadastro", () => {
+  it("liga os campos ao datalist", () => {
+    ligarSeletoresDeJogador(form, [ANA]);
+    expect(el<HTMLInputElement>("#dupla-atleta-a").getAttribute("list")).toBe("jogadores-opcoes");
+  });
+  it("texto exato de um jogador vincula e mostra o aviso", () => {
     const s = ligarSeletoresDeJogador(form, [ANA, BRUNO]);
-    escolher("[data-jogador-a]", ANA.id);
-    expect(el<HTMLInputElement>("#dupla-atleta-a").value).toBe("Ana Lima");
+    digitar("#dupla-atleta-a", "Ana Lima");
     expect(s.lerVinculos()).toEqual({ jogadorAId: ANA.id, jogadorBId: null });
-    escolher("[data-jogador-b]", BRUNO.id);
-    expect(el<HTMLInputElement>("#dupla-atleta-b").value).toBe("Bruno Reis");
+    expect(form.querySelectorAll("[data-vinculo-info]")[0].textContent).toContain("Vinculado");
+    digitar("#dupla-atleta-b", "Bruno Reis");
     expect(s.lerVinculos()).toEqual({ jogadorAId: ANA.id, jogadorBId: BRUNO.id });
   });
-
-  it("editar o nome à mão desfaz o vínculo (não liga o perfil a um nome diferente)", () => {
+  it("escolher um homônimo pelo rótulo vincula e normaliza o texto para o nome", () => {
+    const a = jog("a1", "Caio", { cidade: "Santos", uf: "SP" });
+    const b = jog("b1", "Caio", { cidade: "Niterói", uf: "RJ" });
+    const s = ligarSeletoresDeJogador(form, [a, b]);
+    digitar("#dupla-atleta-a", "Caio · Niterói/RJ");
+    expect(el<HTMLInputElement>("#dupla-atleta-a").value).toBe("Caio");
+    expect(s.lerVinculos().jogadorAId).toBe("b1");
+    digitar("#dupla-atleta-a", "Caio");
+    expect(s.lerVinculos().jogadorAId).toBe("b1");
+  });
+  it("texto parecido, mas não exato, não vincula", () => {
     const s = ligarSeletoresDeJogador(form, [ANA]);
-    escolher("[data-jogador-a]", ANA.id);
-    digitar("#dupla-atleta-a", "Ana L.");
-    expect(el<HTMLSelectElement>("[data-jogador-a]").value).toBe("");
+    digitar("#dupla-atleta-a", "Ana");
+    digitar("#dupla-atleta-a", "ana lima");
     expect(s.lerVinculos().jogadorAId).toBeNull();
   });
-
-  it("espaços nas pontas não desfazem o vínculo; o mesmo texto também não", () => {
+  it("editar o nome à mão desfaz o vínculo", () => {
     const s = ligarSeletoresDeJogador(form, [ANA]);
-    escolher("[data-jogador-a]", ANA.id);
+    digitar("#dupla-atleta-a", "Ana Lima");
+    digitar("#dupla-atleta-a", "Ana L.");
+    expect(s.lerVinculos().jogadorAId).toBeNull();
+    expect(form.querySelectorAll("[data-vinculo-info]")[0].textContent).toBe("");
+  });
+  it("espaços nas pontas não desfazem o vínculo", () => {
+    const s = ligarSeletoresDeJogador(form, [ANA]);
+    digitar("#dupla-atleta-a", "Ana Lima");
     digitar("#dupla-atleta-a", "  Ana Lima ");
     expect(s.lerVinculos().jogadorAId).toBe(ANA.id);
-    digitar("#dupla-atleta-a", "Ana Lima");
-    expect(s.lerVinculos().jogadorAId).toBe(ANA.id);
   });
-
   it("digitar num atleta não mexe no vínculo do outro", () => {
     const s = ligarSeletoresDeJogador(form, [ANA, BRUNO]);
-    escolher("[data-jogador-a]", ANA.id);
-    escolher("[data-jogador-b]", BRUNO.id);
+    digitar("#dupla-atleta-a", "Ana Lima");
     digitar("#dupla-atleta-b", "Outro");
     expect(s.lerVinculos()).toEqual({ jogadorAId: ANA.id, jogadorBId: null });
   });
-
   it("detecta o MESMO jogador nos dois lugares", () => {
     const s = ligarSeletoresDeJogador(form, [ANA, BRUNO]);
-    escolher("[data-jogador-a]", ANA.id);
-    escolher("[data-jogador-b]", ANA.id);
+    digitar("#dupla-atleta-a", "Ana Lima");
+    digitar("#dupla-atleta-b", "Ana Lima");
     expect(s.mesmoJogador()).toBe(true);
-    escolher("[data-jogador-b]", BRUNO.id);
+    digitar("#dupla-atleta-b", "Bruno Reis");
     expect(s.mesmoJogador()).toBe(false);
   });
-
-  it("voltar para 'Não vincular' mantém o texto digitado e solta o vínculo", () => {
-    const s = ligarSeletoresDeJogador(form, [ANA]);
-    escolher("[data-jogador-a]", ANA.id);
-    escolher("[data-jogador-a]", "");
-    expect(el<HTMLInputElement>("#dupla-atleta-a").value).toBe("Ana Lima");
-    expect(s.lerVinculos().jogadorAId).toBeNull();
-  });
-
-  it("valor que não é de um jogador conhecido nunca vira vínculo", () => {
-    const s = ligarSeletoresDeJogador(form, [ANA]);
-    const select = el<HTMLSelectElement>("[data-jogador-a]");
-    const intruso = document.createElement("option");
-    intruso.value = "99999999-9999-4999-8999-999999999999";
-    intruso.textContent = "intruso";
-    select.append(intruso);
-    select.value = "99999999-9999-4999-8999-999999999999";
-    expect(s.lerVinculos().jogadorAId).toBeNull();
+  it("limpar() solta os dois vínculos", () => {
+    const s = ligarSeletoresDeJogador(form, [ANA, BRUNO]);
+    digitar("#dupla-atleta-a", "Ana Lima");
+    s.limpar();
+    expect(s.lerVinculos()).toEqual({ jogadorAId: null, jogadorBId: null });
   });
 });
