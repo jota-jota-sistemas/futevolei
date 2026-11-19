@@ -35,7 +35,10 @@ import type { SeedAssignment } from "../domain/bracket/seeding";
 import {
   listarDuplasOrdenadas,
   validarDuplaCandidata,
+  validarNomeNaoDuplicado,
+  validarNomesAtletas,
 } from "../domain/pairs/validation";
+import { gerarNomeDupla } from "../domain/pairs/nome";
 
 import {
   bracketParaLinhas,
@@ -74,6 +77,23 @@ export interface NovaDupla {
   jogadorBId?: string | null;
 }
 
+/** Vínculos de uma dupla com jogadores cadastrados (ids de `jogadores`). */
+export interface VinculosDuplaIds {
+  jogadorAId: string | null;
+  jogadorBId: string | null;
+}
+
+/**
+ * Dados editáveis de uma dupla. `jogadorAId`/`jogadorBId`: ausente (undefined) =
+ * não mexe no vínculo atual; `null` = desfaz o vínculo; um id = vincula.
+ */
+export interface EdicaoDupla {
+  atletaA: string;
+  atletaB: string;
+  jogadorAId?: string | null;
+  jogadorBId?: string | null;
+}
+
 /**
  * Contrato de persistência do chaveamento. A UI e o domínio dependem apenas
  * desta interface; a implementação concreta (browser hoje, servidor na Fase 2a)
@@ -84,6 +104,19 @@ export interface BracketStore {
   adicionarDupla(ref: CategoryRef, dados: NovaDupla): Promise<Result<Pair>>;
   removerDupla(duplaId: PairId): Promise<Result<void>>; // bloqueia se há bracket (R1.6)
   listarDuplas(ref: CategoryRef): Promise<Result<Pair[]>>; // ordenação R1.7; vazio R1.8
+  /**
+   * Inscreve várias duplas de uma vez (UMA escrita: se algo falhar, nada entra).
+   * Valida cada uma e a unicidade de nomes (inclusive dentro do próprio lote).
+   */
+  adicionarDuplas(ref: CategoryRef, lote: ReadonlyArray<NovaDupla>): Promise<Result<Pair[]>>;
+  /**
+   * Corrige os atletas (e, opcionalmente, os vínculos) de uma dupla. Bloqueada
+   * com chaveamento gerado (EDICAO_BLOQUEADA): o chaveamento guarda os nomes.
+   * O nome interno da dupla é regenerado; o seed e a data de cadastro continuam.
+   */
+  editarDupla(ref: CategoryRef, duplaId: PairId, dados: EdicaoDupla): Promise<Result<Pair>>;
+  /** Vínculos com jogadores cadastrados de cada dupla da categoria (por id da dupla). */
+  listarVinculos(ref: CategoryRef): Promise<Result<Record<PairId, VinculosDuplaIds>>>;
 
   // Formato/seeding (R2/R3)
   salvarConfig(ref: CategoryRef, config: BracketConfig): Promise<Result<void>>;
@@ -339,6 +372,179 @@ export function criarBracketStoreBrowser(
       // Ordenação determinística por (nome em caixa baixa, criadoEm) (R1.7).
       // Lista vazia permanece vazia (R1.8).
       return { ok: true, valor: listarDuplasOrdenadas(pares) };
+    },
+
+    // -----------------------------------------------------------------------
+    // Inscrição em lote (colar lista): uma escrita só
+    // -----------------------------------------------------------------------
+    async adicionarDuplas(
+      ref: CategoryRef,
+      lote: ReadonlyArray<NovaDupla>,
+    ): Promise<Result<Pair[]>> {
+      if (lote.length === 0) return { ok: true, valor: [] };
+      const client = await obterClient();
+      let existentes: string[];
+      try {
+        const { data, error } = await client
+          .from("duplas")
+          .select("nome_dupla")
+          .eq("categoria_id", ref.categoriaId);
+        if (error) return erroLeitura();
+        existentes = ((data ?? []) as { nome_dupla: string }[]).map((d) => d.nome_dupla);
+      } catch {
+        return erroLeitura();
+      }
+
+      // Cada dupla do lote precisa passar na validação e ter nome único também
+      // dentro do lote; qualquer erro cancela o lote inteiro (nada é gravado).
+      const base = Date.now();
+      const nomes = [...existentes];
+      const pares: Pair[] = [];
+      const rows: DuplaRow[] = [];
+      for (let i = 0; i < lote.length; i++) {
+        const dados = lote[i];
+        const validada = validarDuplaCandidata(dados, nomes);
+        if (!validada.ok) return validada;
+        const jogadorAId = idDeJogador(dados.jogadorAId);
+        const jogadorBId = idDeJogador(dados.jogadorBId);
+        if (jogadorAId !== null && jogadorAId === jogadorBId) {
+          return { ok: false, erro: { code: "NOME_ATLETA_INVALIDO", qual: "B" } };
+        }
+        // Horários distintos (1 ms de diferença) mantêm a ordem de cadastro estável.
+        const criadoEm = new Date(base + i).toISOString();
+        const pair: Pair = {
+          id: novoId(),
+          nomeDupla: dados.nomeDupla,
+          atletaA: dados.atletaA,
+          atletaB: dados.atletaB,
+          seed: 0,
+          criadoEm,
+        };
+        nomes.push(pair.nomeDupla);
+        pares.push(pair);
+        rows.push({
+          id: pair.id,
+          categoria_id: ref.categoriaId,
+          nome_dupla: pair.nomeDupla,
+          atleta_a: pair.atletaA,
+          atleta_b: pair.atletaB,
+          seed: null,
+          criado_em: criadoEm,
+          ...(jogadorAId !== null ? { jogador_a_id: jogadorAId } : {}),
+          ...(jogadorBId !== null ? { jogador_b_id: jogadorBId } : {}),
+        });
+      }
+
+      try {
+        const { error } = await client.from("duplas").insert(rows);
+        if (error) return erroPersistencia();
+      } catch {
+        return erroPersistencia();
+      }
+      return { ok: true, valor: pares };
+    },
+
+    // -----------------------------------------------------------------------
+    // Editar dupla (só sem chaveamento)
+    // -----------------------------------------------------------------------
+    async editarDupla(
+      ref: CategoryRef,
+      duplaId: PairId,
+      dados: EdicaoDupla,
+    ): Promise<Result<Pair>> {
+      const atletas = validarNomesAtletas(dados.atletaA, dados.atletaB);
+      if (!atletas.ok) return atletas;
+
+      const client = await obterClient();
+      try {
+        const { data, error } = await client
+          .from("chaveamentos")
+          .select("id")
+          .eq("categoria_id", ref.categoriaId)
+          .maybeSingle();
+        if (error) return erroLeitura();
+        if (data) return { ok: false, erro: { code: "EDICAO_BLOQUEADA" } };
+      } catch {
+        return erroLeitura();
+      }
+
+      let outros: string[];
+      try {
+        const { data, error } = await client
+          .from("duplas")
+          .select("id, nome_dupla")
+          .eq("categoria_id", ref.categoriaId);
+        if (error) return erroLeitura();
+        outros = ((data ?? []) as { id: string; nome_dupla: string }[])
+          .filter((d) => d.id !== duplaId)
+          .map((d) => d.nome_dupla);
+      } catch {
+        return erroLeitura();
+      }
+
+      // O nome interno é regenerado a partir dos novos atletas (único por horário).
+      const nomeDupla = gerarNomeDupla(dados.atletaA, dados.atletaB, agoraISO());
+      const unico = validarNomeNaoDuplicado(nomeDupla, outros);
+      if (!unico.ok) return unico;
+
+      const patch: Record<string, unknown> = {
+        nome_dupla: nomeDupla,
+        atleta_a: dados.atletaA,
+        atleta_b: dados.atletaB,
+      };
+      if (dados.jogadorAId !== undefined) patch.jogador_a_id = idDeJogador(dados.jogadorAId);
+      if (dados.jogadorBId !== undefined) patch.jogador_b_id = idDeJogador(dados.jogadorBId);
+      if (
+        patch.jogador_a_id &&
+        patch.jogador_a_id === patch.jogador_b_id
+      ) {
+        return { ok: false, erro: { code: "NOME_ATLETA_INVALIDO", qual: "B" } };
+      }
+
+      try {
+        const { data, error } = await client
+          .from("duplas")
+          .update(patch)
+          .eq("id", duplaId)
+          .eq("categoria_id", ref.categoriaId)
+          .select("*");
+        if (error) return erroPersistencia();
+        const linha = ((data ?? []) as DuplaRow[])[0];
+        if (!linha) return erroPersistencia(); // inexistente ou sem permissão
+        return { ok: true, valor: duplaRowParaPair(linha) };
+      } catch {
+        return erroPersistencia();
+      }
+    },
+
+    // -----------------------------------------------------------------------
+    // Vínculos com jogadores (para editar e para desfazer uma remoção)
+    // -----------------------------------------------------------------------
+    async listarVinculos(
+      ref: CategoryRef,
+    ): Promise<Result<Record<PairId, VinculosDuplaIds>>> {
+      const client = await obterClient();
+      try {
+        const { data, error } = await client
+          .from("duplas")
+          .select("id, jogador_a_id, jogador_b_id")
+          .eq("categoria_id", ref.categoriaId);
+        if (error) return erroLeitura();
+        const saida: Record<PairId, VinculosDuplaIds> = {};
+        for (const r of (data ?? []) as {
+          id: string;
+          jogador_a_id: string | null;
+          jogador_b_id: string | null;
+        }[]) {
+          saida[r.id] = {
+            jogadorAId: r.jogador_a_id ?? null,
+            jogadorBId: r.jogador_b_id ?? null,
+          };
+        }
+        return { ok: true, valor: saida };
+      } catch {
+        return erroLeitura();
+      }
     },
 
     // -----------------------------------------------------------------------

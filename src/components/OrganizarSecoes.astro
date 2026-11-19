@@ -1,0 +1,79 @@
+---
+// Barra de seções da organização de uma categoria: pula direto para Duplas,
+// Formato, Chaveamento ou Jogos (a página é longa no celular). Fica colada logo
+// abaixo do cabeçalho do site. A seção na tela fica marcada (aria-current) por
+// scripts/organizar/secoes.ts. Mobile-first: rótulos curtos que cabem em 320px.
+interface Props {
+  /** ids das seções, na ordem da página. */
+  itens: readonly { id: string; rotulo: string }[];
+}
+
+const { itens } = Astro.props;
+---
+
+<nav class="secoes" aria-label="Seções da organização">
+  <ul class="secoes__lista">
+    {
+      itens.map((item) => (
+        <li class="secoes__item">
+          <a class="secoes__link" data-secao-link href={`#${item.id}`}>
+            {item.rotulo}
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+</nav>
+
+<style>
+  .secoes {
+    position: sticky;
+    top: 4.4rem; /* logo abaixo do cabeçalho fixo do site */
+    z-index: 5;
+    margin: 0 -1rem 1rem;
+    padding: 0 1rem;
+    background: var(--cor-fundo);
+    border-bottom: 1px solid var(--cor-borda);
+  }
+
+  .secoes__lista {
+    list-style: none;
+    display: flex;
+    margin: 0;
+    padding: 0;
+  }
+
+  .secoes__item {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .secoes__link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px; /* alvo de toque confortável */
+    padding: 0 0.25rem;
+    border-bottom: 3px solid transparent;
+    color: var(--cor-texto-suave);
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-align: center;
+    text-decoration: none;
+  }
+
+  .secoes__link:hover {
+    color: var(--cor-texto);
+  }
+
+  .secoes__link[aria-current="true"] {
+    border-bottom-color: var(--cor-destaque);
+    color: var(--cor-texto);
+  }
+
+  @media (max-width: 359px) {
+    .secoes__link {
+      font-size: 0.8rem;
+    }
+  }
+</style>
