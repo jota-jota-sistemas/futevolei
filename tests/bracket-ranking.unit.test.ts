@@ -144,7 +144,7 @@ describe("dupla eliminação: semifinais cruzadas (5+ duplas)", () => {
   const fontesDe = (id: string) =>
     b.matches.filter((m) => m.avancaVencedorPara?.matchId === id);
 
-  it("as semifinais cruzam as chaves em metades opostas: G1 × P2 e G2 × P1", () => {
+  it("as semifinais cruzam as chaves: cada finalista enfrenta o sobrevivente que NÃO recebeu a dupla que ele eliminou", () => {
     const semis = b.matches.filter((m) => m.side === "grande-final" && m.rodada === 1);
     expect(semis).toHaveLength(2);
 
@@ -159,12 +159,14 @@ describe("dupla eliminação: semifinais cruzadas (5+ duplas)", () => {
     // Cada semifinal junta UM finalista da chave de vencedores e UM sobrevivente da de perdedores.
     expect(A.g.id).not.toBe(B.g.id);
     expect(A.p.id).not.toBe(B.p.id);
-    // Metades opostas: o sobrevivente de perdedores de cada semifinal vem da metade do OUTRO G.
-    // (ordem 0 da penúltima rodada de cada chave = metade 0; ordem 1 = metade 1)
+    // Sem reencontro imediato: o jogo de perdedores que alimenta a semifinal de G
+    // é o que recebeu o perdedor do OUTRO finalista (não a dupla que G eliminou).
     expect(A.g.ordem).toBe(0);
-    expect(A.p.ordem).toBe(1);
     expect(B.g.ordem).toBe(1);
-    expect(B.p.ordem).toBe(0);
+    expect(A.g.encaminhaPerdedorPara?.matchId).not.toBe(A.p.id);
+    expect(B.g.encaminhaPerdedorPara?.matchId).not.toBe(B.p.id);
+    expect(A.g.encaminhaPerdedorPara?.matchId).toBe(B.p.id);
+    expect(B.g.encaminhaPerdedorPara?.matchId).toBe(A.p.id);
     // Os dois vencedores vão para a grande final.
     expect(semiA.avancaVencedorPara?.matchId).toBe(semiB.avancaVencedorPara?.matchId);
     const final = porId.get(semiA.avancaVencedorPara!.matchId)!;
