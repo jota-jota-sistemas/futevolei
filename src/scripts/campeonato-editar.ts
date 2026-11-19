@@ -110,7 +110,6 @@ export async function iniciarEdicao({
       chips.textContent = "";
       if (!c.ativo) chips.append(chip("Arquivado", "pf-chip--arquivado"));
       chips.append(chip(c.listado ? "Visível na home" : "Oculto na home"));
-      if (c.fonte) chips.append(chip(`Origem: ${c.fonte}`));
     }
     if (organizar) organizar.href = comBase(`/campeonatos/${encodeURIComponent(c.id)}/organizar`);
     if (btnArquivar) btnArquivar.textContent = c.ativo ? "Arquivar campeonato" : "Reativar campeonato";
