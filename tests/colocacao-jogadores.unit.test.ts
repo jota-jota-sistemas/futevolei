@@ -5,9 +5,10 @@ import { gerarChaveamento } from "../src/domain/bracket/generator";
 import { registrarPlacar } from "../src/domain/bracket/progression";
 import {
   colocacoesDaCategoria,
-  resumirColocacoes,
+  nivelDaCategoria,
+  resumirColocacoesPorNivel,
   rotuloColocacao,
-  textoResumo,
+  textoResumoNivel,
 } from "../src/domain/jogadores/colocacao";
 
 function duplas(n: number): Pair[] {
@@ -47,20 +48,41 @@ describe("colocacoesDaCategoria", () => {
   });
 });
 
-describe("resumirColocacoes", () => {
-  it("conta títulos, pódios (top 3) e a melhor colocação para os dois jogadores da dupla", () => {
-    const r = resumirColocacoes([
-      { jogadorAId: "ana", jogadorBId: "bia", colocacao: 1 },
-      { jogadorAId: "ana", jogadorBId: "caio", colocacao: 3 },
-      { jogadorAId: "ana", jogadorBId: null, colocacao: 7 },
-      { jogadorAId: "bia", jogadorBId: "caio", colocacao: null },
+describe("nivelDaCategoria", () => {
+  it("separa nível e gênero; sem gênero escrito, nível vale Masculino", () => {
+    expect(nivelDaCategoria("Masculino Estreante").rotulo).toBe("Estreante Masculino");
+    expect(nivelDaCategoria("Estreante Masc.").rotulo).toBe("Estreante Masculino");
+    expect(nivelDaCategoria("Estreante").rotulo).toBe("Estreante Masculino");
+    expect(nivelDaCategoria("Misto Estreante").rotulo).toBe("Estreante Misto");
+    expect(nivelDaCategoria("Amador C Fem.").rotulo).toBe("Amador Feminino");
+  });
+  it("sem nível: só o gênero; sem nada ou 'Outros' (Kids, Cavalo): Outros", () => {
+    expect(nivelDaCategoria("Feminino").rotulo).toBe("Feminino");
+    expect(nivelDaCategoria("Kids").rotulo).toBe("Outros");
+    expect(nivelDaCategoria(null).rotulo).toBe("Outros");
+  });
+});
+
+describe("resumirColocacoesPorNivel", () => {
+  it("conta títulos, pódios e melhor colocação por nível, para os dois jogadores da dupla", () => {
+    const r = resumirColocacoesPorNivel([
+      { jogadorAId: "ana", jogadorBId: "bia", colocacao: 1, categoria: "Masculino Estreante" },
+      { jogadorAId: "ana", jogadorBId: "caio", colocacao: 3, categoria: "Estreante Masc." },
+      { jogadorAId: "ana", jogadorBId: null, colocacao: 7, categoria: "Misto Estreante" },
+      { jogadorAId: "ana", jogadorBId: null, colocacao: 5, categoria: "Iniciante" },
+      { jogadorAId: "bia", jogadorBId: "caio", colocacao: null, categoria: "Iniciante" },
     ]);
-    expect(r.get("ana")).toEqual({ titulos: 1, podios: 2, melhor: 1 });
-    expect(r.get("bia")).toEqual({ titulos: 1, podios: 1, melhor: 1 });
-    expect(r.get("caio")).toEqual({ titulos: 0, podios: 1, melhor: 3 });
+    expect(r.get("ana")).toEqual([
+      { nivel: "Estreante Masculino", titulos: 1, podios: 2, melhor: 1 },
+      { nivel: "Estreante Misto", titulos: 0, podios: 0, melhor: 7 },
+      { nivel: "Iniciante Masculino", titulos: 0, podios: 0, melhor: 5 },
+    ]);
+    expect(r.get("bia")).toEqual([{ nivel: "Estreante Masculino", titulos: 1, podios: 1, melhor: 1 }]);
+    expect(r.get("caio")).toEqual([{ nivel: "Estreante Masculino", titulos: 0, podios: 1, melhor: 3 }]);
   });
   it("mesmo jogador nos dois lugares (dado inválido) conta uma vez só", () => {
-    expect(resumirColocacoes([{ jogadorAId: "x", jogadorBId: "x", colocacao: 1 }]).get("x")).toEqual({ titulos: 1, podios: 1, melhor: 1 });
+    expect(resumirColocacoesPorNivel([{ jogadorAId: "x", jogadorBId: "x", colocacao: 1, categoria: "Open" }]).get("x"))
+      .toEqual([{ nivel: "Open Masculino", titulos: 1, podios: 1, melhor: 1 }]);
   });
 });
 
@@ -68,10 +90,11 @@ describe("textos", () => {
   it("rótulo com medalha no pódio", () => {
     expect([1, 2, 3, 4].map(rotuloColocacao)).toEqual(["🥇 1º lugar", "🥈 2º lugar", "🥉 3º lugar", "4º lugar"]);
   });
-  it("resumo omite zeros e usa singular", () => {
-    expect(textoResumo({ titulos: 1, podios: 1, melhor: 1 })).toBe("Melhor: 1º · 1 título · 1 pódio");
-    expect(textoResumo({ titulos: 0, podios: 2, melhor: 2 })).toBe("Melhor: 2º · 2 pódios");
-    expect(textoResumo({ titulos: 0, podios: 0, melhor: 9 })).toBe("Melhor: 9º");
-    expect(textoResumo({ titulos: 0, podios: 0, melhor: null })).toBe("");
+  it("resumo do nível omite zeros, usa singular e troféu só com título", () => {
+    expect(textoResumoNivel({ nivel: "Estreante Masculino", titulos: 1, podios: 1, melhor: 1 }))
+      .toBe("🏆 Estreante Masculino · Melhor: 1º · 1 título · 1 pódio");
+    expect(textoResumoNivel({ nivel: "Iniciante Misto", titulos: 0, podios: 2, melhor: 2 }))
+      .toBe("Iniciante Misto · Melhor: 2º · 2 pódios");
+    expect(textoResumoNivel({ nivel: "Outros", titulos: 0, podios: 0, melhor: 9 })).toBe("Outros · Melhor: 9º");
   });
 });

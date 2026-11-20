@@ -81,7 +81,7 @@ class FakeStore implements JogadorStore {
     return { ok: true, valor: [...this.participacoes] };
   });
 
-  resumos = new Map<string, { titulos: number; podios: number; melhor: number | null }>();
+  resumos = new Map<string, { nivel: string; titulos: number; podios: number; melhor: number }[]>();
   listarResumoColocacoes = vi.fn(async () => ({ ok: true as const, valor: this.resumos }));
   contarVinculos = vi.fn(async (): Promise<ResultadoJogador<number>> => ({ ok: true, valor: this.vinculos }));
 
@@ -191,18 +191,25 @@ describe("lista de jogadores (área de gerenciamento)", () => {
     expect($("[data-estado-lista]").hidden).toBe(true);
   });
 
-  it("mostra melhor colocação, títulos e pódios de quem já terminou um campeonato", async () => {
+  it("mostra, por nível, melhor colocação, títulos e pódios de quem já terminou um campeonato", async () => {
     const alvaro = store.jogadores.find((j) => j.nome === "Álvaro Lima")!;
     const carla = store.jogadores.find((j) => j.nome === "Carla Dias")!;
     store.resumos = new Map([
-      [alvaro.id, { titulos: 2, podios: 3, melhor: 1 }],
-      [carla.id, { titulos: 0, podios: 0, melhor: 5 }],
+      [alvaro.id, [
+        { nivel: "Estreante Masculino", titulos: 2, podios: 3, melhor: 1 },
+        { nivel: "Iniciante Misto", titulos: 0, podios: 0, melhor: 6 },
+      ]],
+      [carla.id, [{ nivel: "Iniciante Feminino", titulos: 0, podios: 0, melhor: 5 }]],
     ]);
     await iniciarLista({ store, gerenciar: true });
-    const texto = (nome: string) =>
-      todos(".jl-item").find((a) => a.textContent?.includes(nome))!.querySelector(".jl-conquistas")?.textContent;
-    expect(texto("Álvaro")).toBe("🏆 Melhor: 1º · 2 títulos · 3 pódios");
-    expect(texto("Carla")).toBe("Melhor: 5º");
+    const linhas = (nome: string) =>
+      Array.from(todos(".jl-item").find((a) => a.textContent?.includes(nome))!.querySelectorAll(".jl-conquistas"))
+        .map((e) => e.textContent);
+    expect(linhas("Álvaro")).toEqual([
+      "🏆 Estreante Masculino · Melhor: 1º · 2 títulos · 3 pódios",
+      "Iniciante Misto · Melhor: 6º",
+    ]);
+    expect(linhas("Carla")).toEqual(["Iniciante Feminino · Melhor: 5º"]);
   });
   it("se as colocações falharem, a lista aparece sem elas", async () => {
     store.listarResumoColocacoes.mockResolvedValueOnce({ ok: false, erro: { code: "FALHA_LEITURA" } } as never);
@@ -466,6 +473,26 @@ describe("perfil do jogador (área de gerenciamento)", () => {
       const col = itens().map((li) => li.querySelector(".pf-dupla__colocacao")?.textContent ?? null);
       expect(col).toEqual(["🥇 1º lugar", "5º lugar", null]);
       expect(itens()[0].querySelector(".pf-dupla__colocacao--podio")).not.toBeNull();
+    });
+    it("no topo do histórico, resume a melhor colocação por nível", async () => {
+      store.participacoes = [
+        part({ colocacao: 1, categoria: "Masculino Estreante" }),
+        part({ duplaId: "d2", colocacao: 4, categoria: "Estreante Masc." }),
+        part({ duplaId: "d3", colocacao: 6, categoria: "Misto Iniciante" }),
+        part({ duplaId: "d4", categoria: "Open" }),
+      ];
+      await abrir();
+      await vi.waitFor(() => expect(itens()).toHaveLength(4));
+      expect(todos(".pf-niveis .pf-nivel").map((li) => li.textContent)).toEqual([
+        "🏆 Estreante Masculino · Melhor: 1º · 1 título · 1 pódio",
+        "Iniciante Misto · Melhor: 6º",
+      ]);
+    });
+    it("sem nenhuma categoria encerrada, não mostra o resumo por nível", async () => {
+      store.participacoes = [part()];
+      await abrir();
+      await vi.waitFor(() => expect(itens()).toHaveLength(1));
+      expect(document.querySelector(".pf-niveis")).toBeNull();
     });
     it("usa o singular com 1 participação", async () => {
       store.participacoes = [part()];

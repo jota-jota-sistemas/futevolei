@@ -27,7 +27,7 @@ import {
   validarJogador,
 } from "../domain/jogadores/validation";
 import type { JogadorStore } from "../store/jogadorStore";
-import { textoResumo, type ResumoColocacoes } from "../domain/jogadores/colocacao";
+import { textoResumoNivel, type ResumoNivel } from "../domain/jogadores/colocacao";
 import { hrefPerfilJogador } from "../utils/url";
 import {
   definirEnviando,
@@ -74,7 +74,7 @@ function subtituloDe(j: Jogador): string {
 function itemDe(
   j: Jogador,
   hrefPerfil: (id: string) => string,
-  resumo?: ResumoColocacoes,
+  niveis: ReadonlyArray<ResumoNivel> = [],
 ): HTMLLIElement {
   const li = document.createElement("li");
   const a = document.createElement("a");
@@ -100,11 +100,11 @@ function itemDe(
     s.textContent = sub;
     info.append(s);
   }
-  const conquistas = resumo ? textoResumo(resumo) : "";
-  if (conquistas) {
+  // Uma linha por nível em que o jogador já terminou uma categoria.
+  for (const r of niveis) {
     const c = document.createElement("span");
     c.className = "jl-conquistas";
-    c.textContent = (resumo!.titulos > 0 ? "🏆 " : "") + conquistas;
+    c.textContent = textoResumoNivel(r);
     info.append(c);
   }
 
@@ -135,7 +135,7 @@ export async function iniciarLista({
   if (!lista || !estado) return;
 
   let todos: Jogador[] = [];
-  let resumos = new Map<string, ResumoColocacoes>();
+  let resumos = new Map<string, ResumoNivel[]>();
 
   function mostrarEstado(texto: string, comRetentar = false): void {
     estado!.textContent = texto;

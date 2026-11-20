@@ -362,6 +362,26 @@ const eventosComDetalhe = (await carregarEventos({ escopo: "listados" })).map((c
     overflow-wrap: anywhere;
   }
 
+  .pf-niveis {
+    list-style: none;
+    margin: 0 0 0.8rem;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .pf-nivel {
+    padding: 0.45rem 0.75rem;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    background: var(--cor-fundo);
+    color: var(--cor-texto);
+  }
+  .pf-nivel--podio {
+    background: var(--cor-destaque-suave);
+    color: var(--cor-destaque-texto);
+  }
   .pf-dupla__colocacao {
     display: inline-block;
     margin: 0.4rem 0 0;
