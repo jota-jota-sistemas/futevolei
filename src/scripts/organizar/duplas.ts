@@ -11,7 +11,8 @@
 //   [data-form-dupla] com #dupla-atleta-a/b (name atletaA/atletaB), [data-add-dupla],
 //   [data-erro-dupla]; [data-aviso-repetida] com [data-repetida-forcar] e
 //   [data-repetida-revisar]; [data-contagem-duplas]; [data-lista-duplas];
-//   [data-aviso-chaveamento] (aviso de edição/remoção travadas).
+//   [data-aviso-chaveamento] (aviso de edição/remoção travadas);
+//   [data-alternar-duplas] (abre/recolhe a lista depois do chaveamento gerado).
 
 import type { BracketStore, CategoryRef, VinculosDuplaIds } from "../../store/bracketStore";
 import type { Bracket, Pair } from "../../domain/bracket/types";
@@ -332,13 +333,38 @@ export function ligarDuplas(deps: DepsDuplas): ControleDuplas {
   // ----------------------------------------------------------------------
   // Desenho da lista
   // ----------------------------------------------------------------------
+  // Depois do chaveamento gerado a lista é só consulta: começa recolhida.
+  let listaAberta = false;
+  const alternar = q<HTMLButtonElement>(secao, "[data-alternar-duplas]");
+  alternar?.addEventListener("click", () => {
+    listaAberta = !listaAberta;
+    render();
+  });
+
   function render(): void {
+    const travadas = estado.bracket !== null;
     const contagem = q<HTMLElement>(secao, "[data-contagem-duplas]");
-    if (contagem) contagem.textContent = textoContagem(estado.duplas.length);
+    if (contagem) {
+      const vinculadas = estado.duplas.filter((d) => {
+        const v = estado.vinculos[d.id];
+        return v && (v.jogadorAId || v.jogadorBId);
+      }).length;
+      contagem.textContent =
+        textoContagem(estado.duplas.length) +
+        (vinculadas > 0 ? ` ${vinculadas} vinculada${vinculadas === 1 ? "" : "s"} ao cadastro.` : "");
+    }
     if (!lista) return;
     lista.replaceChildren();
 
-    const travadas = estado.bracket !== null;
+    const recolhivel = travadas && estado.duplas.length > 0;
+    const recolhida = recolhivel && !listaAberta;
+    lista.hidden = recolhida;
+    lista.classList.toggle("org__duplas--editavel", !travadas);
+    if (alternar) {
+      alternar.hidden = !recolhivel;
+      alternar.setAttribute("aria-expanded", String(!recolhida));
+      alternar.textContent = recolhida ? "Ver lista" : "Recolher lista";
+    }
     const avisoTravada = q<HTMLElement>(secao, "[data-aviso-chaveamento]");
     if (avisoTravada) avisoTravada.hidden = !travadas || estado.duplas.length === 0;
 
@@ -363,10 +389,18 @@ export function ligarDuplas(deps: DepsDuplas): ControleDuplas {
       info.append(nome);
       const v = estado.vinculos[dupla.id];
       if (v && (v.jogadorAId || v.jogadorBId)) {
+        // Ícone no lugar do texto; o texto fica na dica e no leitor de tela.
+        const completa = Boolean(v.jogadorAId && v.jogadorBId);
+        const texto = completa ? "Vinculada ao cadastro" : "Parcialmente vinculada ao cadastro";
         const marca = document.createElement("span");
-        marca.className = "org__dupla-atletas";
-        marca.textContent =
-          v.jogadorAId && v.jogadorBId ? "Vinculada ao cadastro" : "Parcialmente vinculada ao cadastro";
+        marca.className = "org__dupla-vinculo" + (completa ? "" : " org__dupla-vinculo--parcial");
+        marca.setAttribute("role", "img");
+        marca.setAttribute("aria-label", texto);
+        marca.title = texto;
+        marca.innerHTML =
+          '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">' +
+          '<circle cx="8" cy="5" r="3" fill="currentColor"/>' +
+          '<path d="M2 15c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" fill="currentColor"/></svg>';
         info.append(marca);
       }
       li.append(info);
@@ -377,7 +411,8 @@ export function ligarDuplas(deps: DepsDuplas): ControleDuplas {
         const editar = document.createElement("button");
         editar.type = "button";
         editar.className = "org__acao-linha";
-        editar.textContent = "Editar";
+        editar.textContent = "✎";
+        editar.title = "Editar";
         editar.setAttribute("aria-label", `Editar dupla ${rotuloDupla(dupla)}`);
         editar.addEventListener("click", () => {
           editandoId = dupla.id;
@@ -386,7 +421,8 @@ export function ligarDuplas(deps: DepsDuplas): ControleDuplas {
         const rem = document.createElement("button");
         rem.type = "button";
         rem.className = "org__acao-linha org__remover";
-        rem.textContent = "Remover";
+        rem.textContent = "✕";
+        rem.title = "Remover";
         rem.setAttribute("aria-label", `Remover dupla ${rotuloDupla(dupla)}`);
         rem.addEventListener("click", () => void remover(dupla));
         acoes.append(editar, rem);

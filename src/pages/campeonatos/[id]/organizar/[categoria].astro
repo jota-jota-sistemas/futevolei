@@ -193,11 +193,21 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
           <p class="org__erro" data-colar-erro role="alert"></p>
         </details>
 
-        <p class="org__contagem" data-contagem-duplas></p>
+        <div class="org__duplas-topo">
+          <p class="org__contagem" data-contagem-duplas></p>
+          <button
+            class="org__duplas-alternar"
+            type="button"
+            data-alternar-duplas
+            aria-expanded="false"
+            aria-controls="lista-duplas"
+            hidden
+          >Ver lista</button>
+        </div>
         <p class="org__ajuda" data-aviso-chaveamento hidden>
           Chaveamento já gerado: as duplas não podem mais ser editadas nem removidas.
         </p>
-        <ul class="org__duplas" data-lista-duplas></ul>
+        <ul class="org__duplas" id="lista-duplas" data-lista-duplas></ul>
       </section>
 
       <!-- ============================ FORMATO =========================== -->
@@ -1471,7 +1481,6 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
     color: var(--cor-texto-suave);
   }
 
-  .org__duplas,
   .org__seeding {
     list-style: none;
     margin: 0;
