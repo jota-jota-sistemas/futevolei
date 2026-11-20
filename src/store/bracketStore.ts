@@ -142,6 +142,15 @@ export interface BracketStore {
    * Falhas de conexão não lançam: a tela segue funcionando sem tempo real.
    */
   assinarMudancas(ref: CategoryRef, aoMudar: () => void): Promise<() => void>;
+  /**
+   * Grava a colocação final de cada dupla (`duplas.colocacao`; null = não
+   * terminou). Usado quando a final é decidida ou desfeita. Agrupa por valor:
+   * uma ida ao banco por colocação distinta.
+   */
+  salvarColocacoes(
+    ref: CategoryRef,
+    colocacoes: Readonly<Record<PairId, number | null>>,
+  ): Promise<Result<void>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -658,10 +667,43 @@ export function criarBracketStoreBrowser(
           const insJogos = await client.from("jogos").insert(linhas.jogos);
           if (insJogos.error) return erroPersistencia();
         }
+        // Chaveamento novo: ninguém terminou ainda. Melhor esforço (banco sem a
+        // coluna `colocacao` não impede salvar o chaveamento).
+        if (bracket.campeaId === null) {
+          try {
+            await client
+              .from("duplas")
+              .update({ colocacao: null })
+              .eq("categoria_id", ref.categoriaId)
+              .not("colocacao", "is", null);
+          } catch {
+            // ignora: a colocação é derivada e será regravada ao decidir a final
+          }
+        }
       } catch {
         return erroPersistencia();
       }
 
+      return { ok: true, valor: undefined };
+    },
+    async salvarColocacoes(_ref, colocacoes) {
+      const client = await obterClient();
+      const porValor = new Map<number | null, string[]>();
+      for (const [id, v] of Object.entries(colocacoes)) {
+        const lista = porValor.get(v) ?? [];
+        lista.push(id);
+        porValor.set(v, lista);
+      }
+      try {
+        const resultados = await Promise.all(
+          [...porValor].map(([v, ids]) =>
+            client.from("duplas").update({ colocacao: v }).in("id", ids),
+          ),
+        );
+        if (resultados.some((r) => r.error)) return erroPersistencia();
+      } catch {
+        return erroPersistencia();
+      }
       return { ok: true, valor: undefined };
     },
 

@@ -335,7 +335,9 @@ describe("participacaoDeRow", () => {
       duplaId: "d1", atletaA: "Ana Lima", atletaB: "Bia Souza", posicao: "A", parceiroJogadorId: OUTRO,
       categoria: "Open", campeonato: { id: "copa", nome: "Copa Cabeça", data: "2026-11-22" },
       inscritaEm: "2026-01-01T10:00:00.000Z",
+      colocacao: null, // banco sem a coluna, ou categoria não terminou
     });
+    expect(participacaoDeRow(dupla({ colocacao: 2 }), ID)?.colocacao).toBe(2);
   });
 
   it("jogador no lugar B: o parceiro é o A; parceiro sem cadastro fica sem id", () => {
@@ -388,5 +390,36 @@ describe("listarParticipacoes", () => {
     const r = await criarJogadorStoreBrowser(m.cliente()).listarParticipacoes("x),id.neq.0");
     expect(r).toEqual({ ok: false, erro: { code: "JOGADOR_NAO_ENCONTRADO" } });
     expect(m.chamadas).toHaveLength(0);
+  });
+});
+
+describe("colocação: banco ainda sem a coluna (migração não aplicada)", () => {
+  /** Cliente mínimo: qualquer select com `colocacao` falha como coluna inexistente (42703). */
+  function clienteSemColuna(linhas: unknown[]): SupabaseClient {
+    return {
+      from() {
+        let cols = "";
+        const b: Record<string, unknown> = {
+          select: (c: string) => { cols = c; return b; },
+          or: () => b,
+          not: () => b,
+          then: (res: (v: unknown) => unknown) =>
+            Promise.resolve(
+              cols.includes("colocacao")
+                ? { data: null, error: { message: "column duplas.colocacao does not exist", code: "42703" } }
+                : { data: linhas, error: null },
+            ).then(res),
+        };
+        return b;
+      },
+    } as unknown as SupabaseClient;
+  }
+  it("listarParticipacoes repete a consulta sem a coluna e devolve colocacao null", async () => {
+    const r = await criarJogadorStoreBrowser(clienteSemColuna([dupla()])).listarParticipacoes(ID);
+    expect(r.ok && r.valor.map((p) => [p.duplaId, p.colocacao])).toEqual([["d1", null]]);
+  });
+  it("listarResumoColocacoes devolve mapa vazio (a lista aparece sem conquistas)", async () => {
+    const r = await criarJogadorStoreBrowser(clienteSemColuna([])).listarResumoColocacoes();
+    expect(r.ok && r.valor.size).toBe(0);
   });
 });

@@ -22,6 +22,7 @@ import {
   validarJogador,
 } from "../domain/jogadores/validation";
 import type { JogadorStore } from "../store/jogadorStore";
+import { rotuloColocacao } from "../domain/jogadores/colocacao";
 import { comBase, formatarData, hrefPerfilJogador, instagramUrl } from "../utils/url";
 import {
   definirEnviando,
@@ -204,6 +205,12 @@ export async function iniciarPerfil({
       meta.append(parte);
     });
     if (partes.length > 0) li.append(meta);
+    if (p.colocacao !== null) {
+      const col = document.createElement("p");
+      col.className = "pf-dupla__colocacao" + (p.colocacao <= 3 ? " pf-dupla__colocacao--podio" : "");
+      col.textContent = rotuloColocacao(p.colocacao);
+      li.append(col);
+    }
     return li;
   }
 

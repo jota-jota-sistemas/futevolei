@@ -465,6 +465,7 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
   import { abrirTelaJogo, type TelaJogo } from "../../../../components/bracket/telaJogo";
   import { registrarPlacar, atualizarPlacarAoVivo } from "../../../../domain/bracket/progression";
   import { numerarJogos } from "../../../../domain/bracket/ordenacao";
+  import { colocacoesDaCategoria } from "../../../../domain/jogadores/colocacao";
   import { jogosAlterados } from "../../../../domain/bracket/diff";
 
   // --------------------------------------------------------------------
@@ -1039,6 +1040,12 @@ Astro.response.headers.set("Cache-Control", CACHE_PAGINAS);
       return msg;
     }
     avisar({ texto: "Placar registrado." });
+    // Final decidida ou desfeita (a campeã mudou): grava a colocação de cada
+    // dupla, lida pelo perfil e pela lista de jogadores.
+    if (bracket.campeaId !== numerado.campeaId) {
+      const col = await ctx.store.salvarColocacoes(ctx.ref, colocacoesDaCategoria(numerado));
+      if (!col.ok) avisar({ texto: "Não foi possível gravar a colocação das duplas.", tipo: "erro" });
+    }
     if (!podeGerarMataMata(bracket) && podeGerarMataMata(numerado)) {
       avisar({ texto: "Fase de grupos concluída. Já dá para gerar o mata-mata." });
     }

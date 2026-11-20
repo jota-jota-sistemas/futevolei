@@ -14,6 +14,7 @@
 //
 // Segurança: só importa o cliente PÚBLICO (nunca `supabase.server.ts`).
 
+import { resumirColocacoes, type ResumoColocacoes } from "../domain/jogadores/colocacao";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
@@ -104,12 +105,17 @@ export interface DuplaParticipacaoRow {
   jogador_a_id: string | null;
   jogador_b_id: string | null;
   criado_em: string;
+  /** Ausente em bancos sem a migração migracao-colocacao-duplas.sql. */
+  colocacao?: number | null;
   categorias: CategoriaEmbutida | CategoriaEmbutida[] | null;
 }
 
 /** Colunas lidas na consulta de participações (relações N:1 via chave estrangeira). */
-const COLUNAS_PARTICIPACAO =
+const COLUNAS_PARTICIPACAO_SEM_COLOCACAO =
   "id, atleta_a, atleta_b, jogador_a_id, jogador_b_id, criado_em, categorias(nome, campeonato_id, campeonatos(id, nome, data))";
+const COLUNAS_PARTICIPACAO = `colocacao, ${COLUNAS_PARTICIPACAO_SEM_COLOCACAO}`;
+/** Postgres: coluna inexistente (banco ainda sem a migração da colocação). */
+const COLUNA_INEXISTENTE = "42703";
 
 /** O PostgREST devolve relações N:1 como objeto; aceita array por segurança. */
 function primeiro<T>(valor: T | T[] | null | undefined): T | null {
@@ -139,6 +145,7 @@ export function participacaoDeRow(
     categoria: categoria?.nome ?? null,
     campeonato: evento ? { id: evento.id, nome: evento.nome, data: evento.data } : null,
     inscritaEm: row.criado_em,
+    colocacao: row.colocacao ?? null,
   };
 }
 
@@ -154,6 +161,11 @@ export interface JogadorStore {
   definirAtivo(id: JogadorId, ativo: boolean): Promise<ResultadoJogador<Jogador>>;
   /** Duplas (inscrições) em que o jogador participou, da mais recente para a mais antiga. */
   listarParticipacoes(id: JogadorId): Promise<ResultadoJogador<ParticipacaoDupla[]>>;
+  /**
+   * Títulos, pódios e melhor colocação de cada jogador (só quem já terminou
+   * alguma categoria aparece). Banco sem a migração: mapa vazio.
+   */
+  listarResumoColocacoes(): Promise<ResultadoJogador<Map<JogadorId, ResumoColocacoes>>>;
   /** Quantas duplas (inscrições) referenciam o jogador. */
   contarVinculos(id: JogadorId): Promise<ResultadoJogador<number>>;
   /**
@@ -306,10 +318,13 @@ export function criarJogadorStoreBrowser(client?: SupabaseClient): JogadorStore 
       try {
         const client = await obterClient();
         // `id` já foi validado como UUID: seguro para compor o filtro `or`.
-        const { data, error } = await client
-          .from("duplas")
-          .select(COLUNAS_PARTICIPACAO)
-          .or(`jogador_a_id.eq.${id},jogador_b_id.eq.${id}`);
+        const consultar = (colunas: string) =>
+          client.from("duplas").select(colunas).or(`jogador_a_id.eq.${id},jogador_b_id.eq.${id}`);
+        let { data, error } = await consultar(COLUNAS_PARTICIPACAO);
+        // Banco ainda sem a coluna `colocacao`: mostra o histórico sem ela.
+        if (error && (error as { code?: string }).code === COLUNA_INEXISTENTE) {
+          ({ data, error } = await consultar(COLUNAS_PARTICIPACAO_SEM_COLOCACAO));
+        }
         if (error) return erroLeitura();
         const participacoes = ((data ?? []) as unknown as DuplaParticipacaoRow[])
           .map((linha) => participacaoDeRow(linha, id))
@@ -320,6 +335,32 @@ export function criarJogadorStoreBrowser(client?: SupabaseClient): JogadorStore 
       }
     },
 
+    async listarResumoColocacoes() {
+      try {
+        const client = await obterClient();
+        const { data, error } = await client
+          .from("duplas")
+          .select("jogador_a_id, jogador_b_id, colocacao")
+          .not("colocacao", "is", null);
+        if (error) {
+          if ((error as { code?: string }).code === COLUNA_INEXISTENTE) return { ok: true, valor: new Map() };
+          return erroLeitura();
+        }
+        const linhas = (data ?? []) as Array<{
+          jogador_a_id: string | null;
+          jogador_b_id: string | null;
+          colocacao: number | null;
+        }>;
+        return {
+          ok: true,
+          valor: resumirColocacoes(
+            linhas.map((l) => ({ jogadorAId: l.jogador_a_id, jogadorBId: l.jogador_b_id, colocacao: l.colocacao })),
+          ),
+        };
+      } catch {
+        return erroLeitura();
+      }
+    },
     async contarVinculos(id) {
       if (!UUID.test(id)) return naoEncontrado();
       try {
