@@ -213,6 +213,14 @@ begin
 end $$;
 
 create index if not exists duplas_jogador_a_idx on duplas (jogador_a_id);
+-- Colocação final da dupla na categoria (1 = campeã; null = não terminou).
+-- Bancos existentes: supabase/migracao-colocacao-duplas.sql.
+alter table duplas
+  add column if not exists colocacao int
+    check (colocacao is null or colocacao >= 1);
+create index if not exists duplas_colocacao_idx
+  on duplas (colocacao)
+  where colocacao is not null;
 create index if not exists duplas_jogador_b_idx on duplas (jogador_b_id);
 
 -- =============================================================================

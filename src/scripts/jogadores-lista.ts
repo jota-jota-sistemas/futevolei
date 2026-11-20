@@ -27,6 +27,7 @@ import {
   validarJogador,
 } from "../domain/jogadores/validation";
 import type { JogadorStore } from "../store/jogadorStore";
+import { textoResumo, type ResumoColocacoes } from "../domain/jogadores/colocacao";
 import { hrefPerfilJogador } from "../utils/url";
 import {
   definirEnviando,
@@ -70,7 +71,11 @@ function subtituloDe(j: Jogador): string {
 }
 
 /** Monta o item da lista com DOM seguro (textContent; nunca innerHTML). */
-function itemDe(j: Jogador, hrefPerfil: (id: string) => string): HTMLLIElement {
+function itemDe(
+  j: Jogador,
+  hrefPerfil: (id: string) => string,
+  resumo?: ResumoColocacoes,
+): HTMLLIElement {
   const li = document.createElement("li");
   const a = document.createElement("a");
   a.className = "jl-item";
@@ -94,6 +99,13 @@ function itemDe(j: Jogador, hrefPerfil: (id: string) => string): HTMLLIElement {
     s.className = "jl-sub";
     s.textContent = sub;
     info.append(s);
+  }
+  const conquistas = resumo ? textoResumo(resumo) : "";
+  if (conquistas) {
+    const c = document.createElement("span");
+    c.className = "jl-conquistas";
+    c.textContent = (resumo!.titulos > 0 ? "🏆 " : "") + conquistas;
+    info.append(c);
   }
 
   a.append(avatar, info);
@@ -123,6 +135,7 @@ export async function iniciarLista({
   if (!lista || !estado) return;
 
   let todos: Jogador[] = [];
+  let resumos = new Map<string, ResumoColocacoes>();
 
   function mostrarEstado(texto: string, comRetentar = false): void {
     estado!.textContent = texto;
@@ -143,7 +156,7 @@ export async function iniciarLista({
     const filtrados = filtrarJogadores(base, busca?.value ?? "");
 
     lista!.textContent = "";
-    for (const j of filtrados) lista!.append(itemDe(j, hrefPerfil));
+    for (const j of filtrados) lista!.append(itemDe(j, hrefPerfil, resumos.get(j.id)));
 
     if (contador) {
       contador.textContent =
@@ -163,7 +176,12 @@ export async function iniciarLista({
 
   async function carregar(): Promise<void> {
     mostrarEstado("Carregando jogadores…");
-    const r = await store.listar({ incluirArquivados: gerenciar });
+    // Colocações em paralelo; se falharem, a lista aparece sem elas.
+    const [r, rc] = await Promise.all([
+      store.listar({ incluirArquivados: gerenciar }),
+      store.listarResumoColocacoes(),
+    ]);
+    resumos = rc.ok ? rc.valor : new Map();
     if (!r.ok) {
       lista!.textContent = "";
       mostrarEstado(mensagemDoErro(r.erro), true);

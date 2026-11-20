@@ -81,6 +81,8 @@ export interface ParticipacaoDupla {
   categoria: string | null;
   campeonato: { id: string; nome: string; data: string } | null;
   inscritaEm: string; // ISO
+  /** Posição final da dupla na categoria (1 = campeã); null se não terminou. */
+  colocacao: number | null;
 }
 
 export type JogadorErro =

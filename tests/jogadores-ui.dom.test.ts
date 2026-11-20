@@ -81,6 +81,8 @@ class FakeStore implements JogadorStore {
     return { ok: true, valor: [...this.participacoes] };
   });
 
+  resumos = new Map<string, { titulos: number; podios: number; melhor: number | null }>();
+  listarResumoColocacoes = vi.fn(async () => ({ ok: true as const, valor: this.resumos }));
   contarVinculos = vi.fn(async (): Promise<ResultadoJogador<number>> => ({ ok: true, valor: this.vinculos }));
 
   excluir = vi.fn(async (id: string): Promise<ResultadoJogador<DestinoExclusao>> => {
@@ -189,6 +191,25 @@ describe("lista de jogadores (área de gerenciamento)", () => {
     expect($("[data-estado-lista]").hidden).toBe(true);
   });
 
+  it("mostra melhor colocação, títulos e pódios de quem já terminou um campeonato", async () => {
+    const alvaro = store.jogadores.find((j) => j.nome === "Álvaro Lima")!;
+    const carla = store.jogadores.find((j) => j.nome === "Carla Dias")!;
+    store.resumos = new Map([
+      [alvaro.id, { titulos: 2, podios: 3, melhor: 1 }],
+      [carla.id, { titulos: 0, podios: 0, melhor: 5 }],
+    ]);
+    await iniciarLista({ store, gerenciar: true });
+    const texto = (nome: string) =>
+      todos(".jl-item").find((a) => a.textContent?.includes(nome))!.querySelector(".jl-conquistas")?.textContent;
+    expect(texto("Álvaro")).toBe("🏆 Melhor: 1º · 2 títulos · 3 pódios");
+    expect(texto("Carla")).toBe("Melhor: 5º");
+  });
+  it("se as colocações falharem, a lista aparece sem elas", async () => {
+    store.listarResumoColocacoes.mockResolvedValueOnce({ ok: false, erro: { code: "FALHA_LEITURA" } } as never);
+    await iniciarLista({ store, gerenciar: true });
+    expect(nomesNaLista()).toEqual(["Álvaro Lima", "Carla Dias"]);
+    expect(document.querySelector(".jl-conquistas")).toBeNull();
+  });
   it("cada item leva ao perfil pelo id e mostra o subtítulo com o que existir", async () => {
     await iniciarLista({ store, gerenciar: true });
     const carla = todos(".jl-item").find((a) => a.textContent?.includes("Carla"))!;
@@ -407,7 +428,7 @@ describe("perfil do jogador (área de gerenciamento)", () => {
     const part = (p: Partial<ParticipacaoDupla> = {}): ParticipacaoDupla => ({
       duplaId: "d1", atletaA: "Ana Lima", atletaB: "Bia Souza", posicao: "A", parceiroJogadorId: BIA,
       categoria: "Open", campeonato: { id: "copa", nome: "Copa Cabeça", data: "2026-11-22" },
-      inscritaEm: "2026-01-01T10:00:00.000Z", ...p,
+      inscritaEm: "2026-01-01T10:00:00.000Z", colocacao: null, ...p,
     });
     const itens = () => todos("[data-duplas-lista] .pf-dupla");
 
@@ -438,6 +459,14 @@ describe("perfil do jogador (área de gerenciamento)", () => {
       expect(itens()[0].textContent).toContain("Open · Copa Cabeça · 22 de novembro de 2026");
     });
 
+    it("mostra a colocação quando a categoria terminou (e nada quando não terminou)", async () => {
+      store.participacoes = [part({ colocacao: 1 }), part({ duplaId: "d2", colocacao: 5 }), part({ duplaId: "d3" })];
+      await abrir();
+      await vi.waitFor(() => expect(itens()).toHaveLength(3));
+      const col = itens().map((li) => li.querySelector(".pf-dupla__colocacao")?.textContent ?? null);
+      expect(col).toEqual(["🥇 1º lugar", "5º lugar", null]);
+      expect(itens()[0].querySelector(".pf-dupla__colocacao--podio")).not.toBeNull();
+    });
     it("usa o singular com 1 participação", async () => {
       store.participacoes = [part()];
       await abrir();
