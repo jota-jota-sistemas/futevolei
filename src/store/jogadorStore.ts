@@ -14,7 +14,7 @@
 //
 // Segurança: só importa o cliente PÚBLICO (nunca `supabase.server.ts`).
 
-import { resumirColocacoes, type ResumoColocacoes } from "../domain/jogadores/colocacao";
+import { resumirColocacoesPorNivel, type ResumoNivel } from "../domain/jogadores/colocacao";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
@@ -162,10 +162,10 @@ export interface JogadorStore {
   /** Duplas (inscrições) em que o jogador participou, da mais recente para a mais antiga. */
   listarParticipacoes(id: JogadorId): Promise<ResultadoJogador<ParticipacaoDupla[]>>;
   /**
-   * Títulos, pódios e melhor colocação de cada jogador (só quem já terminou
-   * alguma categoria aparece). Banco sem a migração: mapa vazio.
+   * Títulos, pódios e melhor colocação de cada jogador, POR NÍVEL (só quem já
+   * terminou alguma categoria aparece). Banco sem a migração: mapa vazio.
    */
-  listarResumoColocacoes(): Promise<ResultadoJogador<Map<JogadorId, ResumoColocacoes>>>;
+  listarResumoColocacoes(): Promise<ResultadoJogador<Map<JogadorId, ResumoNivel[]>>>;
   /** Quantas duplas (inscrições) referenciam o jogador. */
   contarVinculos(id: JogadorId): Promise<ResultadoJogador<number>>;
   /**
@@ -340,21 +340,27 @@ export function criarJogadorStoreBrowser(client?: SupabaseClient): JogadorStore 
         const client = await obterClient();
         const { data, error } = await client
           .from("duplas")
-          .select("jogador_a_id, jogador_b_id, colocacao")
+          .select("jogador_a_id, jogador_b_id, colocacao, categorias(nome)")
           .not("colocacao", "is", null);
         if (error) {
           if ((error as { code?: string }).code === COLUNA_INEXISTENTE) return { ok: true, valor: new Map() };
           return erroLeitura();
         }
-        const linhas = (data ?? []) as Array<{
+        const linhas = (data ?? []) as unknown as Array<{
           jogador_a_id: string | null;
           jogador_b_id: string | null;
           colocacao: number | null;
+          categorias: { nome: string } | { nome: string }[] | null;
         }>;
         return {
           ok: true,
-          valor: resumirColocacoes(
-            linhas.map((l) => ({ jogadorAId: l.jogador_a_id, jogadorBId: l.jogador_b_id, colocacao: l.colocacao })),
+          valor: resumirColocacoesPorNivel(
+            linhas.map((l) => ({
+              jogadorAId: l.jogador_a_id,
+              jogadorBId: l.jogador_b_id,
+              colocacao: l.colocacao,
+              categoria: primeiro(l.categorias)?.nome ?? null,
+            })),
           ),
         };
       } catch {

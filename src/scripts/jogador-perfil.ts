@@ -22,7 +22,11 @@ import {
   validarJogador,
 } from "../domain/jogadores/validation";
 import type { JogadorStore } from "../store/jogadorStore";
-import { rotuloColocacao } from "../domain/jogadores/colocacao";
+import {
+  resumirColocacoesPorNivel,
+  rotuloColocacao,
+  textoResumoNivel,
+} from "../domain/jogadores/colocacao";
 import { comBase, formatarData, hrefPerfilJogador, instagramUrl } from "../utils/url";
 import {
   definirEnviando,
@@ -228,6 +232,32 @@ export async function iniciarPerfil({
     }
   }
 
+  /** Resumo por nível (melhor colocação, títulos, pódios) acima do histórico. */
+  function desenharResumoNiveis(participacoes: ParticipacaoDupla[]): void {
+    if (!duplasLista) return;
+    duplasLista.parentElement?.querySelector(".pf-niveis")?.remove();
+    const niveis =
+      resumirColocacoesPorNivel(
+        participacoes.map((p) => ({
+          jogadorAId: "eu",
+          jogadorBId: null,
+          colocacao: p.colocacao,
+          categoria: p.categoria,
+        })),
+      ).get("eu") ?? [];
+    if (niveis.length === 0) return;
+    const ul = document.createElement("ul");
+    ul.className = "pf-niveis";
+    ul.setAttribute("aria-label", "Melhor colocação por nível");
+    for (const n of niveis) {
+      const li = document.createElement("li");
+      li.className = "pf-nivel" + (n.melhor <= 3 ? " pf-nivel--podio" : "");
+      li.textContent = textoResumoNivel(n);
+      ul.append(li);
+    }
+    duplasLista.before(ul);
+  }
+
   async function carregarDuplas(): Promise<void> {
     if (!atual || !duplasLista) return;
     duplasLista.textContent = "";
@@ -246,6 +276,7 @@ export async function iniciarPerfil({
       return;
     }
     if (duplasEstado) duplasEstado.hidden = true;
+    desenharResumoNiveis(r.valor);
     for (const p of r.valor) duplasLista.append(itemDeParticipacao(p));
     if (duplasContador) {
       const n = r.valor.length;
