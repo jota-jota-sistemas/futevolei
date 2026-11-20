@@ -55,12 +55,17 @@ const HTML_DUPLAS = `
         <button type="button" data-repetida-forcar>Forçar</button></div>
       <p data-erro-dupla></p>
     </form>
-    <p data-contagem-duplas></p><p data-aviso-chaveamento hidden></p><ul data-lista-duplas></ul>
+    <p data-contagem-duplas></p><button type="button" data-alternar-duplas hidden></button>
+    <p data-aviso-chaveamento hidden></p><ul data-lista-duplas></ul>
   </section>`;
 
-function montarDuplas(duplas: Pair[], bracket: unknown = null) {
+function montarDuplas(
+  duplas: Pair[],
+  bracket: unknown = null,
+  vinculos: Record<string, { jogadorAId: string | null; jogadorBId: string | null }> = {},
+) {
   document.body.innerHTML = HTML_DUPLAS;
-  const estado = { duplas, bracket: bracket as never, vinculos: {} as Record<string, never> };
+  const estado = { duplas, bracket: bracket as never, vinculos: vinculos as never };
   const aoMudar = vi.fn();
   const ctl = ligarDuplas({
     secao: q("#s"), store: store as unknown as BracketStore, ref: REF, estado,
@@ -161,6 +166,39 @@ describe("duplas", () => {
     montarDuplas([par("1", "Ana", "Bia")], { matches: [] });
     expect(document.querySelectorAll(".org__acao-linha")).toHaveLength(0);
     expect(q<HTMLElement>("[data-aviso-chaveamento]").hidden).toBe(false);
+  });
+  it("com chaveamento gerado, a lista começa recolhida e 'Ver lista' abre e fecha", () => {
+    montarDuplas([par("1", "Ana", "Bia"), par("2", "Caio", "Duda")], { matches: [] });
+    const lista = q<HTMLElement>("[data-lista-duplas]");
+    const botao = q<HTMLButtonElement>("[data-alternar-duplas]");
+    expect(lista.hidden).toBe(true);
+    expect(botao.hidden).toBe(false);
+    expect(botao.getAttribute("aria-expanded")).toBe("false");
+    botao.click();
+    expect(lista.hidden).toBe(false);
+    expect(botao.textContent).toBe("Recolher lista");
+    expect(nomesNaLista()).toEqual(["Ana & Bia", "Caio & Duda"]);
+    botao.click();
+    expect(lista.hidden).toBe(true);
+  });
+  it("sem chaveamento, a lista fica aberta e não há botão de recolher", () => {
+    montarDuplas([par("1", "Ana", "Bia")]);
+    expect(q<HTMLElement>("[data-lista-duplas]").hidden).toBe(false);
+    expect(q<HTMLButtonElement>("[data-alternar-duplas]").hidden).toBe(true);
+  });
+  it("vínculo com cadastro vira ícone com texto acessível, e a contagem soma os vinculados", () => {
+    montarDuplas([par("1", "Ana", "Bia"), par("2", "Caio", "Duda"), par("3", "Eva", "Fê")], null, {
+      "1": { jogadorAId: "j1", jogadorBId: "j2" },
+      "2": { jogadorAId: "j3", jogadorBId: null },
+    });
+    const icones = Array.from(document.querySelectorAll<HTMLElement>(".org__dupla-vinculo"));
+    expect(icones.map((i) => i.getAttribute("aria-label"))).toEqual([
+      "Vinculada ao cadastro",
+      "Parcialmente vinculada ao cadastro",
+    ]);
+    expect(q<HTMLElement>("[data-contagem-duplas]").textContent).toBe(
+      "3 duplas cadastradas. 2 vinculadas ao cadastro.",
+    );
   });
   it("editar corrige os atletas e não mexe nos vínculos quando o texto não mudou", async () => {
     const { estado } = montarDuplas([par("1", "Ana", "Bia")]);

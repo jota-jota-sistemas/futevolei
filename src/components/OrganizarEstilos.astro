@@ -6,71 +6,110 @@
 // é global. Mobile-first: alvos de toque de 44px, nada depende de hover.
 ---
 <style is:global>
-  /* Linha de dupla da lista (criada em runtime por scripts/organizar/duplas.ts). */
-  .org__dupla {
+  /* Lista de duplas (itens criados em runtime por scripts/organizar/duplas.ts).
+     Compacta: uma linha por dupla, em colunas, ordem alfabética descendo por
+     coluna. Vínculo com cadastro é um ícone; editar/remover são ícones. */
+  .org__duplas-topo {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 0.8rem;
-    padding: 0.6rem 0.8rem;
-    border: 1px solid var(--cor-borda);
-    border-radius: 10px;
-    background: var(--cor-fundo);
+    gap: 0.5rem 1rem;
   }
-
-  .org__dupla-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-  }
-
-  .org__dupla-nome {
-    font-weight: 700;
-  }
-
-  .org__dupla-atletas {
-    font-size: 0.85rem;
-    color: var(--cor-texto-suave);
-  }
-
-  .org__remover {
-    flex-shrink: 0;
-    padding: 0.4rem 0.8rem;
-    border: 1px solid var(--cor-borda);
-    border-radius: 999px;
-    font-size: 0.82rem;
-    font-weight: 600;
-    background: transparent;
-    color: #c0392b;
-    cursor: pointer;
-  }
-
-  .org__remover:hover {
-    border-color: #c0392b;
-  }
-  .org__dupla {
-    flex-wrap: wrap;
-  }
-  .org__dupla-acoes {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-  .org__acao-linha {
+  .org__duplas-alternar {
     min-height: 44px;
-    min-width: 44px;
-    padding: 0.4rem 0.9rem;
+    padding: 0.4rem 1rem;
     border: 1px solid var(--cor-borda);
     border-radius: 999px;
     font: inherit;
     font-size: 0.88rem;
-    font-weight: 600;
-    background: transparent;
+    font-weight: 700;
+    background: var(--cor-fundo);
     color: var(--cor-texto);
     cursor: pointer;
   }
+  .org__duplas {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    columns: 2;
+    column-gap: 0.6rem;
+  }
+  .org__duplas[hidden] {
+    display: none;
+  }
+  /* Editável no celular: 1 coluna, para os botões manterem 44px de toque. */
+  .org__duplas--editavel {
+    columns: 1;
+  }
+  @media (min-width: 641px) {
+    .org__duplas,
+    .org__duplas--editavel {
+      columns: 3;
+    }
+  }
+  .org__dupla {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 2.25rem;
+    margin: 0 0 0.35rem;
+    padding: 0.3rem 0.3rem 0.3rem 0.6rem;
+    border: 1px solid var(--cor-borda);
+    border-radius: 8px;
+    background: var(--cor-fundo);
+    font-size: 0.9rem;
+    break-inside: avoid;
+  }
+  /* Nome e ícone no mesmo fluxo de texto: se o nome quebrar, o ícone fica
+     logo depois da última palavra (não na borda do cartão). */
+  .org__dupla-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .org__dupla-nome {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .org__dupla-vinculo {
+    display: inline-flex;
+    margin-left: 0.35rem;
+    vertical-align: -0.1em;
+    color: var(--cor-destaque-texto);
+  }
+  .org__dupla-vinculo--parcial {
+    opacity: 0.45;
+  }
+  .org__dupla-acoes {
+    flex: none;
+    display: flex;
+    gap: 0.15rem;
+  }
+  .org__acao-linha {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 1rem;
+    background: transparent;
+    color: var(--cor-texto-suave);
+    cursor: pointer;
+  }
+  .org__acao-linha:hover {
+    background: var(--cor-superficie);
+    color: var(--cor-texto);
+  }
   .org__acao-linha.org__remover {
     color: #c0392b;
+  }
+  /* Com mouse, alvos menores deixam a linha mais baixa. */
+  @media (pointer: fine) {
+    .org__acao-linha {
+      min-height: 2rem;
+      min-width: 2rem;
+    }
   }
   .org__dupla--editando {
     display: block;
